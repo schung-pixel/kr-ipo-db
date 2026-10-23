@@ -81,5 +81,7 @@ jobs:
             echo "변경 없음"
           else
             git commit -m "data: $(date -u +%Y-%m-%d) 수집분 반영"
+            # 실행 중에 코드 커밋이 올라온 경우를 대비해 최신 main 위에 얹어서 올립니다.
+            git pull --rebase -X theirs origin main || { git rebase --abort; echo "원격 변경과 충돌: 다음 실행에서 다시 수집합니다."; exit 0; }
             git push
           fi
