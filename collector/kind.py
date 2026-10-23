@@ -200,6 +200,12 @@ def fetch(session=None, today: date | None = None, lookback_days: int = 400, tim
         "fromDate": (today - timedelta(days=lookback_days)).isoformat(), "toDate": today.isoformat(),
     }
     headers = {"User-Agent": USER_AGENT, "Referer": f"{BASE}/{PATH}?method=searchListInvstgCorpMain"}
+    if session is None:   # 목록 화면을 먼저 열어 세션 쿠키를 받습니다.
+        try:
+            s.get(f"{BASE}/{PATH}", params={"method": "searchListInvstgCorpMain"},
+                  headers={"User-Agent": USER_AGENT}, timeout=timeout)
+        except Exception:
+            pass
     resp = s.post(f"{BASE}/{PATH}", data=data, headers=headers, timeout=timeout)
     resp.raise_for_status()
     resp.encoding = resp.encoding or "utf-8"

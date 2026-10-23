@@ -49,25 +49,47 @@ def cmd_report(conn) -> None:
 
 
 def cmd_kind(conn, args) -> None:
-    """KIND 실패는 수집 전체를 멈추지 않습니다(경고만 남기고 수동 파일·기존 값으로 진행)."""
+    """KIND 실패는 수집 전체를 멈추지 않습니다(경고만 남기고 수동 파일·기존 값으로 진행).
+
+    결과는 data/kind/_status.json에, 표를 못 읽은 응답 원문은 data/kind/_last_response.html에 남겨
+    Actions 로그 없이도 저장소에서 원인을 확인할 수 있게 합니다.
+    """
+    import json
     from . import kind
     now = now_kst().replace(microsecond=0).isoformat()
     folder = Path("data/kind")
+    status = {"run_at": now, "fetch": "skipped" if args.no_fetch else None}
     if not args.no_fetch:
         try:
             rows, html = kind.fetch(today=now_kst().date())
+            status.update(http_status=200, response_bytes=len(html.encode("utf-8")), rows=len(rows))
             if rows:
                 n = kind.save_rows(conn, rows, "kind", now)
                 store.set_meta(conn, "kind_as_of", now[:10])
-                print(f"KIND 예비심사 {n}건 반영 (승인 {sum(kind.is_approved(r) for r in rows)}건)")
+                ap = sum(kind.is_approved(r) for r in rows)
+                status.update(fetch="ok", saved=n, approved=ap)
+                print(f"KIND 예비심사 {n}건 반영 (승인 {ap}건)")
             else:
                 p = kind.dump_debug(html, folder)
+                status.update(fetch="no_table", dump=str(p))
                 print(f"주의: KIND 응답에서 표를 읽지 못했습니다. 원문을 {p}에 저장했습니다.")
         except Exception as exc:   # 네트워크·차단 등
-            print(f"주의: KIND 조회 실패({type(exc).__name__}). 수동 파일과 기존 값으로 진행합니다.")
+            resp = getattr(exc, "response", None)
+            status.update(fetch="error", error=type(exc).__name__, message=str(exc)[:300])
+            if resp is not None:
+                status.update(http_status=resp.status_code, response_bytes=len(resp.content or b""))
+                try:
+                    status["dump"] = str(kind.dump_debug(resp.text, folder))
+                except Exception:
+                    pass
+            print(f"주의: KIND 조회 실패({type(exc).__name__}: {str(exc)[:200]}). 수동 파일과 기존 값으로 진행합니다.")
     if folder.exists():
-        if kind.load_manual(conn, folder, now):
+        m = kind.load_manual(conn, folder, now)
+        status["manual_rows"] = m
+        if m:
             store.set_meta(conn, "kind_as_of", store.get_meta(conn, "kind_as_of") or now[:10])
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "_status.json").write_text(json.dumps(status, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     conn.commit()
     store.export_sql(conn, args.sql)
     changed = webexport.export_json(conn, args.json, now)

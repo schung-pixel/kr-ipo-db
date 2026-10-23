@@ -6,4 +6,3 @@ __pycache__/
 data/*.db
 data/*.db-journal
 
-data/kind/_last_response.html
