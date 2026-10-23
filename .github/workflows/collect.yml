@@ -5,7 +5,7 @@ on:
     - cron: "30 9 * * 1-5"   # UTC 09:30 = KST 18:30, 평일 (DART 당일 접수분 반영 후)
   push:                       # 수집기·워크플로를 고치면 바로 한 번 돌려 확인
     branches: [main]
-    paths: ["collector/**", ".github/workflows/**"]
+    paths: ["collector/**", ".github/workflows/**", "data/backfill.json"]
   workflow_dispatch:
     inputs:
       mode:
@@ -34,7 +34,7 @@ concurrency:
 jobs:
   collect:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
 
@@ -67,6 +67,30 @@ jobs:
           else
             python -m collector.run daily "${args[@]}"
           fi
+
+      - name: 과거 구간 수집 (data/backfill.json, 구간마다 커밋)
+        env:
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+        run: |
+          git config user.name "ipo-db-bot"
+          git config user.email "ipo-db-bot@users.noreply.github.com"
+          start=$(date +%s)
+          # 한 구간이 최대 1시간 남짓 걸리므로 시작 후 4시간 30분까지만 새 구간을 시작합니다.
+          while [ $(( $(date +%s) - start )) -lt 16200 ]; do
+            set +e
+            python -m collector.run queue
+            rc=$?
+            set -e
+            if [ "$rc" = "3" ]; then echo "남은 과거 구간 없음"; break; fi
+            if [ "$rc" != "0" ] && [ "$rc" != "4" ]; then echo "구간 수집 오류(rc=$rc)"; break; fi
+            git add data/ipo.sql docs/data/deals.json data/backfill.json
+            if ! git diff --cached --quiet; then
+              git commit -q -m "data: 과거 구간 수집 진행분"
+              git pull --rebase -X theirs origin main || { git rebase --abort; break; }
+              git push
+            fi
+            if [ "$rc" = "4" ]; then echo "DART 한도 도달: 다음 실행에서 재개"; break; fi
+          done
 
       - name: KIND 상장예비심사 현황 (실패해도 계속)
         continue-on-error: true

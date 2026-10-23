@@ -96,6 +96,39 @@ def cmd_kind(conn, args) -> None:
     print(f"{args.json} {'갱신' if changed else '변경 없음'}")
 
 
+def cmd_queue(conn, args) -> int:
+    """과거 구간 대기열(data/backfill.json)을 시간 예산 안에서 한 구간 처리합니다.
+
+    종료 코드: 0 = 한 구간 완료(남은 구간 있을 수 있음), 3 = 남은 구간 없음, 4 = DART 일일 한도 도달.
+    구간마다 덤프·JSON을 갱신하므로 워크플로가 구간 단위로 커밋할 수 있습니다.
+    """
+    import json
+    qpath = Path(args.file)
+    if not qpath.exists():
+        return 3
+    q = json.loads(qpath.read_text(encoding="utf-8"))
+    pending = [r for r in q.get("ranges", []) if not r.get("done")]
+    if not pending:
+        return 3
+    r = pending[0]
+    stats = collect(_client(), conn, date.fromisoformat(r["from"]), date.fromisoformat(r["to"]),
+                    max_docs=args.max_docs)
+    store.export_sql(conn, args.sql)
+    webexport.export_json(conn, "docs/data/deals.json", now_kst().replace(microsecond=0).isoformat())
+    r["runs"] = r.get("runs", 0) + 1
+    r["last_run"] = now_kst().replace(microsecond=0).isoformat()
+    r["last_stats"] = {k: v for k, v in stats.items() if k != "unknown_groups"}
+    if stats["quota_hit"]:
+        qpath.write_text(json.dumps(q, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        print(f"{r['from']} ~ {r['to']}: DART 일일 한도 도달, 다음 실행에서 이어서 처리합니다.")
+        return 4
+    r["done"] = True
+    qpath.write_text(json.dumps(q, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    left = sum(1 for x in q["ranges"] if not x.get("done"))
+    print(f"{r['from']} ~ {r['to']} 완료 (남은 구간 {left}개): {r['last_stats']}")
+    return 0
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="collector")
     p.add_argument("--db", default="data/ipo.db")
@@ -119,6 +152,9 @@ def main(argv=None) -> int:
     k = sub.add_parser("kind", help="KIND 상장예비심사 현황 수집(+ data/kind/ 수동 파일) 후 덤프·JSON 갱신")
     k.add_argument("--no-fetch", action="store_true", help="KIND 호출 없이 수동 파일만 반영")
     k.add_argument("--json", default="docs/data/deals.json")
+    qq = sub.add_parser("queue", help="data/backfill.json의 다음 과거 구간 한 개를 수집")
+    qq.add_argument("--file", default="data/backfill.json")
+    qq.add_argument("--max-docs", type=int)
     sub.add_parser("report")
     args = p.parse_args(argv)
 
@@ -137,6 +173,8 @@ def main(argv=None) -> int:
             print(f"{args.db} → {args.sql} 내보내기 완료")
         elif args.cmd == "report":
             cmd_report(conn)
+        elif args.cmd == "queue":
+            return cmd_queue(conn, args)
         elif args.cmd == "kind":
             cmd_kind(conn, args)
         elif args.cmd == "export-json":
