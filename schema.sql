@@ -136,6 +136,8 @@ CREATE TABLE IF NOT EXISTS ipo_deal (
   subscription_raw   TEXT,
   payment_raw        TEXT,
   listing_dt         TEXT,
+  demand_start       TEXT,               -- 수요예측 시작일 (원문 공모일정)
+  demand_end         TEXT,               -- 수요예측 종료일
   updated_at         TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_deal_corp ON ipo_deal (corp_code);
@@ -159,6 +161,18 @@ CREATE TABLE IF NOT EXISTS doc_price (
   inst_evidence   TEXT,
   parser_version  INTEGER,
   fetched_at      TEXT
+);
+
+-- 증권신고서(발행조건확정 이전 최신본) 원문의 공모일정에서 추출한 수요예측 기일
+CREATE TABLE IF NOT EXISTS doc_schedule (
+  rcept_no         TEXT PRIMARY KEY,
+  corp_code        TEXT NOT NULL,
+  demand_start     TEXT,
+  demand_end       TEXT,
+  demand_evidence  TEXT,
+  status           TEXT,         -- ok / no_match
+  parser_version   INTEGER,
+  fetched_at       TEXT
 );
 
 -- 증권발행실적보고서 원문에서 추출한 상장일·일반청약 결과

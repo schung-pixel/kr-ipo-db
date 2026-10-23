@@ -99,6 +99,8 @@ def collect(client, conn, bgn: date, end: date, max_corps: int | None = None,
                     parsed = doctext.extract_prices(text)
                     if is_fixed:
                         parsed.update(doctext.extract_demand(text), parser_version=doctext.PARSER_VERSION)
+                    else:   # 확정 전 신고서는 같은 원문에서 수요예측 기일도 읽어 둡니다(추가 조회 없음).
+                        store.save_doc_schedule(conn, rcept_no, corp, doctext.extract_schedule(text), now)
                 except DartQuotaExceeded:
                     stats["quota_hit"] = True
                     log("DART 일일 요청 한도 도달: 남은 원문은 다음 실행에서 이어서 처리합니다.")
@@ -124,6 +126,40 @@ def collect(client, conn, bgn: date, end: date, max_corps: int | None = None,
             if not is_fixed or (row["status"] == "ok" and row["final_price"]):
                 break
     if stats["docs"] or refetch_docs:
+        store.rebuild_deals(conn, now)
+        conn.commit()
+
+    # 3-2b) 확정 전 신고서 원문의 공모일정에서 수요예측 기일
+    n_sched = 0
+    for corp, rcepts in store.schedule_plan(conn):
+        if stats["quota_hit"] or (budget is not None and budget <= 0):
+            break
+        for rcept_no in rcepts:
+            try:
+                parsed = doctext.extract_schedule(doctext.to_text(client.document(rcept_no)))
+            except DartQuotaExceeded:
+                stats["quota_hit"] = True
+                log("DART 일일 요청 한도 도달: 남은 원문은 다음 실행에서 이어서 처리합니다.")
+                break
+            except DartError as exc:
+                if exc.status in FATAL_STATUS:
+                    raise
+                stats["errors"] += 1
+                log(f"원문 조회 오류({rcept_no}): {exc}")
+                break
+            except Exception as exc:
+                stats["errors"] += 1
+                log(f"원문 처리 오류({rcept_no}): {type(exc).__name__}")
+                break
+            store.save_doc_schedule(conn, rcept_no, corp, parsed, now)
+            conn.commit()
+            n_sched += 1
+            if budget is not None:
+                budget -= 1
+            if parsed["status"] == "ok":
+                break
+    stats["schedules"] = n_sched
+    if n_sched:
         store.rebuild_deals(conn, now)
         conn.commit()
 

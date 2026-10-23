@@ -187,3 +187,34 @@ def extract_result(text: str) -> dict:
             else:
                 out["retail_evidence"] += " (청약수량이 금액과 맞지 않아 비움)"
     return out
+
+
+# ---------------------------------------------------------------- 수요예측 기일
+# 증권신고서(정정 포함) '공모일정' 표: "수요예측 일시 | [국내 |] 2025년 04월 17일(목) ~ [2025년] 04월 23일(수)".
+# [발행조건확정] 신고서에는 이 표가 없으므로 확정 직전의 신고서에서 읽습니다.
+SCHEDULE_VERSION = 1
+_DATE = r"(\d{4})\s*(?:년|[.\-/])\s*(\d{1,2})\s*(?:월|[.\-/])\s*(\d{1,2})\s*일?"
+_DEMAND = re.compile(
+    r"수요\s*예측\s*(?:일시|일자|기간|기일|일정|일)\s*(?:\([^)]{0,10}\))?\s*\|(?:\s*국내\s*\|)?\s*" + _DATE +
+    r"(?:\s*\([^)]{0,4}\))?(?:\s*[~∼～\-–]\s*(?:(\d{4})\s*(?:년|[.\-/])\s*)?(\d{1,2})\s*(?:월|[.\-/])\s*(\d{1,2})\s*일?)?")
+
+
+def extract_schedule(text: str) -> dict:
+    """수요예측 시작·종료일. 못 찾으면 None 값과 status=no_match."""
+    from datetime import date
+    for m in _DEMAND.finditer(text):
+        y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        try:
+            start = date(y, mo, d)
+            if m.group(5):
+                ey = int(m.group(4)) if m.group(4) else (y + 1 if int(m.group(5)) < mo else y)
+                end = date(ey, int(m.group(5)), int(m.group(6)))
+            else:
+                end = start
+        except ValueError:
+            continue
+        if not (0 <= (end - start).days <= 31):
+            continue
+        return {"demand_start": start.isoformat(), "demand_end": end.isoformat(),
+                "demand_evidence": _evidence(text, m), "status": "ok"}
+    return {"demand_start": None, "demand_end": None, "demand_evidence": None, "status": "no_match"}

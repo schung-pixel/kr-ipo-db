@@ -78,6 +78,9 @@ DOCS = {
                       "<P>3. 모집 또는 매출금액 : 금\n9,900,000,000원</P><P>주당 모집(매출)가액은 대표주관회사와 협의하여 제시한 공모희망가액인 "
                       "5,000원~6,500원 중 최저가액인 5,000원 기준입니다.</P>"
                       "<P>1주당 확정공모가액을\n5,500원으로 최종 결정하였습니다. 확정공모가액 5,500원 기준입니다.</P></BODY>",
+    # 확정 직전 기재정정: 공모일정 표의 수요예측 일시 (발행조건확정 신고서에는 이 표가 없음)
+    "20250318000002": "<TABLE><TR><TD>수요예측 일시</TD><TD>국내</TD><TD>2025년 03월 19일(수) ~ 03월 24일(월)</TD></TR></TABLE>"
+                      "<P>공모희망가액인 5,000원~6,500원</P>",
 }
 
 
@@ -284,11 +287,21 @@ class PipelineTests(unittest.TestCase):
         e = doctext.extract_prices("공모희망가액 10,000원~12,000원, 공모희망가액 9,000원~11,000원, 공모희망가액 9,000원~11,000원")
         self.assertEqual((e["band_low"], e["n_values"]), (9000, 2))   # 최빈값 채택, 불일치는 검수 표시
 
+    def test_schedule_patterns(self):
+        ex = doctext.extract_schedule
+        self.assertEqual(ex("수요예측일 | 2025.09.16(화) ~ 2025.09.17(수) | 2일간")["demand_end"], "2025-09-17")
+        r = ex("수요예측 일시 | 2026년 12월 30일(수) ~ 01월 05일(화) |")
+        self.assertEqual((r["demand_start"], r["demand_end"]), ("2026-12-30", "2027-01-05"))   # 연도 넘김
+        self.assertEqual(ex("수요예측 일시 | 2025년 07월 03일(목) | 주1)")["demand_end"], "2025-07-03")
+        self.assertEqual(ex("수요예측일 현재 한국금융투자협회 홈페이지에 2025년 1월 21일")["status"], "no_match")
+
     def test_doc_phase_idempotent_and_quota(self):
         client = FakeClient()
         run(self.conn, client)
         first = client.doc_calls
-        self.assertEqual(first, 2)                        # 후보 2건(에이바이오, 씨철회)의 대상 문서
+        self.assertEqual(first, 3)                        # 후보 2건의 대상 문서 + 에이바이오 확정 전 신고서(수요예측 기일)
+        a = self.deal("00000001")
+        self.assertEqual((a["demand_start"], a["demand_end"]), ("2025-03-19", "2025-03-24"))
         status = {r["rcept_no"]: r["status"] for r in self.conn.execute("SELECT * FROM doc_price")}
         self.assertEqual(status, {"20250325000003": "ok", "20250502000005": "no_match"})
         run(self.conn, client)
@@ -315,7 +328,7 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(a["final_price"], 5500)                      # 이전 확정 건 원문에서 추출
         self.assertEqual((a["offer_price_low"], a["offer_price_high"]), (5000, 6500))
         self.assertEqual(a["doc_signal"], 1)
-        self.assertEqual(client.doc_calls, 3)                         # 마지막 건(실패) → 이전 건(성공), 씨철회 1건
+        self.assertEqual(client.doc_calls, 4)                         # 마지막 건(실패) → 이전 건(성공), 씨철회 1건, 수요예측 기일 1건
         src = {r["field_name"]: r for r in self.conn.execute(
             "SELECT * FROM field_source WHERE deal_id=?", (a["deal_id"],))}
         self.assertEqual(src["final_price"]["rcept_no"], "20250325000003")
@@ -323,7 +336,7 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(c["doc_signal"], 0)
         self.assertIn("문구 없음", c["ipo_basis"])
         run(self.conn, client)
-        self.assertEqual(client.doc_calls, 3)                         # 재실행 시 추가 조회 없음
+        self.assertEqual(client.doc_calls, 4)                         # 재실행 시 추가 조회 없음
 
     def test_amount_mismatch_uses_computed(self):
         # 머리말 금액(5,000원×주식수가 아닌 정정 전 값)이 어긋나면 확정가×주식수로 계산합니다.

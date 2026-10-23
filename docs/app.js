@@ -147,6 +147,13 @@
     var s = (d.sources || []).filter(function (x) { return x.field_name === field; })[0];
     return s ? s.method : null;
   }
+  // 수요예측 기일: short=true면 "10.28~11.03", 아니면 "2026-10-28 ~ 11-03"
+  function demandText(d, short) {
+    var a = d.demand_start, b = d.demand_end;
+    if (!a) return "";
+    if (short) return a.slice(5).replace("-", ".") + (b && b !== a ? "~" + b.slice(5).replace("-", ".") : "");
+    return a + (b && b !== a ? " ~ " + (b.slice(0, 4) === a.slice(0, 4) ? b.slice(5) : b) : "");
+  }
   function pricingDate(d) {
     var no = d.fixed_rcept_no;
     return no ? no.slice(0, 4) + "-" + no.slice(4, 6) + "-" + no.slice(6, 8) : null;
@@ -331,7 +338,7 @@
       var bandCell = d.offer_price_low ? bandText(d) : (d.filed_price ? '<span class="dim" title="신고서 기재 기준가">' + int(d.filed_price) + "*</span>" : "-");
       var href = "#/deal/" + encodeURIComponent(d.deal_id);
       html += '<tr data-id="' + esc(d.deal_id) + '">' +
-        '<td class="c-date">' + (d.listing_dt ? esc(d.listing_dt) : '<span class="dim">' + (d.status === "approved" ? "승인 " : "신고 ") + esc(d.first_filing_dt) + "</span>") + "</td>" +
+        '<td class="c-date">' + (d.listing_dt ? esc(d.listing_dt) : d.demand_start && d.status !== "withdrawn" ? '<span class="dim">수요예측 </span>' + esc(demandText(d, true)) : '<span class="dim">' + (d.status === "approved" ? "승인 " : "신고 ") + esc(d.first_filing_dt) + "</span>") + "</td>" +
         '<td class="c-name"><a class="nm" href="' + href + '">' + highlight(name(d), q) + "</a>" + tags + "</td>" +
         '<td class="c-lead" title="' + esc(d.lead_underwriters || "") + '">' + (d.lead_underwriters ? highlight(d.lead_underwriters, q) : '<span class="dim">-</span>') + "</td>" +
         '<td class="c-status">' + chip(d) + "</td>" +
@@ -347,7 +354,7 @@
         : '<span class="lbl">밴드</span><span class="b">' + bandCell + "</span>";
       cards += '<a class="card" href="' + href + '" data-id="' + esc(d.deal_id) + '">' +
         '<div class="r1"><span class="nm">' + highlight(name(d), q) + tags + "</span>" + chip(d) + "</div>" +
-        '<div class="r2">' + (d.listing_dt ? '상장 <span class="mono">' + esc(d.listing_dt) + "</span>" : (d.status === "approved" ? "예심 승인 " : "신고 ") + '<span class="mono">' + esc(d.first_filing_dt) + "</span>") + " · " + (d.lead_underwriters ? highlight(d.lead_underwriters, q) : "주관사 미확인") + "</div>" +
+        '<div class="r2">' + (d.listing_dt ? '상장 <span class="mono">' + esc(d.listing_dt) + "</span>" : d.demand_start && d.status !== "withdrawn" ? '수요예측 <span class="mono">' + esc(demandText(d, true)) + "</span>" : (d.status === "approved" ? "예심 승인 " : "신고 ") + '<span class="mono">' + esc(d.first_filing_dt) + "</span>") + " · " + (d.lead_underwriters ? highlight(d.lead_underwriters, q) : "주관사 미확인") + "</div>" +
         '<div class="r3"><span class="price">' + price + '</span><span class="amt">' + (d.offer_amount != null ? eok(d.offer_amount) + "억" : "") + "</span></div>" +
         (d.inst_demand_ratio != null || d.retail_ratio != null
           ? '<div class="r4">' + (d.inst_demand_ratio != null ? "<span>수요예측<b>" + ratio(d.inst_demand_ratio) + "</b></span>" : "") +
@@ -456,6 +463,7 @@
     titleEl.textContent = name(d);
     chipEl.innerHTML = chip(d) + (isSpac(d) ? '<span class="tag">스팩</span>' : "") + refileTag(d);
     subEl.textContent = d.status === "approved" ? "예심 승인 " + (d.first_filing_dt || "-") + (d.market ? " · " + d.market : "") + (d.lead_underwriters ? " · " + d.lead_underwriters : "") : (d.listing_dt ? "상장" + (d.listing_dt > asOf() ? " 예정" : "") + " " + d.listing_dt + " · " : "") + "최초 신고 " + d.first_filing_dt +
+      (d.demand_start ? " · 수요예측 " + demandText(d) : "") +
       (pricingDate(d) ? " · 확정 " + pricingDate(d) : "") + " · 정정 " + (d.amendment_count || 0) + "회";
     document.getElementById("sheet-pos").textContent = idx >= 0 ? (idx + 1) + " / " + list.length : "";
     var pb = document.getElementById("s-prev"), nb = document.getElementById("s-next");
@@ -495,7 +503,7 @@
     html += '<div class="terms">' +
       term("확정 공모가", d.final_price ? int(d.final_price) + "<small>원</small>" : '<span class="dim">' + (d.status === "price_fixed" ? "확인 필요" : "미확정") + "</span>", p ? pill(p) : "", d.final_price ? "hl" : "") +
       term("희망 밴드", d.offer_price_low ? bandText(d) + "<small>원</small>" : "-", d.offer_price_low && d.offer_price_low === d.offer_price_high ? "단일 희망가" : "") +
-      term("수요예측 경쟁률", d.inst_demand_ratio != null ? ratio(d.inst_demand_ratio, 2) : '<span class="dim">-</span>', d.inst_demand_count ? int(d.inst_demand_count) + "건 참여" : "") +
+      term("수요예측 경쟁률", d.inst_demand_ratio != null ? ratio(d.inst_demand_ratio, 2) : '<span class="dim">-</span>', [demandText(d, true), d.inst_demand_count ? int(d.inst_demand_count) + "건 참여" : ""].filter(Boolean).join(" · ")) +
       term("일반청약 경쟁률", d.retail_ratio != null ? ratio(d.retail_ratio, 2) : '<span class="dim">-</span>', d.retail_count ? int(d.retail_count) + "건" : "") +
       term("상장일", d.listing_dt ? esc(d.listing_dt) : '<span class="dim">-</span>', d.listing_dt && d.listing_dt > asOf() ? "예정" : "") +
       term(amtLabel, d.offer_amount != null ? eok(d.offer_amount) + "<small>억원</small>" : "-") +
@@ -506,6 +514,7 @@
 
     html += section("일정·기타", '<dl class="kv">' +
       (d.prelim ? "<dt>예심 청구일</dt><dd>" + esc(d.prelim.filed_dt || "-") + "</dd><dt>예심 승인일</dt><dd>" + esc(d.prelim.decided_dt || "-") + (d.prelim.result ? ' <span class="dim">(' + esc(d.prelim.result) + ")</span>" : "") + "</dd>" : "") +
+      "<dt>수요예측 기일</dt><dd>" + esc(demandText(d) || "-") + "</dd>" +
       "<dt>청약기일</dt><dd>" + esc(d.subscription_raw || "-") + "</dd>" +
       "<dt>납입기일</dt><dd>" + esc(d.payment_raw || "-") + "</dd>" +
       "<dt>신고서 기재 기준가</dt><dd>" + (d.filed_price != null ? int(d.filed_price) + "원 <span class=\"dim\">(밴드 하단 기준)</span>" : "-") + "</dd>" +

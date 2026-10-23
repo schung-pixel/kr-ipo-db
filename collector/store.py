@@ -34,7 +34,8 @@ ADDED_COLUMNS = {"doc_price": [("header_amount", "INTEGER"), ("header_shares", "
                               ("estk_before_fixing", "INTEGER"), ("fixed_rcept_no", "TEXT"),
                               ("doc_signal", "INTEGER"), ("result_rcept_no", "TEXT"),
                               ("inst_demand_ratio", "REAL"), ("inst_demand_count", "INTEGER"),
-                              ("retail_ratio", "REAL"), ("retail_count", "INTEGER")]}
+                              ("retail_ratio", "REAL"), ("retail_count", "INTEGER"),
+                              ("demand_start", "TEXT"), ("demand_end", "TEXT")]}
 
 
 def _ensure_columns(conn) -> None:
@@ -290,6 +291,15 @@ def rebuild_deals(conn, now: str) -> int:
             inst_ratio, inst_count = r["inst_ratio"], r["inst_count"]
             ev_inst = (inst_f["rcept_no"], r["inst_evidence"])
 
+        # 수요예측 기일: 발행조건확정 이전 신고서 중 가장 최근에 읽힌 값
+        demand_start = demand_end = ev_demand = None
+        for f in reversed([f for f in fl if not f["is_price_fixed"]]):
+            ds = conn.execute("SELECT * FROM doc_schedule WHERE rcept_no=? AND status='ok'", (f["rcept_no"],)).fetchone()
+            if ds:
+                demand_start, demand_end = ds["demand_start"], ds["demand_end"]
+                ev_demand = (f["rcept_no"], ds["demand_evidence"])
+                break
+
         # 증권발행실적보고서: 상장일·일반청약 (정정본이 있으면 가장 최근 보고서)
         results = [f for f in span if f["doc_kind"] == "result"]
         result_no = results[-1]["rcept_no"] if results else None
@@ -387,6 +397,7 @@ def rebuild_deals(conn, now: str) -> int:
             "secondary_shares": secondary, "offer_amount": amount,
             "lead_underwriters": lead, "co_underwriters": co,
             "subscription_raw": subs, "payment_raw": pay, "listing_dt": listing_dt,
+            "demand_start": demand_start, "demand_end": demand_end,
             "result_rcept_no": result_no, "inst_demand_ratio": inst_ratio,
             "inst_demand_count": inst_count, "retail_ratio": retail_ratio,
             "retail_count": retail_count, "updated_at": now,
@@ -415,6 +426,7 @@ def rebuild_deals(conn, now: str) -> int:
             ("ipo_deal", "inst_demand_ratio", inst_ratio, ev_inst, "원문(수요예측 결과)", "DOC"),
             ("ipo_deal", "retail_ratio", retail_ratio, ev_retail, "원문(청약 및 배정현황)", "DOC"),
             ("ipo_deal", "listing_dt", listing_dt, ev_list, "원문(증권교부일 등)", "DOC"),
+            ("ipo_deal", "demand_start", demand_start, ev_demand, "원문(공모일정)", "DOC"),
         ])
     # 최초 신고서가 뒤늦게 확인되어 딜 식별자가 바뀐 경우 이전(고아) 딜을 정리합니다.
     stale = [r["deal_id"] for r in conn.execute("SELECT deal_id FROM ipo_deal")
@@ -462,6 +474,36 @@ def doc_plan(conn) -> list:
         fixed = [f["rcept_no"] for f in reversed(fl) if f["is_price_fixed"]]
         plan.append((fl[0]["corp_code"], fixed or [fl[-1]["rcept_no"]], bool(fixed)))
     return plan
+
+
+def schedule_plan(conn) -> list:
+    """수요예측 기일 추출 계획: [(corp_code, [rcept_no, ...])]. 후보 딜마다 발행조건확정 이전 신고서를
+    최근 것부터 최대 3건, 이미 값이 읽힌 딜이나 시도가 끝난 접수번호는 건너뜁니다."""
+    from .doctext import SCHEDULE_VERSION
+    done = {r["rcept_no"]: r for r in conn.execute("SELECT rcept_no, status, parser_version FROM doc_schedule")}
+    cands = {r["deal_id"]: r["first_filing_dt"] for r in conn.execute(
+        "SELECT deal_id, first_filing_dt FROM ipo_deal WHERE is_ipo_candidate=1")}
+    plan = []
+    for deal_id, fl in sorted(group_deals(conn).items(), key=lambda kv: cands.get(kv[0], ""), reverse=True):
+        if deal_id not in cands:
+            continue
+        pre = [f["rcept_no"] for f in reversed(fl) if not f["is_price_fixed"]][:3]
+        fresh = lambda no: no in done and (done[no]["parser_version"] or 0) >= SCHEDULE_VERSION
+        if any(fresh(no) and done[no]["status"] == "ok" for no in pre):
+            continue
+        todo = [no for no in pre if not fresh(no)]
+        if todo:
+            plan.append((fl[0]["corp_code"], todo))
+    return plan
+
+
+def save_doc_schedule(conn, rcept_no: str, corp_code: str, parsed: dict, now: str) -> None:
+    from .doctext import SCHEDULE_VERSION
+    upsert(conn, "doc_schedule", "rcept_no", {
+        "rcept_no": rcept_no, "corp_code": corp_code, "demand_start": parsed["demand_start"],
+        "demand_end": parsed["demand_end"], "demand_evidence": parsed["demand_evidence"],
+        "status": parsed["status"], "parser_version": SCHEDULE_VERSION, "fetched_at": now},
+        volatile=("fetched_at",))
 
 
 def result_plan(conn) -> list:

@@ -18,7 +18,7 @@ DEAL_FIELDS = (
     "listing_type", "market", "offer_price_low", "offer_price_high", "filed_price",
     "estk_rcept_no", "estk_before_fixing", "fixed_rcept_no", "doc_signal", "final_price", "shares_offered",
     "secondary_shares", "offer_amount", "lead_underwriters", "co_underwriters",
-    "subscription_raw", "payment_raw", "listing_dt", "result_rcept_no", "inst_demand_ratio",
+    "subscription_raw", "payment_raw", "listing_dt", "demand_start", "demand_end", "result_rcept_no", "inst_demand_ratio",
     "inst_demand_count", "retail_ratio", "retail_count",
 )
 
