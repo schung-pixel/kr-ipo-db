@@ -6,8 +6,10 @@
 화면 호출 규칙은 같은 계열 KIND 화면(공모기업 진행현황 pubofrprogcom.do → searchPubofrProgComSub /
 pubofrprogcom_sub, 신규상장 listingcompany.do → searchListingTypeSub / listingtype_sub)과 같다고 보고
 예비심사 화면(listinvstgcom.do)을 searchListInvstgCorpSub / listinvstgcom_sub로 부릅니다.
-이 수집 환경에서는 KIND 접속이 막혀 실제 응답으로 검증하지 못했으므로, 표의 열은 이름 키워드로 찾고
-행을 하나도 못 읽으면 원문을 저장해 원인을 확인할 수 있게 합니다.
+2026-10-24 GitHub Actions에서 실제 응답(140건)으로 확인했습니다. 응답 표는 머리글 칸이 비어 있고 열 순서가
+table summary 속성에만 있으며(회사명, 상장유형, 청구일, 결과확정일, 심사결과, 상장주선인), 시장은 아이콘 alt로만
+나옵니다. 심사결과 표기는 '심사 승인', '상장 승인', '청구서 접수', '심사 철회' 등입니다.
+행을 하나도 못 읽으면 원문을 data/kind/_last_response.html에 저장합니다.
 
 수동 보완: KIND 화면에서 내려받은 엑셀(.xls는 HTML 표, .xlsx, .csv)을 data/kind/ 에 두면 함께 읽습니다.
 """
@@ -43,12 +45,16 @@ class _TableParser(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.tables, self._t, self._row, self._cell, self._in_cell = [], None, None, None, False
+        self.summaries, self.alts, self._talts, self._ralts = [], [], None, None
 
     def handle_starttag(self, tag, attrs):
         if tag == "table":
-            self._t = []
+            self._t, self._talts = [], []
+            self._summary = dict(attrs).get("summary") or ""
         elif tag == "tr" and self._t is not None:
-            self._row = []
+            self._row, self._ralts = [], []
+        elif tag == "img" and self._ralts is not None and dict(attrs).get("alt"):
+            self._ralts.append(dict(attrs)["alt"].strip())   # KIND는 시장 구분을 아이콘 alt로만 표시
         elif tag in ("td", "th") and self._row is not None:
             self._cell, self._in_cell = [], True
             title = dict(attrs).get("title")
@@ -64,10 +70,13 @@ class _TableParser(HTMLParser):
         elif tag == "tr" and self._t is not None and self._row is not None:
             if self._row:
                 self._t.append(self._row)
-            self._row = None
+                self._talts.append(self._ralts or [])
+            self._row, self._ralts = None, None
         elif tag == "table" and self._t is not None:
             self.tables.append(self._t)
-            self._t = None
+            self.alts.append(self._talts)
+            self.summaries.append(self._summary)
+            self._t, self._talts = None, None
 
     def handle_data(self, data):
         if self._in_cell and self._cell is not None:
@@ -107,13 +116,23 @@ def _iso(s: str) -> str | None:
     return f"{int(m.group(1)):04d}-{int(m.group(2)):02d}-{int(m.group(3)):02d}" if m else None
 
 
-def parse_rows(rows: list) -> list:
-    """머리글 행을 찾아 dict 목록으로 바꿉니다. 회사명 열이 없으면 빈 목록."""
+def _sponsor(s: str) -> str | None:
+    names = [CORP_FORM.sub("", x).strip() for x in re.split(r"\s*,\s*", s or "")]
+    return ", ".join(n for n in names if n) or None
+
+
+MARKETS = ("코스닥", "유가증권", "코넥스", "KOSDAQ", "KOSPI", "KONEX")
+
+
+def parse_rows(rows: list, alts: list | None = None) -> list:
+    """머리글 행을 찾아 dict 목록으로 바꿉니다. 회사명 열이 없으면 빈 목록.
+    alts: 행마다 셀 안 이미지의 alt 목록(시장 구분 아이콘). 시장 열이 없을 때 씁니다."""
+    alts = alts or [[] for _ in rows]
     for hi, header in enumerate(rows[:5]):
         cmap = _map_header(header)
         if "corp_name" in cmap and ("filed_dt" in cmap or "result" in cmap):
             out = []
-            for r in rows[hi + 1:]:
+            for ri, r in enumerate(rows[hi + 1:], start=hi + 1):
                 if len(r) < len(header) - 1:
                     continue
                 get = lambda f: r[cmap[f]].strip() if f in cmap and cmap[f] < len(r) else ""
@@ -123,8 +142,9 @@ def parse_rows(rows: list) -> list:
                 out.append({
                     "corp_name": name, "name_key": name_key(name),
                     "filed_dt": _iso(get("filed_dt")), "decided_dt": _iso(get("decided_dt")),
-                    "result": get("result") or None, "market": get("market") or None,
-                    "listing_type": get("listing_type") or None, "sponsor": get("sponsor") or None,
+                    "result": get("result") or None,
+                    "market": get("market") or next((a for a in (alts[ri] if ri < len(alts) else []) if a in MARKETS), None),
+                    "listing_type": get("listing_type") or None, "sponsor": _sponsor(get("sponsor")),
                     "industry": get("industry") or None,
                 })
             return out
@@ -135,8 +155,13 @@ def parse_html(html: str) -> list:
     p = _TableParser()
     p.feed(html)
     best = []
-    for t in p.tables:
-        rows = parse_rows(t)
+    for t, alts, summary in zip(p.tables, p.alts, p.summaries):
+        rows = parse_rows(t, alts)
+        if not rows and summary and t:
+            # KIND 목록은 머리글 칸을 스크립트로 채우므로 원문에는 비어 있고, 열 순서는 table summary에만 있습니다.
+            head = [h.strip() for h in re.split(r"[,，]", summary) if h.strip()]
+            if len(head) == len(t[0]):
+                rows = parse_rows([head] + t, [[]] + alts)
         if len(rows) > len(best):
             best = rows
     return best
@@ -188,8 +213,9 @@ def _xlsx_rows(raw: bytes) -> list:
 
 
 # ---------------------------------------------------------------- 수집
-def fetch(session=None, today: date | None = None, lookback_days: int = 400, timeout: int = 30) -> tuple[list, str]:
-    """KIND 예비심사 목록(최근 lookback_days 청구분)을 한 번에 받아 (행 목록, 원문)을 돌려줍니다."""
+def fetch(session=None, today: date | None = None, lookback_days: int = 850, timeout: int = 30) -> tuple[list, str]:
+    """KIND 예비심사 목록(최근 lookback_days 청구분)을 한 번에 받아 (행 목록, 원문)을 돌려줍니다.
+    기본 850일: DART 수집 시작(2025-01) 이전에 청구한 건까지 예심 일정을 붙이기 위함."""
     import requests
     s = session or requests.Session()
     today = today or date.today()
@@ -255,8 +281,11 @@ def pending_approvals(conn, deals: list, today: date) -> list:
     out = []
     for r in conn.execute("SELECT * FROM kind_review ORDER BY COALESCE(decided_dt, filed_dt) DESC"):
         r = dict(r)
-        if not is_approved(r):
-            continue
+        if not is_approved(r) or "상장" in (r.get("result") or ""):
+            continue   # '상장 승인'은 이미 상장까지 끝난 건
+        lt = r.get("listing_type") or ""
+        if "스팩" in lt or "재상장" in lt:
+            continue   # 스팩 합병·재상장은 공모(증권신고서)가 없는 상장이므로 제외
         ref = r.get("decided_dt") or r.get("filed_dt")
         if not ref or (today - date.fromisoformat(ref)).days > APPROVAL_VALID_DAYS:
             continue

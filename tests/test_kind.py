@@ -32,7 +32,33 @@ HTML = """
 </tbody></table>"""
 
 
+# 실제 KIND 응답 형태: 머리글 칸은 비어 있고 열 순서는 summary에, 시장은 아이콘 alt에만 있음
+LIVE = """
+<table class="list type-00 tmt30" summary="회사명, 상장유형, 청구일, 결과확정일, 심사결과, 상장주선인">
+<thead><tr class="first" id="title-contents"></tr></thead><tbody>
+<tr class="first" onclick="fnDetailView('20260114000323')"><td class="first" title="럭스코">
+<img src='../images/common/icn_t_ko.gif' alt='코스닥' /> 럭스코 </td>
+<td class="txc">스팩 소멸합병</td><td class="txc">2026-06-19</td><td class="txc">2026-09-28</td><td class="txc">심사 승인</td><td class="txl">IBK투자증권(주)</td></tr>
+<tr><td class="first" title="(주)태석광학"><img alt='유가증권' /> (주)태석광학</td>
+<td class="txc">신규상장</td><td class="txc">2026-09-14</td><td class="txc">2026-10-13</td><td class="txc">심사 승인</td><td class="txl">신한투자증권 주식회사,대신증권(주)</td></tr>
+<tr><td class="first">상장끝</td><td class="txc">신규상장</td><td class="txc">2026-03-02</td><td class="txc">2026-05-02</td><td class="txc">상장 승인</td><td class="txl">KB증권(주)</td></tr>
+<tr><td class="first">접수중</td><td class="txc">신규상장</td><td class="txc">2026-10-02</td><td class="txc"></td><td class="txc">청구서 접수</td><td class="txl">KB증권(주)</td></tr>
+</tbody></table>"""
+
+
 class KindTests(unittest.TestCase):
+    def test_parse_live_layout(self):
+        rows = kind.parse_html(LIVE)
+        self.assertEqual(len(rows), 4)
+        t = rows[1]
+        self.assertEqual((t["corp_name"], t["listing_type"], t["filed_dt"], t["decided_dt"], t["result"], t["market"], t["sponsor"]),
+                         ("(주)태석광학", "신규상장", "2026-09-14", "2026-10-13", "심사 승인", "유가증권", "신한투자증권, 대신증권"))
+        self.assertEqual(rows[0]["market"], "코스닥")
+        kind.save_rows(self.conn, rows, "kind", "2026-10-24T00:00:00+09:00")
+        names = [r["corp_name"] for r in kind.pending_approvals(self.conn, [], date(2026, 10, 24))]
+        self.assertEqual(names, ["(주)태석광학"])   # 스팩 합병·상장 완료·접수 중 제외
+
+
     def setUp(self):
         self.conn = store.connect(":memory:")
         self.addCleanup(self.conn.close)
