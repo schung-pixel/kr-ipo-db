@@ -19,8 +19,19 @@ DEAL_FIELDS = (
     "estk_rcept_no", "estk_before_fixing", "fixed_rcept_no", "doc_signal", "final_price", "shares_offered",
     "secondary_shares", "offer_amount", "lead_underwriters", "co_underwriters",
     "subscription_raw", "payment_raw", "listing_dt", "demand_start", "demand_end", "result_rcept_no", "inst_demand_ratio",
-    "inst_demand_count", "retail_ratio", "retail_count",
+    "inst_demand_count", "retail_ratio", "retail_count", "tech_track",
 )
+
+_KIND_MARKET = {"코스닥": "KOSDAQ", "유가증권": "KOSPI", "코넥스": "KONEX"}
+
+
+def board(market: str | None, tech_track: str | None) -> str | None:
+    """앱 표시용 상장 구분: KOSPI / KOSDAQ / KOSDAQ_TECH."""
+    if market == "KOSPI":
+        return "KOSPI"
+    if market == "KOSDAQ":
+        return "KOSDAQ_TECH" if tech_track else "KOSDAQ"
+    return None
 
 
 def _rows(conn, sql, args=()):
@@ -88,6 +99,13 @@ def build_payload(conn) -> dict:
     for d in deals:
         rv = kind.review_for(conn, d.get("corp_name") or "", d["first_filing_dt"])
         d["prelim"] = {k: rv.get(k) for k in ("filed_dt", "decided_dt", "result", "market", "listing_type", "sponsor")} if rv else None
+        km = _KIND_MARKET.get((rv or {}).get("market") or "")
+        if km:   # KIND 예심 시장 구분이 있으면 원문 판정보다 우선
+            d["market_src"] = "KIND" if d.get("market") in (None, km) else "KIND(원문 판정 " + str(d.get("market")) + "와 다름)"
+            d["market"] = km
+        elif d.get("market"):
+            d["market_src"] = "원문"
+        d["board"] = board(d.get("market"), d.get("tech_track"))
     asof = store.get_meta(conn, "last_list_date") or _date.today().isoformat()
     approvals = []
     for r in kind.pending_approvals(conn, deals, _date.fromisoformat(asof)):
@@ -95,7 +113,8 @@ def build_payload(conn) -> dict:
             "deal_id": f"kind_{r['review_key']}", "corp_code": None, "corp_name": r["corp_name"],
             "status": "approved", "is_ipo_candidate": 1, "doc_signal": None,
             "first_filing_dt": r.get("decided_dt") or r.get("filed_dt"), "first_rcept_no": "",
-            "lead_underwriters": r.get("sponsor"), "market": r.get("market"),
+            "lead_underwriters": r.get("sponsor"), "market": _KIND_MARKET.get(r.get("market") or "", r.get("market")),
+            "board": board(_KIND_MARKET.get(r.get("market") or ""), None), "tech_unknown": True,
             "listing_type": r.get("listing_type"),
             "prelim": {k: r.get(k) for k in ("filed_dt", "decided_dt", "result", "market", "listing_type", "sponsor")},
             "filings": [], "underwriters": [], "securities": [], "use_of_proceeds": [], "sellers": [], "sources": [],

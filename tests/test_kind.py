@@ -112,7 +112,7 @@ class KindTests(unittest.TestCase):
         self.assertEqual([a["corp_name"] for a in data["approvals"]], ["알파바이오"])
         a = data["approvals"][0]
         self.assertEqual((a["status"], a["first_filing_dt"], a["lead_underwriters"], a["market"]),
-                         ("approved", "2026-09-10", "하나증권", "코스닥"))
+                         ("approved", "2026-09-10", "하나증권", "KOSDAQ"))
         g = next(d for d in data["deals"] if d["deal_id"].startswith("99999999"))
         self.assertEqual((g["prelim"]["filed_dt"], g["prelim"]["decided_dt"]), ("2026-04-01", "2026-07-01"))
 

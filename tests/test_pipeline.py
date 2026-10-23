@@ -295,6 +295,19 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(ex("수요예측 일시 | 2025년 07월 03일(목) | 주1)")["demand_end"], "2025-07-03")
         self.assertEqual(ex("수요예측일 현재 한국금융투자협회 홈페이지에 2025년 1월 21일")["status"], "no_match")
 
+    def test_profile_patterns(self):
+        ex = doctext.extract_profile
+        boiler = "코스닥시장 상장 코스닥시장 의무보유 6개월(기술성장기업 또는 신속이전기업은 1년으로 한다). "
+        self.assertEqual((ex(boiler)["market"], ex(boiler)["tech_track"]), ("KOSDAQ", None))   # 규정 인용만으로는 일반
+        t = ex(boiler + "가. 기술성장기업 특례 적용에 관련한 위험 당사는 코스닥시장 상장요건 중 기술성장기업에 대한 특례를 적용한 혁신기술기업")
+        self.assertEqual(t["tech_track"], "기술평가")
+        g = ex(boiler + "당사는 상장주선인의 성장성 추천을 받아 코스닥시장에 상장을 추진")
+        self.assertEqual(g["tech_track"], "성장성 추천")
+        k = ex("유가증권시장 상장 유가증권시장 코스닥시장 당사는 기술특례")
+        self.assertEqual((k["market"], k["tech_track"]), ("KOSPI", None))
+        w = ex(boiler + "[2023년 이후 코스닥 기술특례상장기업 신규 상장법인의 평가액 대비 할인율]")
+        self.assertEqual(w["tech_track"], "기술특례(추정)")
+
     def test_doc_phase_idempotent_and_quota(self):
         client = FakeClient()
         run(self.conn, client)

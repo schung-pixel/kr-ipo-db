@@ -192,7 +192,7 @@ def extract_result(text: str) -> dict:
 # ---------------------------------------------------------------- 수요예측 기일
 # 증권신고서(정정 포함) '공모일정' 표: "수요예측 일시 | [국내 |] 2025년 04월 17일(목) ~ [2025년] 04월 23일(수)".
 # [발행조건확정] 신고서에는 이 표가 없으므로 확정 직전의 신고서에서 읽습니다.
-SCHEDULE_VERSION = 1
+SCHEDULE_VERSION = 2   # 2: 상장 시장·기술특례 구분 추가
 _DATE = r"(\d{4})\s*(?:년|[.\-/])\s*(\d{1,2})\s*(?:월|[.\-/])\s*(\d{1,2})\s*일?"
 _DEMAND = re.compile(
     r"수요\s*예측\s*(?:일시|일자|기간|기일|일정|일)\s*(?:\([^)]{0,10}\))?\s*\|(?:\s*국내\s*\|)?\s*" + _DATE +
@@ -218,3 +218,54 @@ def extract_schedule(text: str) -> dict:
         return {"demand_start": start.isoformat(), "demand_end": end.isoformat(),
                 "demand_evidence": _evidence(text, m), "status": "ok"}
     return {"demand_start": None, "demand_end": None, "demand_evidence": None, "status": "no_match"}
+
+
+# ---------------------------------------------------------------- 상장 시장·기술특례 구분
+# 신고서에는 「코스닥시장 상장규정」 인용(기술성장기업 의무보유 1년 등)이 거의 모든 건에 들어 있으므로,
+# '기술성장기업' 단어 자체가 아니라 회사가 자신의 상장 경로를 밝힌 문장만 근거로 삼습니다.
+_MKT_KQ = re.compile(r"코스닥\s*시장")
+_MKT_KS = re.compile(r"유가증권\s*시장")
+_TECH_RULES = [   # (경로, 패턴) — 앞의 것이 우선
+    ("성장성 추천", re.compile(r"(?:상장\s*주선인|대표\s*주관\s*회사|주관\s*회사)(?:의|가|으로부터|로부터)?\s*[^|.]{0,30}?성장성\s*추천[^|.]{0,40}?(?:받|통해|적용|활용|이용)"
+                               r"|성장성\s*추천\s*(?:특례|제도|요건)?\s*(?:을|를|에\s*의해|에\s*따라)?\s*(?:적용|받아|받은|통해|활용|이용)\s*[^|.]{0,40}?상장")),
+    ("기술평가", re.compile(r"기술\s*성장\s*기업\s*(?:에\s*대한\s*|의\s*)?(?:상장\s*)?특례\s*(?:를|을)?\s*(?:적용|활용|이용)"
+                            r"|기술\s*성장\s*특례\s*(?:를|을)?\s*(?:적용|활용|이용)"
+                            r"|전문\s*평가\s*기관[^|]{0,250}?(?:AA|A|BBB)\s*등급"
+                            r"|당사(?:는|가)\s*[^.|]{0,40}?기술\s*특례")),
+]
+_TECH_WEAK = re.compile(r"기술\s*특례\s*상장\s*기업[^|]{0,40}?(?:평가액|할인율|공모가)|특례\s*상장\s*기업\s*\(\s*기술\s*특례")
+_TECH_NEG = re.compile(r"일반\s*상장\s*법인의?\s*(?:희망\s*공모가\s*)?(?:평가액|공모가)\s*대비\s*할인율")
+_BIZMODEL = re.compile(r"사업\s*모델\s*(?:특례|평가)")
+
+
+def extract_profile(text: str) -> dict:
+    """상장 시장(KOSDAQ/KOSPI)과 코스닥 기술특례(기술성장기업) 여부를 근거 문구와 함께 돌려줍니다."""
+    kq, ks = len(_MKT_KQ.findall(text)), len(_MKT_KS.findall(text))
+    market = None
+    if kq or ks:
+        market = "KOSPI" if ks > kq else "KOSDAQ"
+    hints = {k: len(re.findall(v, text)) for k, v in (
+        ("기술성장기업", r"기술\s*성장\s*기업"), ("기술특례", r"기술\s*특례"), ("성장성추천", r"성장성\s*추천"),
+        ("전문평가기관", r"전문\s*평가\s*기관"), ("특례상장기업", r"특례\s*상장\s*기업"), ("일반상장법인", r"일반\s*상장\s*법인"),
+        ("이익미실현", r"이익\s*미실현"))}
+    out = {"market": market, "market_evidence": f"'코스닥시장' {kq}회, '유가증권시장' {ks}회" if market else None,
+           "tech_track": None, "tech_evidence": None,
+           "tech_hints": ", ".join(f"{k} {v}" for k, v in hints.items() if v) or None}
+    if market != "KOSDAQ" or re.search(r"기업\s*인수\s*목적", text[:3000]):
+        return out
+    for track, pat in _TECH_RULES:
+        m = pat.search(text)
+        if m:
+            if track == "기술평가" and _BIZMODEL.search(text[max(0, m.start() - 300):m.end() + 300]):
+                track = "사업모델"
+            out.update(tech_track=track, tech_evidence=_evidence(text, m))
+            return out
+    m = _TECH_WEAK.search(text)
+    if m and not _TECH_NEG.search(text):
+        out.update(tech_track="기술특례(추정)", tech_evidence=_evidence(text, m) + " [공모가 할인율 비교군 기준]")
+    return out
+
+
+def extract_listing_info(text: str) -> dict:
+    """확정 전 신고서 한 건에서 읽는 값: 수요예측 기일 + 상장 시장·기술특례."""
+    return {**extract_schedule(text), **extract_profile(text)}

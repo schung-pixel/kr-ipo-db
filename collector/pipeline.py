@@ -100,7 +100,7 @@ def collect(client, conn, bgn: date, end: date, max_corps: int | None = None,
                     if is_fixed:
                         parsed.update(doctext.extract_demand(text), parser_version=doctext.PARSER_VERSION)
                     else:   # 확정 전 신고서는 같은 원문에서 수요예측 기일도 읽어 둡니다(추가 조회 없음).
-                        store.save_doc_schedule(conn, rcept_no, corp, doctext.extract_schedule(text), now)
+                        store.save_doc_schedule(conn, rcept_no, corp, doctext.extract_listing_info(text), now)
                 except DartQuotaExceeded:
                     stats["quota_hit"] = True
                     log("DART 일일 요청 한도 도달: 남은 원문은 다음 실행에서 이어서 처리합니다.")
@@ -136,7 +136,7 @@ def collect(client, conn, bgn: date, end: date, max_corps: int | None = None,
             break
         for rcept_no in rcepts:
             try:
-                parsed = doctext.extract_schedule(doctext.to_text(client.document(rcept_no)))
+                parsed = doctext.extract_listing_info(doctext.to_text(client.document(rcept_no)))
             except DartQuotaExceeded:
                 stats["quota_hit"] = True
                 log("DART 일일 요청 한도 도달: 남은 원문은 다음 실행에서 이어서 처리합니다.")

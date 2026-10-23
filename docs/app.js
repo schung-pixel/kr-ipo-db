@@ -12,18 +12,18 @@
   function curPath() { return EMBED ? memPath : (location.hash.replace(/^#/, "") || "/"); }
   function goPath(p) { if (EMBED) { memPath = p; route(); } else { location.hash = p; } }
 
-  var DEFAULTS = { status: "all", cand: "ipo", spac: false, year: "", q: "", sortKey: "date", sortDir: -1 };
+  var DEFAULTS = { status: "all", cand: "ipo", spac: false, year: "", board: "", q: "", sortKey: "date", sortDir: -1 };
   var state = Object.assign({}, DEFAULTS, { sYear: "", metric: "count", league: "count", listScroll: 0 });
   try {
     var saved = JSON.parse(localStorage.getItem("ipo-db-view") || "null");
-    if (saved) ["status", "spac", "year", "sortKey", "sortDir", "sYear", "metric", "league"].forEach(function (k) {
+    if (saved) ["status", "spac", "year", "board", "sortKey", "sortDir", "sYear", "metric", "league"].forEach(function (k) {
       if (k in saved) state[k] = saved[k];
     });
   } catch (e) { /* 저장소를 쓸 수 없으면 기본값으로 시작 */ }
   function persist() {
     try {
       var o = {};
-      ["status", "cand", "spac", "year", "sortKey", "sortDir", "sYear", "metric", "league"].forEach(function (k) { o[k] = state[k]; });
+      ["status", "cand", "spac", "year", "board", "sortKey", "sortDir", "sYear", "metric", "league"].forEach(function (k) { o[k] = state[k]; });
       localStorage.setItem("ipo-db-view", JSON.stringify(o));
     } catch (e) { /* 무시 */ }
   }
@@ -65,6 +65,27 @@
     return "";
   }
   function isSpac(d) { return /기업인수목적|스팩/.test(d.corp_name || ""); }
+  // 상장 구분: KOSPI / KOSDAQ / KOSDAQ_TECH (원문의 상장 경로 서술, 시장은 KIND 예심 값 우선)
+  var BOARDS = { KOSPI: "유가증권", KOSDAQ: "코스닥 일반", KOSDAQ_TECH: "코스닥 기술특례" };
+  function boardOk(d, b) {
+    if (!b) return true;
+    if (d.tech_unknown && d.board === "KOSDAQ") return b === "KOSDAQ" || b === "KOSDAQ_TECH";
+    return d.board === b;
+  }
+  function boardTag(d) {
+    if (isSpac(d)) return "";
+    if (d.board === "KOSPI") return '<span class="tag b-ks">유가</span>';
+    if (d.board === "KOSDAQ_TECH") return '<span class="tag b-tech" title="코스닥 기술특례 · ' + esc(d.tech_track || "") + '">기술특례</span>';
+    if (d.board === "KOSDAQ") return '<span class="tag b-kq">코스닥</span>';
+    return "";
+  }
+  function boardText(d) {
+    if (!d.board) return "-";
+    var t = BOARDS[d.board];
+    if (d.board === "KOSDAQ_TECH" && d.tech_track) t += " (" + d.tech_track + ")";
+    if (d.tech_unknown && d.board === "KOSDAQ") t = "코스닥 (기술특례 여부 미확인)";
+    return t;
+  }
   // 검색: 일반 문자열 + 초성(자음) 검색. 'ㄷㅂ'는 '달바', 'ㅁㄹㅇㅅ'는 '미래에셋'에 맞습니다.
   var CHO = ["ㄱ", "ㄲ", "ㄴ", "ㄷ", "ㄸ", "ㄹ", "ㅁ", "ㅂ", "ㅃ", "ㅅ", "ㅆ", "ㅇ", "ㅈ", "ㅉ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ"];
   function isCho(c) { return CHO.indexOf(c) >= 0; }
@@ -212,6 +233,7 @@
       if (!state.spac && isSpac(d)) return false;
       if (!ignoreStatus && state.status !== "all" && d.status !== state.status) return false;
       if (state.year && d.first_filing_dt.slice(0, 4) !== state.year) return false;
+      if (!boardOk(d, state.board)) return false;
       if (q && findMatch(name(d), q) === -1 && findMatch(d.lead_underwriters || "", q) === -1) return false;
       return true;
     });
@@ -257,7 +279,7 @@
     var chipBtn = function (v, label) {
       return '<button type="button" class="fchip" data-status="' + v + '" aria-pressed="' + (state.status === v) + '">' + label + '<span class="n">' + counts[v] + "</span></button>";
     };
-    var changed = state.status !== DEFAULTS.status || state.spac !== DEFAULTS.spac || state.year || state.q;
+    var changed = state.status !== DEFAULTS.status || state.spac !== DEFAULTS.spac || state.year || state.board || state.q;
     app.innerHTML = '<div class="content">' +
       '<div class="srow" role="search"><div class="sbox">' +
       '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13.5 13.5L17 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>' +
@@ -267,6 +289,7 @@
       '<div class="crow"><div class="chips" id="chips" role="group" aria-label="진행 상태"><span class="ind" aria-hidden="true"></span>' +
       chipBtn("all", "전체") + (counts.approved ? chipBtn("approved", "예심 승인") : "") + chipBtn("filed", "진행 중") + chipBtn("price_fixed", "확정") + chipBtn("completed", "상장") + chipBtn("withdrawn", "철회") + "</div>" +
       '<div class="fopts"><label class="switch"><input type="checkbox" id="f-spac"' + (state.spac ? " checked" : "") + '>스팩 포함</label>' +
+      boardSelect("f-board") +
       '<select class="sel" id="f-year" aria-label="신고 연도">' + opt("", "전체 연도", state.year) + ys.map(function (y) { return opt(y, y + "년 신고", state.year); }).join("") + "</select>" +
       (changed ? '<button type="button" class="linkbtn" id="f-reset">초기화</button>' : "") + "</div></div>" +
       '<section class="ledger" aria-label="IPO 딜 목록"><div class="ledger-top" id="ledger-top"></div><div id="result"></div></section>' +
@@ -282,6 +305,7 @@
     });
     document.getElementById("f-spac").addEventListener("change", function (e) { state.spac = e.target.checked; persist(); renderList(); });
     document.getElementById("f-year").addEventListener("change", function (e) { state.year = e.target.value; persist(); renderList(); });
+    document.getElementById("f-board").addEventListener("change", function (e) { state.board = e.target.value; persist(); renderList(); });
     var qi = document.getElementById("f-q"), qc = document.getElementById("f-clear");
     qi.addEventListener("input", function (e) { state.q = e.target.value; qc.hidden = !state.q; renderRows(); syncReset(); });
     qc.addEventListener("click", function () { state.q = ""; qi.value = ""; qc.hidden = true; renderRows(); syncReset(); qi.focus(); });
@@ -290,8 +314,12 @@
     renderRows();
     requestAnimationFrame(function () { placeInd(chips); });
   }
+  function boardSelect(id) {
+    return '<select class="sel" id="' + id + '" aria-label="상장 시장">' + opt("", "전체 시장", state.board) +
+      Object.keys(BOARDS).map(function (k) { return opt(k, BOARDS[k], state.board); }).join("") + "</select>";
+  }
   function syncReset() {
-    var changed = state.status !== DEFAULTS.status || state.spac !== DEFAULTS.spac || state.year || state.q;
+    var changed = state.status !== DEFAULTS.status || state.spac !== DEFAULTS.spac || state.year || state.board || state.q;
     var rb = document.getElementById("f-reset"), box = document.querySelector(".fopts");
     if (changed && !rb && box) {
       rb = document.createElement("button"); rb.type = "button"; rb.className = "linkbtn"; rb.id = "f-reset"; rb.textContent = "초기화";
@@ -299,7 +327,7 @@
     } else if (!changed && rb) rb.remove();
   }
   function resetFilters() {
-    ["status", "spac", "year", "q"].forEach(function (k) { state[k] = DEFAULTS[k]; });
+    ["status", "spac", "year", "board", "q"].forEach(function (k) { state[k] = DEFAULTS[k]; });
     persist(); renderList();
   }
 
@@ -334,7 +362,7 @@
     var cards = '<div class="cards">';
     rows.forEach(function (d) {
       var p = position(d);
-      var tags = (isSpac(d) ? '<span class="tag">스팩</span>' : "") + refileTag(d);
+      var tags = boardTag(d) + (isSpac(d) ? '<span class="tag">스팩</span>' : "") + refileTag(d);
       var bandCell = d.offer_price_low ? bandText(d) : (d.filed_price ? '<span class="dim" title="신고서 기재 기준가">' + int(d.filed_price) + "*</span>" : "-");
       var href = "#/deal/" + encodeURIComponent(d.deal_id);
       html += '<tr data-id="' + esc(d.deal_id) + '">' +
@@ -348,7 +376,7 @@
         '<td class="c-retail n">' + (d.retail_ratio != null ? ratio(d.retail_ratio) : '<span class="dim">-</span>') + "</td>" +
         '<td class="c-amt n">' + eok(d.offer_amount) + "</td></tr>";
       var price = d.status === "approved"
-        ? '<span class="lbl">시장</span><span class="b">' + esc(d.market || "-") + '</span><span class="lbl">청구</span><span class="b">' + esc((d.prelim && d.prelim.filed_dt) || "-") + "</span>"
+        ? '<span class="lbl">시장</span><span class="b">' + esc((d.prelim && d.prelim.market) || d.market || "-") + '</span><span class="lbl">청구</span><span class="b">' + esc((d.prelim && d.prelim.filed_dt) || "-") + "</span>"
         : d.final_price
         ? '<span class="b">' + bandCell + '</span><span class="arrow" aria-label="확정">→</span><b>' + int(d.final_price) + "</b>" + (p ? pill(p) : "")
         : '<span class="lbl">밴드</span><span class="b">' + bandCell + "</span>";
@@ -461,8 +489,8 @@
     for (var i = 0; i < list.length; i++) if (list[i].deal_id === id) { idx = i; break; }
     var prev = idx > 0 ? list[idx - 1] : null, next = idx >= 0 && idx < list.length - 1 ? list[idx + 1] : null;
     titleEl.textContent = name(d);
-    chipEl.innerHTML = chip(d) + (isSpac(d) ? '<span class="tag">스팩</span>' : "") + refileTag(d);
-    subEl.textContent = d.status === "approved" ? "예심 승인 " + (d.first_filing_dt || "-") + (d.market ? " · " + d.market : "") + (d.lead_underwriters ? " · " + d.lead_underwriters : "") : (d.listing_dt ? "상장" + (d.listing_dt > asOf() ? " 예정" : "") + " " + d.listing_dt + " · " : "") + "최초 신고 " + d.first_filing_dt +
+    chipEl.innerHTML = chip(d) + boardTag(d) + (isSpac(d) ? '<span class="tag">스팩</span>' : "") + refileTag(d);
+    subEl.textContent = d.status === "approved" ? "예심 승인 " + (d.first_filing_dt || "-") + (d.prelim && d.prelim.market ? " · " + d.prelim.market : "") + (d.lead_underwriters ? " · " + d.lead_underwriters : "") : (d.listing_dt ? "상장" + (d.listing_dt > asOf() ? " 예정" : "") + " " + d.listing_dt + " · " : "") + "최초 신고 " + d.first_filing_dt +
       (d.demand_start ? " · 수요예측 " + demandText(d) : "") +
       (pricingDate(d) ? " · 확정 " + pricingDate(d) : "") + " · 정정 " + (d.amendment_count || 0) + "회";
     document.getElementById("sheet-pos").textContent = idx >= 0 ? (idx + 1) + " / " + list.length : "";
@@ -514,6 +542,7 @@
 
     html += section("일정·기타", '<dl class="kv">' +
       (d.prelim ? "<dt>예심 청구일</dt><dd>" + esc(d.prelim.filed_dt || "-") + "</dd><dt>예심 승인일</dt><dd>" + esc(d.prelim.decided_dt || "-") + (d.prelim.result ? ' <span class="dim">(' + esc(d.prelim.result) + ")</span>" : "") + "</dd>" : "") +
+      "<dt>상장 시장</dt><dd>" + esc(boardText(d)) + (d.market_src ? ' <span class="dim">(시장: ' + esc(d.market_src) + ")</span>" : "") + "</dd>" +
       "<dt>수요예측 기일</dt><dd>" + esc(demandText(d) || "-") + "</dd>" +
       "<dt>청약기일</dt><dd>" + esc(d.subscription_raw || "-") + "</dd>" +
       "<dt>납입기일</dt><dd>" + esc(d.payment_raw || "-") + "</dd>" +
@@ -592,7 +621,7 @@
   }
   function statsDeals() {
     return data.deals.filter(function (d) {
-      return d.status !== "approved" && candOk(d, "ipo") && (state.spac || !isSpac(d)) && (!state.sYear || d.first_filing_dt.slice(0, 4) === state.sYear);
+      return d.status !== "approved" && candOk(d, "ipo") && (state.spac || !isSpac(d)) && boardOk(d, state.board) && (!state.sYear || d.first_filing_dt.slice(0, 4) === state.sYear);
     });
   }
   function splitNames(s) { return (s || "").split(/\s*,\s*/).filter(Boolean); }
@@ -603,6 +632,7 @@
     view = "stats";
     var head = '<div class="crow" style="justify-content:flex-end"><div class="fopts">' +
       '<label class="switch"><input type="checkbox" id="s-spac"' + (state.spac ? " checked" : "") + ">스팩 포함</label>" +
+      boardSelect("s-board") +
       '<select class="sel" id="s-year" aria-label="신고 연도">' + opt("", "전체 연도", state.sYear) + ys.map(function (y) { return opt(y, y + "년 신고", state.sYear); }).join("") + "</select></div></div>";
     var deals = statsDeals();
     if (!deals.length) {
@@ -740,6 +770,8 @@
   function bindStats() {
     var y = document.getElementById("s-year");
     if (y) y.addEventListener("change", function (e) { state.sYear = e.target.value; persist(); renderStats(); });
+    var bs = document.getElementById("s-board");
+    if (bs) bs.addEventListener("change", function (e) { state.board = e.target.value; persist(); renderStats(); });
     var sp = document.getElementById("s-spac");
     if (sp) sp.addEventListener("change", function (e) { state.spac = e.target.checked; persist(); renderStats(); });
     app.querySelectorAll("[data-m]").forEach(function (b) {

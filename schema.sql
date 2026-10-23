@@ -114,7 +114,7 @@ CREATE TABLE IF NOT EXISTS ipo_deal (
   is_ipo_candidate   INTEGER,            -- 1 후보 / 0 비후보 / NULL 미확인
   ipo_basis          TEXT,
   listing_type       TEXT,               -- KIND·원문 확인 후 채움 (기술특례 등)
-  market             TEXT,
+  market             TEXT,               -- KOSDAQ / KOSPI (원문 기준, KIND 예심 시장이 있으면 내보낼 때 그 값 우선)
   offer_price_low    INTEGER,
   offer_price_high   INTEGER,
   filed_price        INTEGER,            -- 신고서 기재 모집가액(estkRs 최신 기재정정 기준, 단일가)
@@ -138,6 +138,7 @@ CREATE TABLE IF NOT EXISTS ipo_deal (
   listing_dt         TEXT,
   demand_start       TEXT,               -- 수요예측 시작일 (원문 공모일정)
   demand_end         TEXT,               -- 수요예측 종료일
+  tech_track         TEXT,               -- 코스닥 기술특례 경로 (NULL이면 일반)
   updated_at         TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_deal_corp ON ipo_deal (corp_code);
@@ -170,7 +171,12 @@ CREATE TABLE IF NOT EXISTS doc_schedule (
   demand_start     TEXT,
   demand_end       TEXT,
   demand_evidence  TEXT,
-  status           TEXT,         -- ok / no_match
+  market           TEXT,         -- KOSDAQ / KOSPI ('코스닥시장'·'유가증권시장' 언급 횟수로 판정)
+  market_evidence  TEXT,
+  tech_track       TEXT,         -- 코스닥 기술특례 경로: 기술평가 / 사업모델 / 성장성 추천 / 기술특례(추정) / NULL
+  tech_evidence    TEXT,
+  tech_hints       TEXT,         -- 검수용: 관련 단어 언급 횟수
+  status           TEXT,         -- ok / no_match (수요예측 기일 기준)
   parser_version   INTEGER,
   fetched_at       TEXT
 );
