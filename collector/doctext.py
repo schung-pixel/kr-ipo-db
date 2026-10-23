@@ -192,7 +192,7 @@ def extract_result(text: str) -> dict:
 # ---------------------------------------------------------------- 수요예측 기일
 # 증권신고서(정정 포함) '공모일정' 표: "수요예측 일시 | [국내 |] 2025년 04월 17일(목) ~ [2025년] 04월 23일(수)".
 # [발행조건확정] 신고서에는 이 표가 없으므로 확정 직전의 신고서에서 읽습니다.
-SCHEDULE_VERSION = 2   # 2: 상장 시장·기술특례 구분 추가
+SCHEDULE_VERSION = 3   # 2: 상장 시장·기술특례 구분 / 3: 기술평가 등급·평가기관
 _DATE = r"(\d{4})\s*(?:년|[.\-/])\s*(\d{1,2})\s*(?:월|[.\-/])\s*(\d{1,2})\s*일?"
 _DEMAND = re.compile(
     r"수요\s*예측\s*(?:일시|일자|기간|기일|일정|일)\s*(?:\([^)]{0,10}\))?\s*\|(?:\s*국내\s*\|)?\s*" + _DATE +
@@ -238,6 +238,38 @@ _TECH_NEG = re.compile(r"일반\s*상장\s*법인의?\s*(?:희망\s*공모가\s*
 _BIZMODEL = re.compile(r"사업\s*모델\s*(?:특례|평가)")
 
 
+_GRADE = r"(AAA|AA|A|BBB|BB|B)(?![A-Za-z])"
+_RATING = re.compile(
+    r"(?:전문\s*평가\s*기관|기술\s*평가|평가\s*기관)[^|]{0,320}?"
+    r"(?:(?:각각\s*)?" + _GRADE + r"\s*(?:등급)?\s*(?:,|및|과|와|/)\s*" + _GRADE + r"\s*등급"
+    r"|모두\s*" + _GRADE + r"\s*등급)")
+_AGENCIES = ("기술보증기금", "나이스디앤비", "NICE디앤비", "한국기술신용평가", "한국평가데이터", "한국기업데이터", "이크레더블",
+             "한국산업기술기획평가원", "한국과학기술정보연구원", "한국보건산업진흥원", "한국발명진흥회", "정보통신산업진흥원",
+             "한국생명공학연구원", "농업기술실용화재단", "한국농업기술진흥원", "해양수산과학기술진흥원", "한국에너지기술평가원",
+             "연구개발특구진흥재단", "한국환경산업기술원", "한국방송통신전파진흥원", "SCI평가정보", "나이스평가정보",
+             "한국건설기술연구원", "한국식품연구원", "정보통신기획평가원", "한국콘텐츠진흥원", "한국로봇산업진흥원")
+
+
+def extract_rating(text: str) -> dict:
+    """기술평가 특례: 전문평가기관 2곳의 등급(예: 'A, BBB')과 평가기관. 신용평가 등급은 제외합니다."""
+    for m in _RATING.finditer(text):
+        win = text[m.start():m.end()]
+        if "신용평가등급" in win.replace(" ", "") or "신용등급" in win.replace(" ", ""):
+            continue
+        g = [x for x in m.groups() if x]
+        grades = [g[0], g[0]] if len(g) == 1 else g[:2]
+        ctx = text[max(0, m.start() - 200):m.end()]
+        agencies = []
+        for a in _AGENCIES:
+            i = ctx.find(a)
+            if i >= 0:
+                agencies.append((i, a))
+        names = [a for _, a in sorted(agencies)][:2]
+        return {"tech_grades": ", ".join(grades), "tech_agencies": ", ".join(names) or None,
+                "rating_evidence": _evidence(text, m)}
+    return {"tech_grades": None, "tech_agencies": None, "rating_evidence": None}
+
+
 def extract_profile(text: str) -> dict:
     """상장 시장(KOSDAQ/KOSPI)과 코스닥 기술특례(기술성장기업) 여부를 근거 문구와 함께 돌려줍니다."""
     kq, ks = len(_MKT_KQ.findall(text)), len(_MKT_KS.findall(text))
@@ -249,10 +281,12 @@ def extract_profile(text: str) -> dict:
         ("전문평가기관", r"전문\s*평가\s*기관"), ("특례상장기업", r"특례\s*상장\s*기업"), ("일반상장법인", r"일반\s*상장\s*법인"),
         ("이익미실현", r"이익\s*미실현"))}
     out = {"market": market, "market_evidence": f"'코스닥시장' {kq}회, '유가증권시장' {ks}회" if market else None,
-           "tech_track": None, "tech_evidence": None,
+           "tech_track": None, "tech_evidence": None, "tech_grades": None, "tech_agencies": None,
            "tech_hints": ", ".join(f"{k} {v}" for k, v in hints.items() if v) or None}
     if market != "KOSDAQ" or re.search(r"기업\s*인수\s*목적", text[:3000]):
         return out
+    rating = extract_rating(text)
+    out.update(tech_grades=rating["tech_grades"], tech_agencies=rating["tech_agencies"])
     for track, pat in _TECH_RULES:
         m = pat.search(text)
         if m:
@@ -260,6 +294,9 @@ def extract_profile(text: str) -> dict:
                 track = "사업모델"
             out.update(tech_track=track, tech_evidence=_evidence(text, m))
             return out
+    if rating["tech_grades"]:   # 경로 서술은 못 찾았지만 전문평가기관 등급이 있으면 기술평가 특례
+        out.update(tech_track="기술평가", tech_evidence=rating["rating_evidence"])
+        return out
     m = _TECH_WEAK.search(text)
     if m and not _TECH_NEG.search(text):
         out.update(tech_track="기술특례(추정)", tech_evidence=_evidence(text, m) + " [공모가 할인율 비교군 기준]")

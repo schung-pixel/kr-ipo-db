@@ -36,10 +36,10 @@ ADDED_COLUMNS = {"doc_price": [("header_amount", "INTEGER"), ("header_shares", "
                               ("inst_demand_ratio", "REAL"), ("inst_demand_count", "INTEGER"),
                               ("retail_ratio", "REAL"), ("retail_count", "INTEGER"),
                               ("demand_start", "TEXT"), ("demand_end", "TEXT"),
-                              ("tech_track", "TEXT")],
+                              ("tech_track", "TEXT"), ("tech_grades", "TEXT"), ("tech_agencies", "TEXT")],
                  "doc_schedule": [("market", "TEXT"), ("market_evidence", "TEXT"),
                                   ("tech_track", "TEXT"), ("tech_evidence", "TEXT"),
-                                  ("tech_hints", "TEXT")]}
+                                  ("tech_hints", "TEXT"), ("tech_grades", "TEXT"), ("tech_agencies", "TEXT")]}
 
 
 def _ensure_columns(conn) -> None:
@@ -297,7 +297,7 @@ def rebuild_deals(conn, now: str) -> int:
 
         # 수요예측 기일: 발행조건확정 이전 신고서 중 가장 최근에 읽힌 값
         demand_start = demand_end = ev_demand = None
-        market = tech_track = ev_market = ev_tech = None
+        market = tech_track = ev_market = ev_tech = tech_grades = tech_agencies = None
         for f in reversed([f for f in fl if not f["is_price_fixed"]]):
             ds = conn.execute("SELECT * FROM doc_schedule WHERE rcept_no=?", (f["rcept_no"],)).fetchone()
             if not ds:
@@ -307,6 +307,7 @@ def rebuild_deals(conn, now: str) -> int:
                 ev_demand = (f["rcept_no"], ds["demand_evidence"])
             if market is None and ds["market"]:
                 market, tech_track = ds["market"], ds["tech_track"]
+                tech_grades, tech_agencies = ds["tech_grades"], ds["tech_agencies"]
                 ev_market = (f["rcept_no"], ds["market_evidence"])
                 ev_tech = (f["rcept_no"], ds["tech_evidence"])
 
@@ -409,6 +410,7 @@ def rebuild_deals(conn, now: str) -> int:
             "subscription_raw": subs, "payment_raw": pay, "listing_dt": listing_dt,
             "demand_start": demand_start, "demand_end": demand_end,
             "market": market, "tech_track": tech_track,
+            "tech_grades": tech_grades, "tech_agencies": tech_agencies,
             "result_rcept_no": result_no, "inst_demand_ratio": inst_ratio,
             "inst_demand_count": inst_count, "retail_ratio": retail_ratio,
             "retail_count": retail_count, "updated_at": now,
@@ -440,6 +442,7 @@ def rebuild_deals(conn, now: str) -> int:
             ("ipo_deal", "demand_start", demand_start, ev_demand, "원문(공모일정)", "DOC"),
             ("ipo_deal", "market", market, ev_market, "원문(시장 언급 횟수)", "DOC"),
             ("ipo_deal", "tech_track", tech_track, ev_tech, "원문(상장 경로 서술)", "DOC"),
+            ("ipo_deal", "tech_grades", tech_grades, ev_tech if tech_grades else None, "원문(전문평가기관 등급)", "DOC"),
         ])
     # 최초 신고서가 뒤늦게 확인되어 딜 식별자가 바뀐 경우 이전(고아) 딜을 정리합니다.
     stale = [r["deal_id"] for r in conn.execute("SELECT deal_id FROM ipo_deal")
@@ -517,7 +520,8 @@ def save_doc_schedule(conn, rcept_no: str, corp_code: str, parsed: dict, now: st
         "demand_end": parsed["demand_end"], "demand_evidence": parsed["demand_evidence"],
         "market": parsed.get("market"), "market_evidence": parsed.get("market_evidence"),
         "tech_track": parsed.get("tech_track"), "tech_evidence": parsed.get("tech_evidence"),
-        "tech_hints": parsed.get("tech_hints"),
+        "tech_hints": parsed.get("tech_hints"), "tech_grades": parsed.get("tech_grades"),
+        "tech_agencies": parsed.get("tech_agencies"),
         "status": parsed["status"], "parser_version": SCHEDULE_VERSION, "fetched_at": now},
         volatile=("fetched_at",))
 

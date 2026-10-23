@@ -139,6 +139,8 @@ CREATE TABLE IF NOT EXISTS ipo_deal (
   demand_start       TEXT,               -- 수요예측 시작일 (원문 공모일정)
   demand_end         TEXT,               -- 수요예측 종료일
   tech_track         TEXT,               -- 코스닥 기술특례 경로 (NULL이면 일반)
+  tech_grades        TEXT,               -- 기술평가 등급 (예: 'A, BBB')
+  tech_agencies      TEXT,               -- 평가기관
   updated_at         TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_deal_corp ON ipo_deal (corp_code);
@@ -175,6 +177,8 @@ CREATE TABLE IF NOT EXISTS doc_schedule (
   market_evidence  TEXT,
   tech_track       TEXT,         -- 코스닥 기술특례 경로: 기술평가 / 사업모델 / 성장성 추천 / 기술특례(추정) / NULL
   tech_evidence    TEXT,
+  tech_grades      TEXT,         -- 기술평가 특례: 전문평가기관 2곳 등급 (예: 'A, BBB')
+  tech_agencies    TEXT,         -- 같은 순서의 평가기관
   tech_hints       TEXT,         -- 검수용: 관련 단어 언급 횟수
   status           TEXT,         -- ok / no_match (수요예측 기일 기준)
   parser_version   INTEGER,

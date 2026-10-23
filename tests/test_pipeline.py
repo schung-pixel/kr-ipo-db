@@ -301,6 +301,9 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual((ex(boiler)["market"], ex(boiler)["tech_track"]), ("KOSDAQ", None))   # 규정 인용만으로는 일반
         t = ex(boiler + "가. 기술성장기업 특례 적용에 관련한 위험 당사는 코스닥시장 상장요건 중 기술성장기업에 대한 특례를 적용한 혁신기술기업")
         self.assertEqual(t["tech_track"], "기술평가")
+        r = ex(boiler + "전문평가기관 2개 기관(기술보증기금, 나이스디앤비)으로부터 평가를 받았으며 각각 A 등급, BBB 등급을 통보받았습니다")
+        self.assertEqual((r["tech_track"], r["tech_grades"], r["tech_agencies"]), ("기술평가", "A, BBB", "기술보증기금, 나이스디앤비"))
+        self.assertIsNone(doctext.extract_rating("신용평가에 관한 사항 평가기관 | 신용평가등급 BB, BB 등급")["tech_grades"])
         g = ex(boiler + "당사는 상장주선인의 성장성 추천을 받아 코스닥시장에 상장을 추진")
         self.assertEqual(g["tech_track"], "성장성 추천")
         k = ex("유가증권시장 상장 유가증권시장 코스닥시장 당사는 기술특례")
