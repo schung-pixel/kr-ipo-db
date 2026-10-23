@@ -6643,11 +6643,25 @@ INSERT INTO "ipo_deal" VALUES('02032951_20260826000506','02032951','202608260005
 INSERT INTO "ipo_deal" VALUES('02036869_20260917000220','02036869','20260917000220','2026-09-17','20261022000373','2026-10-22',3,'price_fixed',1,'주요사항보고서 미선행(rpt_rcpn 없음), KIND 대조 필요 [20261008000225]',NULL,NULL,2000,2000,2000,'20261008000225',1,2000,5000000,NULL,10000000000,'아이엠증권',NULL,'2026년 10월 26일 ~ 2026년 10월 27일','2026년 10월 29일',NULL,'2026-10-23T22:37:14+09:00','20261022000373',1,NULL,1266.52,1869,NULL,NULL);
 INSERT INTO "ipo_deal" VALUES('02038432_20261012000149','02038432','20261012000149','2026-10-12','20261012000149','2026-10-12',0,'filed',1,'주요사항보고서 미선행(rpt_rcpn 없음), KIND 대조 필요 [20261012000149] · 원문에 공모희망가액·확정공모가액 문구 없음(유상증자 등 가능성)',NULL,NULL,NULL,NULL,26784,'20261012000149',0,NULL,2500000,1000000,66960000000,NULL,NULL,'2026년 11월 05일','2026년 11월 09일',NULL,'2026-10-23T18:54:22+09:00',NULL,0,NULL,NULL,NULL,NULL,NULL);
 INSERT INTO "ipo_deal" VALUES('01803635_20250812000753','01803635','20250812000753','2025-08-12','20250909000313','2025-09-09',3,'completed',1,'주요사항보고서 미선행(rpt_rcpn 없음), KIND 대조 필요 [20250819000238]',NULL,NULL,11400,13200,11400,'20250819000238',1,13200,1580000,NULL,20856000000,'대신증권',NULL,'2025년 09월 10일 ~ 2025년 09월 11일','2025년 09월 15일','2025-09-19','2026-10-23T22:37:14+09:00','20250909000313',1,'20250915000298',1145.4,2304,1972.62,237127);
+CREATE TABLE kind_review (
+  review_key    TEXT PRIMARY KEY,   -- {name_key}_{청구일}
+  name_key      TEXT NOT NULL,
+  corp_name     TEXT,
+  filed_dt      TEXT,               -- 예심 청구일
+  decided_dt    TEXT,               -- 결과 확정(승인)일
+  result        TEXT,               -- 승인 / 미승인 / 철회 / 심사중 등 (KIND 표기 그대로)
+  market        TEXT,
+  listing_type  TEXT,
+  sponsor       TEXT,               -- 상장주선인
+  industry      TEXT,
+  source        TEXT,               -- kind / manual:파일명
+  fetched_at    TEXT
+);
 CREATE TABLE meta (
   key   TEXT PRIMARY KEY,
   value TEXT
 );
-INSERT INTO "meta" VALUES('last_list_date','2026-10-23');
+INSERT INTO "meta" VALUES('last_list_date','2026-10-24');
 INSERT INTO "meta" VALUES('schema_stage','2');
 CREATE TABLE review (
   deal_id               TEXT PRIMARY KEY,
@@ -9102,6 +9116,7 @@ CREATE TABLE valuation (
 CREATE INDEX idx_filing_corp ON filing (corp_code, rcept_dt);
 CREATE INDEX idx_deal_corp ON ipo_deal (corp_code);
 CREATE INDEX idx_field_source_deal ON field_source (deal_id);
+CREATE INDEX idx_kind_review_name ON kind_review (name_key);
 DELETE FROM "sqlite_sequence";
 INSERT INTO "sqlite_sequence" VALUES('field_source',7424);
 COMMIT;
