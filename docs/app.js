@@ -1,0 +1,889 @@
+"use strict";
+(function () {
+  var DART_VIEW = "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=";
+  var app = document.getElementById("app");
+  var tip = document.getElementById("tip");
+  var data = null;
+
+  // 아티팩트(임베드) 모드: 데이터가 페이지에 들어 있고, 주소 대신 메모리로 화면을 바꿉니다.
+  var embedEl = document.getElementById("embedded-data");
+  var EMBED = !!embedEl;
+  var memPath = "/";
+  function curPath() { return EMBED ? memPath : (location.hash.replace(/^#/, "") || "/"); }
+  function goPath(p) { if (EMBED) { memPath = p; route(); } else { location.hash = p; } }
+
+  var DEFAULTS = { status: "all", cand: "ipo", spac: false, year: "", q: "", sortKey: "date", sortDir: -1 };
+  var state = Object.assign({}, DEFAULTS, { sYear: "", metric: "count", league: "count", listScroll: 0 });
+  try {
+    var saved = JSON.parse(localStorage.getItem("ipo-db-view") || "null");
+    if (saved) ["status", "spac", "year", "sortKey", "sortDir", "sYear", "metric", "league"].forEach(function (k) {
+      if (k in saved) state[k] = saved[k];
+    });
+  } catch (e) { /* 저장소를 쓸 수 없으면 기본값으로 시작 */ }
+  function persist() {
+    try {
+      var o = {};
+      ["status", "cand", "spac", "year", "sortKey", "sortDir", "sYear", "metric", "league"].forEach(function (k) { o[k] = state[k]; });
+      localStorage.setItem("ipo-db-view", JSON.stringify(o));
+    } catch (e) { /* 무시 */ }
+  }
+
+  // ---------------------------------------------------------------- 공통 표기
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function int(n) { return n == null ? "-" : Number(n).toLocaleString("ko-KR"); }
+  function eok(n) {
+    if (n == null) return "-";
+    var v = n / 1e8;
+    return v >= 100 ? Math.round(v).toLocaleString("ko-KR") : v.toLocaleString("ko-KR", { maximumFractionDigits: 1 });
+  }
+  function pctText(v) { return (v > 0 ? "+" : "") + v.toFixed(1) + "%"; }
+  var CORP_FORM = /\(주\)|㈜|\(유\)|\(재\)|\(사\)|주식회사|유한회사|유한책임회사/g;
+  function name(d) {
+    var n = (d.corp_name || "").replace(CORP_FORM, " ").replace(/\s+/g, " ").trim();
+    return n || d.corp_name || d.corp_code;
+  }
+  var byCorp = {};
+  function indexCorps() {
+    byCorp = {};
+    data.deals.forEach(function (d) { if (d.corp_code) (byCorp[d.corp_code] = byCorp[d.corp_code] || []).push(d); });
+    Object.keys(byCorp).forEach(function (k) { byCorp[k].sort(function (a, b) { return a.first_rcept_no < b.first_rcept_no ? -1 : 1; }); });
+  }
+  function laterDeal(d) {
+    return (byCorp[d.corp_code] || []).filter(function (x) { return x.first_rcept_no > d.first_rcept_no && x.is_ipo_candidate === 1; })[0] || null;
+  }
+  function earlierWithdrawn(d) {
+    var xs = (byCorp[d.corp_code] || []).filter(function (x) { return x.first_rcept_no < d.first_rcept_no && x.status === "withdrawn" && x.is_ipo_candidate === 1; });
+    return xs.length ? xs[xs.length - 1] : null;
+  }
+  function refileTag(d) {
+    if (d.status === "withdrawn" && laterDeal(d)) return '<span class="tag" title="철회 후 다시 신고한 공모가 있습니다">재신고함</span>';
+    if (earlierWithdrawn(d)) return '<span class="tag" title="이전 공모를 철회한 뒤 다시 신고한 공모입니다">재신고</span>';
+    return "";
+  }
+  function isSpac(d) { return /기업인수목적|스팩/.test(d.corp_name || ""); }
+  // 검색: 일반 문자열 + 초성(자음) 검색. 'ㄷㅂ'는 '달바', 'ㅁㄹㅇㅅ'는 '미래에셋'에 맞습니다.
+  var CHO = ["ㄱ", "ㄲ", "ㄴ", "ㄷ", "ㄸ", "ㄹ", "ㅁ", "ㅂ", "ㅃ", "ㅅ", "ㅆ", "ㅇ", "ㅈ", "ㅉ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ"];
+  function isCho(c) { return CHO.indexOf(c) >= 0; }
+  function choOf(c) {
+    var code = c.charCodeAt(0) - 0xac00;
+    return code >= 0 && code < 11172 ? CHO[Math.floor(code / 588)] : null;
+  }
+  function charMatch(tc, qc) { return tc === qc || (isCho(qc) && choOf(tc) === qc); }
+  function findMatch(text, q) {
+    if (!q) return -1;
+    var t = text.toLowerCase(), k = q.toLowerCase().replace(/\s+/g, "");
+    if (!k) return -1;
+    var plain = t.indexOf(k);
+    if (plain >= 0 && !/[ㄱ-ㅎ]/.test(k)) return { i: plain, n: k.length };
+    // 공백을 건너뛰며 한 글자씩 비교 (초성 포함)
+    for (var s0 = 0; s0 < t.length; s0++) {
+      if (t[s0] === " ") continue;
+      var i = s0, j = 0;
+      while (i < t.length && j < k.length) {
+        if (t[i] === " ") { i++; continue; }
+        if (!charMatch(t[i], k[j])) break;
+        i++; j++;
+      }
+      if (j === k.length) return { i: s0, n: i - s0 };
+    }
+    return -1;
+  }
+  function highlight(text, q) {
+    var t = esc(text);
+    var m = findMatch(text, q);
+    if (m === -1) return t;
+    return esc(text.slice(0, m.i)) + "<mark>" + esc(text.slice(m.i, m.i + m.n)) + "</mark>" + esc(text.slice(m.i + m.n));
+  }
+
+  var STATUS = {
+    approved: { label: "예심 승인", icon: '<path d="M7 1.6l1.5 1.2 1.9-.2.6 1.8 1.6 1-.6 1.8.6 1.8-1.6 1-.6 1.8-1.9-.2L7 12.4l-1.5-1.2-1.9.2-.6-1.8-1.6-1 .6-1.8-.6-1.8 1.6-1 .6-1.8 1.9.2z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M4.8 7.1l1.5 1.5 2.9-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>' },
+    filed: { label: "진행 중", icon: '<circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.8"/>' },
+    price_fixed: { label: "확정", icon: '<path d="M2.5 7.4l3 3 6-6.4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>' },
+    completed: { label: "상장", icon: '<path d="M3.5 12V2.5M3.5 3h7l-1.8 2.5L10.5 8h-7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/>' },
+    withdrawn: { label: "철회", icon: '<path d="M3 3l8 8M11 3l-8 8" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>' }
+  };
+  function asOf() { return (data && data.last_list_date) || new Date().toISOString().slice(0, 10); }
+  function statusLabel(d) {
+    if (d.status === "completed") return d.listing_dt && d.listing_dt > asOf() ? "상장 예정" : "상장";
+    return (STATUS[d.status] || STATUS.filed).label;
+  }
+  function chip(d) {
+    var st = typeof d === "string" ? d : d.status;
+    var s = STATUS[st] || STATUS.filed;
+    var label = typeof d === "string" ? s.label : statusLabel(d);
+    return '<span class="chip ' + esc(st) + '"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">' + s.icon + "</svg>" + label + "</span>";
+  }
+  function ratio(v, digits) {
+    if (v == null) return null;
+    return Number(v).toLocaleString("ko-KR", { maximumFractionDigits: digits == null ? 0 : digits, minimumFractionDigits: digits || 0 }) + ":1";
+  }
+
+  // 확정가가 희망 밴드의 어디에 놓였는지 (밴드가 없거나 단일 희망가면 판단하지 않음)
+  var POS = ["상단 초과", "상단", "밴드 내", "하단", "하단 미달"];
+  var POS_KEY = { "상단 초과": "over", "상단": "top", "밴드 내": "in", "하단": "low", "하단 미달": "under" };
+  var POS_MARK = { "상단 초과": "▲▲", "상단": "▲", "밴드 내": "●", "하단": "▼", "하단 미달": "▼▼" };
+  function position(d) {
+    var lo = d.offer_price_low, hi = d.offer_price_high, f = d.final_price;
+    if (!f || !lo || lo === hi) return null;
+    if (f > hi) return "상단 초과";
+    if (f === hi) return "상단";
+    if (f < lo) return "하단 미달";
+    if (f === lo) return "하단";
+    return "밴드 내";
+  }
+  function pill(p) {
+    return '<span class="pill p-' + POS_KEY[p] + '"><span class="m" aria-hidden="true">' + POS_MARK[p] + "</span>" + esc(p) + "</span>";
+  }
+  function vsTop(d) { return d.final_price && d.offer_price_high && d.offer_price_low !== d.offer_price_high ? (d.final_price / d.offer_price_high - 1) * 100 : null; }
+  function bandText(d) {
+    if (!d.offer_price_low) return "-";
+    return d.offer_price_low === d.offer_price_high ? int(d.offer_price_low) : int(d.offer_price_low) + "~" + int(d.offer_price_high);
+  }
+  function srcMethod(d, field) {
+    var s = (d.sources || []).filter(function (x) { return x.field_name === field; })[0];
+    return s ? s.method : null;
+  }
+  function pricingDate(d) {
+    var no = d.fixed_rcept_no;
+    return no ? no.slice(0, 4) + "-" + no.slice(4, 6) + "-" + no.slice(6, 8) : null;
+  }
+  function candOk(d, cand) {
+    if (cand === "all") return true;
+    if (cand === "ipo") return d.is_ipo_candidate === 1 && d.doc_signal !== 0;
+    if (cand === "check") return d.is_ipo_candidate === 1 && d.doc_signal === 0;
+    return d.is_ipo_candidate !== 1;
+  }
+
+  // ---------------------------------------------------------------- 라우팅
+  var view = null;          // 시트 아래에 깔린 화면: "list" | "stats"
+  var sheet = document.getElementById("sheet"), shade = document.getElementById("shade"), sbody = document.getElementById("sbody");
+  var sheetId = null;
+  function placeInd(container) {
+    if (!container) return;
+    var ind = container.querySelector(".ind");
+    var on = container.querySelector('[aria-current="true"], [aria-pressed="true"]');
+    if (!ind) return;
+    if (!on || !on.offsetWidth) { ind.style.opacity = 0; return; }
+    ind.style.width = on.offsetWidth + "px";
+    ind.style.transform = "translateX(" + on.offsetLeft + "px)";
+    ind.style.opacity = 1;
+  }
+  function setTabs(tab) {
+    document.querySelectorAll(".tabs [data-tab], .pager [data-tab]").forEach(function (a) {
+      if (a.dataset.tab === tab) a.setAttribute("aria-current", "true"); else a.removeAttribute("aria-current");
+    });
+    placeInd(document.querySelector(".tabs"));
+  }
+  function route() {
+    var h = curPath();
+    var m = h.match(/^\/deal\/(.+)$/);
+    var tab = h.indexOf("/stats") === 0 ? "stats" : m ? (view || "list") : "list";
+    setTabs(tab);
+    hideTip();
+    if (!data) return;
+    if (m) {
+      if (!view) renderList();
+      openSheet(decodeURIComponent(m[1]));
+      return;
+    }
+    closeSheet();
+    if (tab === "stats") { if (view !== "stats") { renderStats(); window.scrollTo(0, 0); } }
+    else if (view !== "list") { renderList(); window.scrollTo(0, 0); }
+    document.title = (tab === "stats" ? "통계" : "딜 목록") + " · IPO 공시 DB";
+  }
+  function baseView() { return view === "stats" ? "/stats" : "/"; }
+
+  // ---------------------------------------------------------------- 목록
+  function baseRows(ignoreStatus) {
+    var q = state.q.trim().toLowerCase();
+    return data.deals.filter(function (d) {
+      if (!candOk(d, state.cand)) return false;
+      if (!state.spac && isSpac(d)) return false;
+      if (!ignoreStatus && state.status !== "all" && d.status !== state.status) return false;
+      if (state.year && d.first_filing_dt.slice(0, 4) !== state.year) return false;
+      if (q && findMatch(name(d), q) === -1 && findMatch(d.lead_underwriters || "", q) === -1) return false;
+      return true;
+    });
+  }
+  var SORTERS = {
+    date: function (d) { return d.listing_dt || d.first_filing_dt; },
+    inst: function (d) { return d.inst_demand_ratio; },
+    retail: function (d) { return d.retail_ratio; },
+    name: function (d) { return name(d); },
+    lead: function (d) { return d.lead_underwriters || null; },
+    status: function (d) { return d.status; },
+    band: function (d) { return d.offer_price_high; },
+    final: function (d) { return d.final_price; },
+    vs: function (d) { return vsTop(d); },
+    amount: function (d) { return d.offer_amount; }
+  };
+  function filtered() {
+    var rows = baseRows(false);
+    var f = SORTERS[state.sortKey] || SORTERS.date, dir = state.sortDir;
+    rows.sort(function (a, b) {
+      var x = f(a), y = f(b);
+      if (x == null && y == null) return 0;
+      if (x == null) return 1;            // 값 없는 건은 정렬 방향과 무관하게 뒤로
+      if (y == null) return -1;
+      if (x < y) return -dir;
+      if (x > y) return dir;
+      return a.first_filing_dt < b.first_filing_dt ? 1 : -1;
+    });
+    return rows;
+  }
+  function years() {
+    var s = {};
+    data.deals.forEach(function (d) { s[d.first_filing_dt.slice(0, 4)] = 1; });
+    return Object.keys(s).sort().reverse();
+  }
+  function opt(v, label, cur) { return '<option value="' + esc(v) + '"' + (v === cur ? " selected" : "") + ">" + esc(label) + "</option>"; }
+
+  function renderList() {
+    view = "list";
+    var ys = years();
+    var counts = { all: 0, approved: 0, filed: 0, price_fixed: 0, completed: 0, withdrawn: 0 };
+    baseRows(true).forEach(function (d) { counts.all++; counts[d.status] = (counts[d.status] || 0) + 1; });
+    var chipBtn = function (v, label) {
+      return '<button type="button" class="fchip" data-status="' + v + '" aria-pressed="' + (state.status === v) + '">' + label + '<span class="n">' + counts[v] + "</span></button>";
+    };
+    var changed = state.status !== DEFAULTS.status || state.spac !== DEFAULTS.spac || state.year || state.q;
+    app.innerHTML = '<div class="content">' +
+      '<div class="srow" role="search"><div class="sbox">' +
+      '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13.5 13.5L17 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>' +
+      '<input class="search" id="f-q" type="search" autocomplete="off" placeholder="기업명·주관사 검색 (초성 가능)" aria-label="기업명·주관사 검색" value="' + esc(state.q) + '">' +
+      '<button type="button" class="sclear" id="f-clear" aria-label="검색어 지우기"' + (state.q ? "" : " hidden") + '><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>' +
+      "</div></div>" +
+      '<div class="crow"><div class="chips" id="chips" role="group" aria-label="진행 상태"><span class="ind" aria-hidden="true"></span>' +
+      chipBtn("all", "전체") + (counts.approved ? chipBtn("approved", "예심 승인") : "") + chipBtn("filed", "진행 중") + chipBtn("price_fixed", "확정") + chipBtn("completed", "상장") + chipBtn("withdrawn", "철회") + "</div>" +
+      '<div class="fopts"><label class="switch"><input type="checkbox" id="f-spac"' + (state.spac ? " checked" : "") + '>스팩 포함</label>' +
+      '<select class="sel" id="f-year" aria-label="신고 연도">' + opt("", "전체 연도", state.year) + ys.map(function (y) { return opt(y, y + "년 신고", state.year); }).join("") + "</select>" +
+      (changed ? '<button type="button" class="linkbtn" id="f-reset">초기화</button>' : "") + "</div></div>" +
+      '<section class="ledger" aria-label="IPO 딜 목록"><div class="ledger-top" id="ledger-top"></div><div id="result"></div></section>' +
+      '<p class="note">희망 밴드·확정가·경쟁률·상장일은 공시 원문에서 규칙으로 추출한 값입니다. 스팩 등 단일 희망가는 밴드에 한 값으로 표시하고, 밴드가 없는 건의 * 값은 신고서 기재 기준가입니다. 공모액은 확정 건은 확정 금액, 그 외는 신고서 기재 금액입니다. 상장사 유상증자 등은 제외했습니다.</p>' +
+      "</div>";
+    var chips = document.getElementById("chips");
+    chips.querySelectorAll(".fchip").forEach(function (b) {
+      b.addEventListener("click", function () {
+        state.status = b.dataset.status; persist();
+        chips.querySelectorAll(".fchip").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+        placeInd(chips); renderRows(); syncReset();
+      });
+    });
+    document.getElementById("f-spac").addEventListener("change", function (e) { state.spac = e.target.checked; persist(); renderList(); });
+    document.getElementById("f-year").addEventListener("change", function (e) { state.year = e.target.value; persist(); renderList(); });
+    var qi = document.getElementById("f-q"), qc = document.getElementById("f-clear");
+    qi.addEventListener("input", function (e) { state.q = e.target.value; qc.hidden = !state.q; renderRows(); syncReset(); });
+    qc.addEventListener("click", function () { state.q = ""; qi.value = ""; qc.hidden = true; renderRows(); syncReset(); qi.focus(); });
+    var rb = document.getElementById("f-reset");
+    if (rb) rb.addEventListener("click", resetFilters);
+    renderRows();
+    requestAnimationFrame(function () { placeInd(chips); });
+  }
+  function syncReset() {
+    var changed = state.status !== DEFAULTS.status || state.spac !== DEFAULTS.spac || state.year || state.q;
+    var rb = document.getElementById("f-reset"), box = document.querySelector(".fopts");
+    if (changed && !rb && box) {
+      rb = document.createElement("button"); rb.type = "button"; rb.className = "linkbtn"; rb.id = "f-reset"; rb.textContent = "초기화";
+      rb.addEventListener("click", resetFilters); box.appendChild(rb);
+    } else if (!changed && rb) rb.remove();
+  }
+  function resetFilters() {
+    ["status", "spac", "year", "q"].forEach(function (k) { state[k] = DEFAULTS[k]; });
+    persist(); renderList();
+  }
+
+  var COLS = [
+    { key: "date", label: "상장일 / 신고일", cls: "c-date" },
+    { key: "name", label: "기업", cls: "c-name" },
+    { key: "lead", label: "대표주관", cls: "c-lead" },
+    { key: "status", label: "상태", cls: "c-status" },
+    { key: "band", label: "희망 밴드(원)", cls: "c-band n" },
+    { key: "final", label: "확정가(원)", cls: "c-final n" },
+    { key: "inst", label: "수요예측", cls: "c-inst n" },
+    { key: "retail", label: "일반청약", cls: "c-retail n" },
+    { key: "amount", label: "공모액(억원)", cls: "c-amt n" }
+  ];
+  function renderRows() {
+    var rows = filtered();
+    var amt = rows.reduce(function (s, d) { return s + (d.offer_amount || 0); }, 0);
+    document.getElementById("ledger-top").innerHTML = '<h2>IPO 딜 <span class="cnt">' + rows.length + "</span></h2>" +
+      (rows.length ? '<span class="hint">공모액 합계 <b>' + eok(amt) + "</b>억원</span>" : "");
+    var box = document.getElementById("result");
+    if (!rows.length) {
+      box.innerHTML = '<div class="empty">조건에 맞는 공모 건이 없습니다. <button type="button" class="linkbtn" id="e-reset">필터 초기화</button></div>';
+      document.getElementById("e-reset").addEventListener("click", resetFilters);
+      return;
+    }
+    var q = state.q.trim();
+    var html = '<div class="scroll"><table class="deals"><thead><tr>' + COLS.map(function (c) {
+      var on = state.sortKey === c.key;
+      return "<th class=\"" + c.cls + '"' + (on ? ' aria-sort="' + (state.sortDir > 0 ? "ascending" : "descending") + '"' : "") +
+        '><button type="button" class="sort" data-key="' + c.key + '">' + c.label + "</button></th>";
+    }).join("") + "</tr></thead><tbody>";
+    var cards = '<div class="cards">';
+    rows.forEach(function (d) {
+      var p = position(d);
+      var tags = (isSpac(d) ? '<span class="tag">스팩</span>' : "") + refileTag(d);
+      var bandCell = d.offer_price_low ? bandText(d) : (d.filed_price ? '<span class="dim" title="신고서 기재 기준가">' + int(d.filed_price) + "*</span>" : "-");
+      var href = "#/deal/" + encodeURIComponent(d.deal_id);
+      html += '<tr data-id="' + esc(d.deal_id) + '">' +
+        '<td class="c-date">' + (d.listing_dt ? esc(d.listing_dt) : '<span class="dim">' + (d.status === "approved" ? "승인 " : "신고 ") + esc(d.first_filing_dt) + "</span>") + "</td>" +
+        '<td class="c-name"><a class="nm" href="' + href + '">' + highlight(name(d), q) + "</a>" + tags + "</td>" +
+        '<td class="c-lead" title="' + esc(d.lead_underwriters || "") + '">' + (d.lead_underwriters ? highlight(d.lead_underwriters, q) : '<span class="dim">-</span>') + "</td>" +
+        '<td class="c-status">' + chip(d) + "</td>" +
+        '<td class="c-band n">' + bandCell + "</td>" +
+        '<td class="c-final n">' + (d.final_price ? (p ? pill(p) : "") + "<b>" + int(d.final_price) + "</b>" : '<span class="dim">-</span>') + "</td>" +
+        '<td class="c-inst n">' + (d.inst_demand_ratio != null ? ratio(d.inst_demand_ratio) : '<span class="dim">-</span>') + "</td>" +
+        '<td class="c-retail n">' + (d.retail_ratio != null ? ratio(d.retail_ratio) : '<span class="dim">-</span>') + "</td>" +
+        '<td class="c-amt n">' + eok(d.offer_amount) + "</td></tr>";
+      var price = d.status === "approved"
+        ? '<span class="lbl">시장</span><span class="b">' + esc(d.market || "-") + '</span><span class="lbl">청구</span><span class="b">' + esc((d.prelim && d.prelim.filed_dt) || "-") + "</span>"
+        : d.final_price
+        ? '<span class="b">' + bandCell + '</span><span class="arrow" aria-label="확정">→</span><b>' + int(d.final_price) + "</b>" + (p ? pill(p) : "")
+        : '<span class="lbl">밴드</span><span class="b">' + bandCell + "</span>";
+      cards += '<a class="card" href="' + href + '" data-id="' + esc(d.deal_id) + '">' +
+        '<div class="r1"><span class="nm">' + highlight(name(d), q) + tags + "</span>" + chip(d) + "</div>" +
+        '<div class="r2">' + (d.listing_dt ? '상장 <span class="mono">' + esc(d.listing_dt) + "</span>" : (d.status === "approved" ? "예심 승인 " : "신고 ") + '<span class="mono">' + esc(d.first_filing_dt) + "</span>") + " · " + (d.lead_underwriters ? highlight(d.lead_underwriters, q) : "주관사 미확인") + "</div>" +
+        '<div class="r3"><span class="price">' + price + '</span><span class="amt">' + (d.offer_amount != null ? eok(d.offer_amount) + "억" : "") + "</span></div>" +
+        (d.inst_demand_ratio != null || d.retail_ratio != null
+          ? '<div class="r4">' + (d.inst_demand_ratio != null ? "<span>수요예측<b>" + ratio(d.inst_demand_ratio) + "</b></span>" : "") +
+            (d.retail_ratio != null ? "<span>일반청약<b>" + ratio(d.retail_ratio) + "</b></span>" : "") + "</div>" : "") + "</a>";
+    });
+    cards += "</div>";
+    box.innerHTML = html + "</tbody></table></div>" + cards;
+    box.querySelectorAll("th .sort").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var k = b.dataset.key;
+        if (state.sortKey === k) state.sortDir = -state.sortDir;
+        else { state.sortKey = k; state.sortDir = (k === "name" || k === "status" || k === "lead") ? 1 : -1; }
+        persist(); renderRows();
+        var nb = document.querySelector('th .sort[data-key="' + k + '"]'); if (nb) nb.focus();
+      });
+    });
+    box.querySelector("tbody").addEventListener("click", function (e) {
+      if (e.target.closest("a")) return;
+      var tr = e.target.closest("tr[data-id]");
+      if (tr) openDeal(tr.dataset.id);
+    });
+  }
+  function openDeal(id) { goPath("/deal/" + encodeURIComponent(id)); }
+
+  // ---------------------------------------------------------------- 상세
+  function table(head, rows, numCols, cls) {
+    if (!rows.length) return '<p class="muted">해당 정보가 없습니다.</p>';
+    numCols = numCols || [];
+    return '<div class="scroll"><table class="mini' + (cls ? " " + cls : "") + '"><thead><tr>' + head.map(function (h, i) {
+      return "<th" + (numCols.indexOf(i) >= 0 ? ' class="num"' : "") + ">" + esc(h) + "</th>";
+    }).join("") + "</tr></thead><tbody>" + rows.map(function (r) {
+      return "<tr>" + r.map(function (c, i) { return "<td" + (numCols.indexOf(i) >= 0 ? ' class="num"' : "") + ">" + c + "</td>"; }).join("") + "</tr>";
+    }).join("") + "</tbody></table></div>";
+  }
+  function dartLink(no, text) {
+    return '<a href="' + DART_VIEW + esc(no) + '" target="_blank" rel="noopener noreferrer">' + esc(text || no) + "</a>";
+  }
+  var FIELD = {
+    filed_price: "신고서 기재 기준가(원)", offer_price_low: "희망 밴드 하단(원)", offer_price_high: "희망 밴드 상단(원)",
+    final_price: "확정 공모가(원)", shares_offered: "모집·매출 주식수", offer_amount: "모집·매출 총액(원)",
+    secondary_shares: "구주매출 주식수", lead_underwriters: "대표주관",
+    inst_demand_ratio: "수요예측 경쟁률(:1)", retail_ratio: "일반청약 경쟁률(:1)", listing_dt: "상장일"
+  };
+  function fieldValue(v) {
+    if (/^\d+$/.test(String(v))) return int(v);
+    if (/^\d+\.\d+$/.test(String(v))) return Number(v).toLocaleString("ko-KR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return v;
+  }
+  function section(title, body, open, count) {
+    return '<details class="sec"' + (open ? " open" : "") + "><summary>" + esc(title) +
+      (count != null ? '<span class="cnt">' + count + "</span>" : "") + "</summary>" + body + "</details>";
+  }
+
+  // 희망 밴드 막대 위에 확정가를 표시합니다.
+  function bandViz(d, width) {
+    var lo = d.offer_price_low, hi = d.offer_price_high, f = d.final_price;
+    if (!lo || lo === hi) return "";
+    var p = position(d);
+    var minV = Math.min(lo, f || lo), maxV = Math.max(hi, f || hi);
+    var span = maxV - minV || hi;
+    var a = minV - span * 0.18, b = maxV + span * 0.18;
+    var W = Math.max(260, Math.round(width || 600)), H = 84, L = 14, R = 14, y = 46;
+    var x = function (v) { return L + (v - a) / (b - a) * (W - L - R); };
+    var svg = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="희망 밴드 ' + int(lo) + "~" + int(hi) + "원" + (f ? ", 확정가 " + int(f) + "원" : "") + '">' +
+      '<line class="axis" x1="' + L + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '"/>' +
+      '<rect class="band" x="' + x(lo) + '" y="' + (y - 9) + '" width="' + Math.max(2, x(hi) - x(lo)) + '" height="18" rx="4"/>' +
+      '<line class="tick" x1="' + x(lo) + '" x2="' + x(lo) + '" y1="' + (y + 12) + '" y2="' + (y + 16) + '"/>' +
+      '<line class="tick" x1="' + x(hi) + '" x2="' + x(hi) + '" y1="' + (y + 12) + '" y2="' + (y + 16) + '"/>' +
+      '<text x="' + x(lo) + '" y="' + (y + 30) + '" text-anchor="middle">하단 ' + int(lo) + "</text>" +
+      '<text x="' + x(hi) + '" y="' + (y + 30) + '" text-anchor="middle">상단 ' + int(hi) + "</text>";
+    if (f) {
+      var fx = x(f), col = "var(--pos-" + POS_KEY[p] + ")";
+      var anchor = fx < 80 ? "start" : fx > W - 80 ? "end" : "middle";
+      svg += '<line x1="' + fx + '" x2="' + fx + '" y1="' + (y - 18) + '" y2="' + (y + 9) + '" stroke="' + col + '" stroke-width="2.5"/>' +
+        '<circle cx="' + fx + '" cy="' + y + '" r="7" fill="' + col + '" stroke="var(--surface)" stroke-width="2"/>' +
+        '<text class="lbl" x="' + fx + '" y="' + (y - 24) + '" text-anchor="' + anchor + '">확정 ' + int(f) + "원</text>";
+    }
+    svg += "</svg>";
+    var cap = f
+      ? "확정가는 밴드 하단 대비 " + pctText((f / lo - 1) * 100) + ", 상단 대비 " + pctText((f / hi - 1) * 100) + "입니다."
+      : "확정가가 아직 없습니다. 발행조건확정 신고서가 제출되면 표시됩니다.";
+    return '<div class="bandviz"><div class="label">희망 밴드와 확정가</div>' + svg + '<p class="cap">' + cap + "</p></div>";
+  }
+
+  function closeSheet() {
+    if (sheet.hidden) return;
+    sheet.hidden = true; shade.hidden = true; sheetId = null;
+    document.documentElement.classList.remove("lock");
+  }
+  function openSheet(id) {
+    var d = data.deals.filter(function (x) { return x.deal_id === id; })[0];
+    var wasOpen = !sheet.hidden;
+    sheet.hidden = false; shade.hidden = false; sheetId = id;
+    document.documentElement.classList.add("lock");
+    if (!wasOpen) { sheet.style.animation = "none"; void sheet.offsetWidth; sheet.style.animation = ""; }
+    var titleEl = document.getElementById("sheet-title"), chipEl = document.getElementById("sheet-chip"), subEl = document.getElementById("sheet-sub");
+    if (!d) {
+      titleEl.textContent = "공모 건을 찾을 수 없습니다"; chipEl.innerHTML = ""; subEl.textContent = "";
+      sbody.innerHTML = '<p class="err">목록으로 돌아가 다시 선택해 주십시오.</p>';
+      return;
+    }
+    document.title = name(d) + " · IPO 공시 DB";
+    var list = view === "list" ? filtered() : [], idx = -1;
+    for (var i = 0; i < list.length; i++) if (list[i].deal_id === id) { idx = i; break; }
+    var prev = idx > 0 ? list[idx - 1] : null, next = idx >= 0 && idx < list.length - 1 ? list[idx + 1] : null;
+    titleEl.textContent = name(d);
+    chipEl.innerHTML = chip(d) + (isSpac(d) ? '<span class="tag">스팩</span>' : "") + refileTag(d);
+    subEl.textContent = d.status === "approved" ? "예심 승인 " + (d.first_filing_dt || "-") + (d.market ? " · " + d.market : "") + (d.lead_underwriters ? " · " + d.lead_underwriters : "") : (d.listing_dt ? "상장" + (d.listing_dt > asOf() ? " 예정" : "") + " " + d.listing_dt + " · " : "") + "최초 신고 " + d.first_filing_dt +
+      (pricingDate(d) ? " · 확정 " + pricingDate(d) : "") + " · 정정 " + (d.amendment_count || 0) + "회";
+    document.getElementById("sheet-pos").textContent = idx >= 0 ? (idx + 1) + " / " + list.length : "";
+    var pb = document.getElementById("s-prev"), nb = document.getElementById("s-next");
+    pb.disabled = !prev; nb.disabled = !next;
+    pb.onclick = prev ? function () { goPath("/deal/" + encodeURIComponent(prev.deal_id)); } : null;
+    nb.onclick = next ? function () { goPath("/deal/" + encodeURIComponent(next.deal_id)); } : null;
+
+    var html = "";
+    if (d.status === "approved") {
+      var pr = d.prelim || {}, exp = null;
+      if (pr.decided_dt) { var t = new Date(pr.decided_dt + "T00:00:00"); t.setDate(t.getDate() + 183); exp = t.toISOString().slice(0, 10); }
+      var tm = function (k, v, sub) { return '<div><span class="k">' + k + '</span><span class="v">' + v + "</span>" + (sub ? '<span class="s">' + sub + "</span>" : "") + "</div>"; };
+      sbody.innerHTML = '<p class="notice">상장예비심사 승인을 받았고 아직 증권신고서를 내지 않은 회사입니다. 증권신고서가 DART에 제출되면 일반 공모 건으로 바뀝니다.</p>' +
+        '<div class="terms">' + tm("예심 청구일", esc(pr.filed_dt || "-")) + tm("승인일", esc(pr.decided_dt || "-"), "결과 확정일") +
+        tm("시장", '<span style="font-family:var(--f-body);font-size:15px">' + esc(pr.market || "-") + "</span>") +
+        tm("상장유형", '<span style="font-family:var(--f-body);font-size:15px">' + esc(pr.listing_type || "-") + "</span>") +
+        tm("상장주선인", '<span style="font-family:var(--f-body);font-size:15px;font-weight:600">' + esc(pr.sponsor || "-") + "</span>") +
+        tm("승인 효력 만료(추정)", esc(exp || "-"), "승인 후 약 6개월") + "</div>" +
+        '<p class="snote">출처: 한국거래소 KIND 상장예비심사 현황' + (data.kind_as_of ? " (" + esc(data.kind_as_of) + " 기준)" : "") + ". KRX의 사전 허락 없이 외부에 배포하지 마십시오.</p>";
+      sbody.scrollTop = 0;
+      if (!wasOpen) document.getElementById("s-close").focus({ preventScroll: true });
+      return;
+    }
+    if (d.status === "price_fixed" && !d.final_price) html += '<p class="notice warn">발행조건확정 신고서는 제출되었으나 확정가를 원문에서 자동으로 읽지 못했습니다. 공시 이력의 접수번호로 원문을 확인해 주십시오.</p>';
+    if (d.correction_order) html += '<p class="notice warn">정정명령 또는 정정제출요구가 부과된 이력이 있습니다.</p>';
+    var nx = d.status === "withdrawn" ? laterDeal(d) : null, pv = earlierWithdrawn(d);
+    if (nx) html += '<p class="notice">이 공모는 철회되었습니다. 이후 ' + esc(nx.first_filing_dt) + "에 다시 신고한 공모가 있습니다" +
+      (nx.status === "completed" && nx.listing_dt ? "(" + (nx.listing_dt > asOf() ? "상장 예정 " : "상장 ") + esc(nx.listing_dt) + ")" : "") +
+      '. <a href="#/deal/' + encodeURIComponent(nx.deal_id) + '">재신고 공모 보기</a></p>';
+    if (pv) html += '<p class="notice">이전 공모(최초 신고 ' + esc(pv.first_filing_dt) + ")를 철회한 뒤 다시 신고한 공모입니다. " +
+      '<a href="#/deal/' + encodeURIComponent(pv.deal_id) + '">철회된 공모 보기</a></p>';
+
+    var p = position(d);
+    var amtLabel = srcMethod(d, "offer_amount") === "DOC" ? "공모액 · 확정" : "공모액 · 신고서 기재";
+    var shrLabel = srcMethod(d, "shares_offered") === "DOC" ? "공모주식수 · 확정" : "공모주식수 · 신고서 기재";
+    var term = function (k, v, sub, cls) { return '<div><span class="k">' + k + '</span><span class="v' + (cls ? " " + cls : "") + '">' + v + "</span>" + (sub ? '<span class="s">' + sub + "</span>" : "") + "</div>"; };
+    html += '<div class="terms">' +
+      term("확정 공모가", d.final_price ? int(d.final_price) + "<small>원</small>" : '<span class="dim">' + (d.status === "price_fixed" ? "확인 필요" : "미확정") + "</span>", p ? pill(p) : "", d.final_price ? "hl" : "") +
+      term("희망 밴드", d.offer_price_low ? bandText(d) + "<small>원</small>" : "-", d.offer_price_low && d.offer_price_low === d.offer_price_high ? "단일 희망가" : "") +
+      term("수요예측 경쟁률", d.inst_demand_ratio != null ? ratio(d.inst_demand_ratio, 2) : '<span class="dim">-</span>', d.inst_demand_count ? int(d.inst_demand_count) + "건 참여" : "") +
+      term("일반청약 경쟁률", d.retail_ratio != null ? ratio(d.retail_ratio, 2) : '<span class="dim">-</span>', d.retail_count ? int(d.retail_count) + "건" : "") +
+      term("상장일", d.listing_dt ? esc(d.listing_dt) : '<span class="dim">-</span>', d.listing_dt && d.listing_dt > asOf() ? "예정" : "") +
+      term(amtLabel, d.offer_amount != null ? eok(d.offer_amount) + "<small>억원</small>" : "-") +
+      term(shrLabel, d.shares_offered != null ? int(d.shares_offered) + "<small>주</small>" : "-", d.secondary_shares ? "구주 " + int(d.secondary_shares) + "주" : "") +
+      term("대표주관", '<span style="font-family:var(--f-body);font-size:14.5px;font-weight:600">' + esc(d.lead_underwriters || "-") + "</span>", d.co_underwriters ? "공동 " + esc(d.co_underwriters) : "") +
+      "</div>";
+    html += '<div id="bandviz-slot"></div>';
+
+    html += section("일정·기타", '<dl class="kv">' +
+      (d.prelim ? "<dt>예심 청구일</dt><dd>" + esc(d.prelim.filed_dt || "-") + "</dd><dt>예심 승인일</dt><dd>" + esc(d.prelim.decided_dt || "-") + (d.prelim.result ? ' <span class="dim">(' + esc(d.prelim.result) + ")</span>" : "") + "</dd>" : "") +
+      "<dt>청약기일</dt><dd>" + esc(d.subscription_raw || "-") + "</dd>" +
+      "<dt>납입기일</dt><dd>" + esc(d.payment_raw || "-") + "</dd>" +
+      "<dt>신고서 기재 기준가</dt><dd>" + (d.filed_price != null ? int(d.filed_price) + "원 <span class=\"dim\">(밴드 하단 기준)</span>" : "-") + "</dd>" +
+      "<dt>구분 판별 근거</dt><dd>" + esc(d.ipo_basis || "-") + "</dd></dl>", true);
+    html += section("공시 이력", table(["접수일", "보고서명", "접수번호"],
+      d.filings.map(function (f) {
+        return [esc(f.rcept_dt), esc(f.report_nm) + (f.rm ? ' <span class="dim">(' + esc(f.rm) + ")</span>" : ""), dartLink(f.rcept_no)];
+      }), [], "filings") + '<p class="snote">접수번호를 누르면 DART 원문이 새 창으로 열립니다.</p>', true, d.filings.length);
+    html += section("인수인", table(["구분", "인수인", "증권", "수량", "인수대가"],
+      d.underwriters.map(function (u) { return [esc(u.actsen), esc(u.actnmn), esc(u.stksen), esc(u.udtcnt), esc(u.udtprc)]; }), [3, 4]), false, d.underwriters.length);
+    var realSellers = d.sellers.filter(function (x) { return [x.hdr, x.slstk, x.bfsl_hdstk].some(function (v) { return v && v !== "-"; }); });
+    if (realSellers.length) {
+      html += section("구주매출 (매출인)", table(["보유자", "관계", "매출 전 보유", "매출 주식수", "매출 후 보유"],
+        realSellers.map(function (s) { return [esc(s.hdr), esc(s.rl_cmp), esc(s.bfsl_hdstk), esc(s.slstk), esc(s.atsl_hdstk)]; }), [2, 3, 4]), false, realSellers.length);
+    }
+    if (d.use_of_proceeds.length) {
+      html += section("자금의 사용목적", table(["구분", "금액(원)"], d.use_of_proceeds.map(function (u) { return [esc(u.se), esc(u.amt)]; }), [1]), false, d.use_of_proceeds.length);
+    }
+    if (d.sources.length) {
+      html += section("값의 출처", table(["항목", "값", "근거", "접수번호"],
+        d.sources.map(function (s) { return [esc(FIELD[s.field_name] || s.field_name), esc(fieldValue(s.value)), esc(s.section) + " · " + esc(s.evidence), dartLink(s.rcept_no)]; }), [], "src") +
+        '<p class="snote">&lsquo;원문&rsquo; 근거는 공시 본문에서 규칙으로 읽은 문구입니다. 중요한 값은 접수번호의 원문과 대조해 주십시오.</p>', false, d.sources.length);
+    }
+    sbody.innerHTML = html;
+    sbody.scrollTop = 0;
+    var slot = document.getElementById("bandviz-slot");
+    var viz = bandViz(d, slot.clientWidth - 32);
+    slot.outerHTML = viz || "";
+    if (!wasOpen) document.getElementById("s-close").focus({ preventScroll: true });
+  }
+  document.getElementById("s-close").addEventListener("click", function () { goPath(baseView()); });
+  shade.addEventListener("click", function () { goPath(baseView()); });
+
+  // ---------------------------------------------------------------- 통계
+  function monthList(from, to) {
+    var out = [], y = +from.slice(0, 4), m = +from.slice(5, 7), ey = +to.slice(0, 4), em = +to.slice(5, 7);
+    while (y < ey || (y === ey && m <= em)) {
+      out.push(y + "-" + (m < 10 ? "0" : "") + m);
+      if (++m > 12) { m = 1; y++; }
+    }
+    return out;
+  }
+  function niceMax(v) {
+    if (v <= 0) return 4;
+    var p = Math.pow(10, Math.floor(Math.log10(v))), n = v / p;
+    var f = n <= 1 ? 1 : n <= 2 ? 2 : n <= 4 ? 4 : n <= 5 ? 5 : n <= 8 ? 8 : 10;
+    return f * p;
+  }
+  function niceCountMax(v) {
+    var step = Math.max(1, Math.ceil(v / 4));
+    var nice = [1, 2, 3, 4, 5, 6, 8, 10, 15, 20, 25, 50, 100].filter(function (n) { return n >= step; })[0] || step;
+    return nice * 4;
+  }
+  function barPath(x, y, w, h, r) {
+    r = Math.min(r, w / 2, h);
+    return "M" + x + "," + (y + h) + "V" + (y + r) + "Q" + x + "," + y + " " + (x + r) + "," + y +
+      "H" + (x + w - r) + "Q" + (x + w) + "," + y + " " + (x + w) + "," + (y + r) + "V" + (y + h) + "Z";
+  }
+  function chartFrame(W, H, L, R, T, B, top, months, fmtY) {
+    var ih = H - T - B, svg = "";
+    for (var g = 0; g <= 4; g++) {
+      var gy = T + ih - (ih * g) / 4;
+      svg += '<line class="' + (g === 0 ? "axis" : "grid") + '" x1="' + L + '" x2="' + (W - R) + '" y1="' + gy + '" y2="' + gy + '"/>' +
+        '<text x="' + (L - 6) + '" y="' + (gy + 4) + '" text-anchor="end">' + fmtY((top * g) / 4) + "</text>";
+    }
+    var band = (W - L - R) / months.length, step = Math.max(1, Math.ceil(40 / band));
+    var last = months.length - 1;
+    months.forEach(function (k, i) {
+      // 마지막 달은 직전 눈금과 겹치지 않을 때만 따로 표시
+      if (i % step === 0 || (i === last && last % step >= Math.ceil(step / 2) + (step === 1 ? 0 : 1))) {
+        svg += '<text x="' + (L + band * i + band / 2) + '" y="' + (H - 10) + '" text-anchor="middle">' + k.slice(2, 4) + "." + k.slice(5) + "</text>";
+      }
+    });
+    return svg;
+  }
+  function statsDeals() {
+    return data.deals.filter(function (d) {
+      return d.status !== "approved" && candOk(d, "ipo") && (state.spac || !isSpac(d)) && (!state.sYear || d.first_filing_dt.slice(0, 4) === state.sYear);
+    });
+  }
+  function splitNames(s) { return (s || "").split(/\s*,\s*/).filter(Boolean); }
+
+  function renderStats() {
+    document.title = "통계 · IPO 공시 DB";
+    var ys = years();
+    view = "stats";
+    var head = '<div class="crow" style="justify-content:flex-end"><div class="fopts">' +
+      '<label class="switch"><input type="checkbox" id="s-spac"' + (state.spac ? " checked" : "") + ">스팩 포함</label>" +
+      '<select class="sel" id="s-year" aria-label="신고 연도">' + opt("", "전체 연도", state.sYear) + ys.map(function (y) { return opt(y, y + "년 신고", state.sYear); }).join("") + "</select></div></div>";
+    var deals = statsDeals();
+    if (!deals.length) {
+      app.innerHTML = '<div class="content">' + head + '<div class="ledger"><div class="empty">선택한 기간에 IPO 건이 없습니다.</div></div></div>';
+      bindStats();
+      return;
+    }
+    var W = Math.max(300, Math.min(app.clientWidth - 40, 1220)), H = W < 500 ? 230 : 270;
+    var L = 44, R = 8, T = 22, B = 30, iw = W - L - R, ih = H - T - B;
+
+    // 1) 월별 신고 건수·공모액 (최초 신고일 기준)
+    var cnt = {}, amt = {};
+    deals.forEach(function (d) {
+      var k = d.first_filing_dt.slice(0, 7);
+      cnt[k] = (cnt[k] || 0) + 1;
+      if (d.offer_amount != null) amt[k] = (amt[k] || 0) + d.offer_amount;
+    });
+    var keys = Object.keys(cnt).sort();
+    var months = monthList(keys[0], keys[keys.length - 1]);
+    var isAmt = state.metric === "amount";
+    var vals = months.map(function (k) { return isAmt ? (amt[k] || 0) / 1e8 : (cnt[k] || 0); });
+    var top = isAmt ? niceMax(Math.max.apply(null, vals)) : niceCountMax(Math.max.apply(null, vals));
+    var band = iw / months.length, bw = Math.min(24, band * 0.62);
+    var svg1 = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="월별 ' + (isAmt ? "공모액" : "신고 건수") + ' 막대 차트">' +
+      chartFrame(W, H, L, R, T, B, top, months, function (v) { return int(Math.round(v * 10) / 10); });
+    var maxI = vals.indexOf(Math.max.apply(null, vals));
+    months.forEach(function (k, i) {
+      var v = vals[i], h = (v / top) * ih, x = L + band * i + (band - bw) / 2, y = T + ih - h;
+      var tipText = "<b>" + k.slice(0, 4) + "년 " + +k.slice(5) + "월 신고</b><div class=\"row\"><span>건수</span><span>" + (cnt[k] || 0) + "건</span></div><div class=\"row\"><span>공모액</span><span>" + eok(amt[k] || 0) + "억원</span></div>";
+      svg1 += '<g class="col" data-tip="' + esc(tipText) + '"><rect class="hit" tabindex="0" x="' + (L + band * i) + '" y="' + T + '" width="' + band + '" height="' + ih + '" aria-label="' + esc(k + " " + (cnt[k] || 0) + "건, 공모액 " + eok(amt[k] || 0) + "억원") + '"/>' +
+        (v > 0 ? '<path class="bar" d="' + barPath(x, y, bw, h, 4) + '"/>' : "") +
+        (i === maxI && v > 0 ? '<text class="vlabel" x="' + (x + bw / 2) + '" y="' + (y - 6) + '" text-anchor="middle">' + int(Math.round(v)) + (isAmt ? "억원" : "건") + "</text>" : "") + "</g>";
+    });
+    svg1 += "</svg>";
+
+    // 2) 월별 밴드 대비 위치 (발행조건확정 월 기준, 누적 막대)
+    var pm = {}, posN = 0, posCount = {};
+    POS.forEach(function (p) { posCount[p] = 0; });
+    deals.forEach(function (d) {
+      var p = position(d), pd = pricingDate(d);
+      if (!p || !pd) return;
+      var k = pd.slice(0, 7);
+      pm[k] = pm[k] || {}; pm[k][p] = (pm[k][p] || 0) + 1; posCount[p]++; posN++;
+    });
+    var pkeys = Object.keys(pm).sort();
+    var svg2 = "", legend = "";
+    if (pkeys.length) {
+      var pmonths = monthList(pkeys[0], pkeys[pkeys.length - 1]);
+      var tots = pmonths.map(function (k) { return POS.reduce(function (s, p) { return s + ((pm[k] || {})[p] || 0); }, 0); });
+      var ptop = niceCountMax(Math.max.apply(null, tots));
+      var W2 = window.innerWidth > 1060 ? Math.round((Math.min(app.clientWidth, 1232) - 16) * 1.3 / 2.3) - 36 : W;
+      var iw2 = W2 - L - R;
+      var pband = iw2 / pmonths.length, pbw = Math.min(20, pband * 0.62);
+      svg2 = '<svg viewBox="0 0 ' + W2 + " " + H + '" role="img" aria-label="발행조건확정 월별 밴드 대비 확정가 위치 누적 막대 차트">' +
+        chartFrame(W2, H, L, R, T, B, ptop, pmonths, function (v) { return int(Math.round(v)); });
+      pmonths.forEach(function (k, i) {
+        var x = L + pband * i + (pband - pbw) / 2, acc = 0, segs = "", m = pm[k] || {};
+        // 아래에서 위로: 하단 미달 → 상단 초과 (위쪽일수록 높은 가격)
+        var order = POS.slice().reverse(), shown = order.filter(function (p) { return m[p]; });
+        shown.forEach(function (p, j) {
+          var n = m[p], h = (n / ptop) * ih, y = T + ih - acc - h;
+          var isTop = j === shown.length - 1;
+          var gap = j > 0 ? 2 : 0;          // 구간 사이 2px 여백
+          segs += isTop
+            ? '<path class="seg-r" fill="var(--pos-' + POS_KEY[p] + ')" d="' + barPath(x, y, pbw, Math.max(0, h - gap), 4) + '"/>'
+            : '<rect class="seg-r" fill="var(--pos-' + POS_KEY[p] + ')" x="' + x + '" y="' + y + '" width="' + pbw + '" height="' + Math.max(0, h - gap) + '"/>';
+          acc += h;
+        });
+        var tipRows = POS.filter(function (p) { return m[p]; }).map(function (p) {
+          return '<div class="row"><span><i style="background:var(--pos-' + POS_KEY[p] + ')"></i>' + p + "</span><span>" + m[p] + "건</span></div>";
+        }).join("");
+        var total = tots[i];
+        svg2 += '<g class="col" data-tip="' + esc("<b>" + k.slice(0, 4) + "년 " + +k.slice(5) + "월 확정 " + total + "건</b>" + (tipRows || "<div>확정 건 없음</div>")) + '">' +
+          '<rect class="hit" tabindex="0" x="' + (L + pband * i) + '" y="' + T + '" width="' + pband + '" height="' + ih + '" aria-label="' + esc(k + " 확정 " + total + "건") + '"/>' + segs + "</g>";
+      });
+      svg2 += "</svg>";
+      legend = '<div class="legend">' + POS.map(function (p) {
+        return '<span><i style="background:var(--pos-' + POS_KEY[p] + ')"></i>' + p + " " + posCount[p] + "건</span>";
+      }).join("") + "</div>";
+    }
+
+    // 3) 대표주관사 순위 (공동 대표주관은 건수는 각 사 1건, 공모액은 균등 배분)
+    var lg = {};
+    deals.forEach(function (d) {
+      var names = splitNames(d.lead_underwriters);
+      names.forEach(function (n) {
+        lg[n] = lg[n] || { name: n, count: 0, amount: 0, fixed: 0, upper: 0, posN: 0 };
+        lg[n].count++;
+        if (d.offer_amount) lg[n].amount += d.offer_amount / names.length;
+        var p = position(d);
+        if (p) { lg[n].posN++; if (p === "상단" || p === "상단 초과") lg[n].upper++; }
+      });
+    });
+    var leag = Object.keys(lg).map(function (k) { return lg[k]; });
+    var lk = state.league === "amount" ? "amount" : "count";
+    leag.sort(function (a, b) { return b[lk] - a[lk] || b.count - a.count; });
+    var maxL = leag.length ? leag[0][lk] : 1;
+    var topN = leag.slice(0, 15);
+    var leagueRows = topN.map(function (r, i) {
+      return '<tr><td class="rank">' + (i + 1) + "</td><td>" + esc(r.name) + '</td><td class="num">' + r.count + '</td><td class="num">' + eok(r.amount) +
+        '</td><td class="num">' + (r.posN ? Math.round(r.upper / r.posN * 100) + "%" : "-") +
+        '</td><td class="bar-cell"><div class="hbar" style="width:' + (r[lk] / maxL * 100).toFixed(1) + '%"></div></td></tr>';
+    }).join("");
+
+    var fixedN = deals.filter(function (d) { return d.final_price; }).length;
+    var upperN = posCount["상단"] + posCount["상단 초과"];
+    var total = deals.reduce(function (s, d) { return s + (d.offer_amount || 0); }, 0);
+    var tbl = table(["월", "신고 건수", "공모액(억원)"], months.map(function (k) { return [k, String(cnt[k] || 0), eok(amt[k] || 0)]; }), [1, 2]);
+
+    var seg2 = function (attr, a, b, la, lb, onA) {
+      return '<div class="seg" role="group" style="--n:2;--i:' + (onA ? 0 : 1) + '"><button type="button" ' + attr + '="' + a + '" aria-pressed="' + onA + '">' + la + "</button>" +
+        "<button type=\"button\" " + attr + '="' + b + '" aria-pressed="' + !onA + '">' + lb + "</button></div>";
+    };
+    app.innerHTML = '<div class="content">' + head + summaryStats(deals.length, fixedN, posN ? Math.round(upperN / posN * 100) : null, posN, total) +
+      '<section class="panel"><header><div><h2>월별 신고 추이</h2><p>최초 증권신고서 제출월 기준, 철회 건 포함. 공모액은 확정 건은 확정 금액, 그 외는 신고서 기재 금액입니다.</p></div>' +
+      seg2("data-m", "count", "amount", "건수", "공모액", !isAmt) + '</header><div class="pbody chart">' + svg1 +
+      '<details class="tv"><summary>표로 보기</summary>' + tbl + "</details></div></section>" +
+      '<div class="panels">' +
+      (svg2 ? '<section class="panel"><header><div><h2>밴드 대비 확정가 위치</h2><p>발행조건확정 신고서 제출월 기준. 단일 희망가 공모 제외. 위로 갈수록 높은 가격입니다.</p></div></header>' +
+        '<div class="pbody chart">' + legend + svg2 + "</div></section>" : "") +
+      '<section class="panel league"><header><div><h2>대표주관사 순위</h2><p>공동 대표주관은 건수 각 1건, 공모액은 사 수로 나눠 반영. 상단 이상은 확정 건 기준.</p></div>' +
+      seg2("data-l", "count", "amount", "건수순", "공모액순", lk === "count") + '</header><div class="pbody">' +
+      '<div class="scroll"><table class="mini"><thead><tr><th>순위</th><th>대표주관</th><th class="num">건수</th><th class="num">공모액(억)</th><th class="num">상단 이상</th><th class="bar-cell"><span class="sr">' + (lk === "amount" ? "공모액" : "건수") + "</span></th></tr></thead><tbody>" + leagueRows + "</tbody></table></div>" +
+      '<p class="snote">상위 ' + topN.length + "개사 / 전체 " + leag.length + "개사</p></div></section></div></div>";
+    bindStats();
+    bindChart();
+  }
+  function summaryStats(n, fixedN, upperPct, posN, total) {
+    return '<section class="summary" aria-label="요약">' +
+      "<div><div class=\"v\">" + n + "<small>건</small></div><div class=\"l\">IPO 신고" + (state.spac ? "" : " (스팩 제외)") + "</div></div>" +
+      "<div><div class=\"v\">" + fixedN + "<small>건</small></div><div class=\"l\">확정가 확인</div></div>" +
+      "<div><div class=\"v hl\">" + (upperPct == null ? "-" : upperPct + "<small>%</small>") + "</div><div class=\"l\">밴드 상단 이상 확정 (" + posN + "건 기준)</div></div>" +
+      "<div><div class=\"v\">" + eok(total) + "<small>억원</small></div><div class=\"l\">공모액 합계</div></div></section>";
+  }
+  function bindStats() {
+    var y = document.getElementById("s-year");
+    if (y) y.addEventListener("change", function (e) { state.sYear = e.target.value; persist(); renderStats(); });
+    var sp = document.getElementById("s-spac");
+    if (sp) sp.addEventListener("change", function (e) { state.spac = e.target.checked; persist(); renderStats(); });
+    app.querySelectorAll("[data-m]").forEach(function (b) {
+      b.addEventListener("click", function () { state.metric = b.dataset.m; persist(); renderStats(); });
+    });
+    app.querySelectorAll("[data-l]").forEach(function (b) {
+      b.addEventListener("click", function () { state.league = b.dataset.l; persist(); renderStats(); });
+    });
+  }
+
+  // ---------------------------------------------------------------- 툴팁
+  function showTip(g, x, y) {
+    tip.innerHTML = g.getAttribute("data-tip");
+    tip.hidden = false;
+    var w = tip.offsetWidth, h = tip.offsetHeight;
+    tip.style.left = Math.min(Math.max(8, x - w / 2), window.innerWidth - w - 8) + "px";
+    tip.style.top = (y - h - 12 < 8 ? y + 16 : y - h - 12) + "px";
+  }
+  function hideTip() { tip.hidden = true; document.querySelectorAll(".chart .col.on").forEach(function (g) { g.classList.remove("on"); }); }
+  function bindChart() {
+    document.querySelectorAll(".chart .col").forEach(function (g) {
+      var hit = g.querySelector(".hit");
+      hit.addEventListener("pointermove", function (e) { g.classList.add("on"); showTip(g, e.clientX, e.clientY); });
+      hit.addEventListener("pointerleave", hideTip);
+      hit.addEventListener("focus", function () {
+        var r = hit.getBoundingClientRect(); g.classList.add("on");
+        showTip(g, r.left + r.width / 2, r.top + r.height / 3);
+      });
+      hit.addEventListener("blur", hideTip);
+    });
+  }
+
+  // ---------------------------------------------------------------- 테마
+  var root = document.documentElement, mq = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+  var tgl = document.getElementById("tgl");
+  function isDark() {
+    var t = root.getAttribute("data-theme");
+    return t ? t === "dark" : !!(mq && mq.matches);
+  }
+  function paintTheme() {
+    var dark = isDark();
+    tgl.setAttribute("data-on", dark ? "dark" : "light");
+    tgl.querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", String((b.dataset.t === "dark") === dark)); });
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", dark ? "#0F151C" : "#F4F6F9");
+  }
+  try { var savedTheme = localStorage.getItem("ipo-db-theme"); if (savedTheme) root.setAttribute("data-theme", savedTheme); } catch (e) { /* 무시 */ }
+  tgl.querySelectorAll("button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      root.setAttribute("data-theme", b.dataset.t);
+      try { localStorage.setItem("ipo-db-theme", b.dataset.t); } catch (e) { /* 무시 */ }
+      paintTheme();
+    });
+  });
+  if (mq && mq.addEventListener) mq.addEventListener("change", paintTheme);
+  new MutationObserver(paintTheme).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+  paintTheme();
+
+  // ---------------------------------------------------------------- 시작
+  function load() {
+    if (EMBED) return Promise.resolve(JSON.parse(embedEl.textContent));
+    return fetch("data/deals.json", { cache: "no-cache" }).then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    });
+  }
+  load().then(function (j) {
+    data = j;
+    var nIpo = (j.deals || []).length, nAp = (j.approvals || []).length;
+    data.deals = (j.deals || []).concat(j.approvals || []);
+    indexCorps();
+    document.getElementById("asof").textContent = "DART 기준 " + (j.last_list_date || "-") + (j.kind_as_of ? " · KIND " + j.kind_as_of : "") + " · IPO " + nIpo + "건" + (nAp ? " · 예심 승인 " + nAp + "건" : "");
+    route();
+  }).catch(function () {
+    app.innerHTML = '<p class="err">데이터를 불러오지 못했습니다. 네트워크 연결을 확인한 뒤 새로 고침해 주십시오. 처음 접속한 기기에서는 오프라인 상태로 열 수 없습니다.</p>';
+  });
+  window.addEventListener("hashchange", route);
+  // 링크 클릭: 임베드 모드에서는 메모리 경로로, 목록→상세 이동 시 위치를 기억합니다.
+  document.addEventListener("click", function (e) {
+    var a = e.target.closest && e.target.closest('a[href^="#/"]');
+    if (!a || e.metaKey || e.ctrlKey || e.shiftKey) return;
+    var to = a.getAttribute("href").slice(1);
+    if (EMBED) { e.preventDefault(); goPath(to); }
+  });
+  var lastW = window.innerWidth, rt;
+  window.addEventListener("resize", function () {
+    clearTimeout(rt);
+    rt = setTimeout(function () {
+      if (window.innerWidth !== lastW && data) {
+        var y0 = window.scrollY;
+        if (view === "stats") { renderStats(); window.scrollTo(0, y0); }
+        if (sheetId) openSheet(sheetId);
+      }
+      placeInd(document.querySelector(".tabs")); placeInd(document.getElementById("chips"));
+      lastW = window.innerWidth;
+    }, 150);
+  });
+  document.addEventListener("keydown", function (e) {
+    if (!sheetId || e.target.closest("input, select, textarea")) return;
+    if (e.key === "ArrowLeft") { var b = document.getElementById("s-prev"); if (!b.disabled) b.click(); }
+    if (e.key === "ArrowRight") { var n = document.getElementById("s-next"); if (!n.disabled) n.click(); }
+    if (e.key === "Escape") goPath(baseView());
+  });
+
+  // ---------------------------------------------------------------- 좌우 스와이프로 화면 전환 (휴대폰)
+  (function () {
+    var x0 = 0, y0 = 0, t0 = 0, dx = 0, active = false, horiz = null;
+    var ORDER = ["list", "stats"];
+    function blocked(el) {
+      // 가로로 스크롤되는 영역, 입력 요소, 시트가 열린 상태에서는 스와이프를 쓰지 않습니다.
+      return sheetId || !el || !!el.closest('.chips, .scroll, input, select, textarea, .sheet, [contenteditable]');
+    }
+    app.addEventListener("touchstart", function (e) {
+      if (e.touches.length !== 1 || blocked(e.target) || window.innerWidth > 760) { active = false; return; }
+      var t = e.touches[0];
+      x0 = t.clientX; y0 = t.clientY; t0 = Date.now(); dx = 0; active = true; horiz = null;
+    }, { passive: true });
+    app.addEventListener("touchmove", function (e) {
+      if (!active) return;
+      var t = e.touches[0], mx = t.clientX - x0, my = t.clientY - y0;
+      if (horiz === null && (Math.abs(mx) > 10 || Math.abs(my) > 10)) horiz = Math.abs(mx) > Math.abs(my) * 1.4;
+      if (!horiz) return;
+      dx = mx;
+      var cur = ORDER.indexOf(view || "list");
+      var edge = (cur === 0 && dx > 0) || (cur === ORDER.length - 1 && dx < 0);   // 더 갈 화면이 없으면 저항을 크게
+      app.classList.add("drag");
+      app.style.transform = "translateX(" + (dx * (edge ? 0.12 : 0.35)) + "px)";
+      app.style.opacity = String(1 - Math.min(Math.abs(dx) / 900, edge ? 0.05 : 0.25));
+    }, { passive: true });
+    function settle() {
+      app.classList.remove("drag"); app.classList.add("settle");
+      app.style.transform = ""; app.style.opacity = "";
+      setTimeout(function () { app.classList.remove("settle"); }, 300);
+    }
+    app.addEventListener("touchend", function () {
+      if (!active) return;
+      active = false;
+      if (!horiz) return;
+      var fast = Math.abs(dx) > 40 && Date.now() - t0 < 300;
+      var cur = ORDER.indexOf(view || "list"), next = cur + (dx < 0 ? 1 : -1);
+      if ((Math.abs(dx) > 70 || fast) && next >= 0 && next < ORDER.length) {
+        app.classList.remove("drag", "settle"); app.style.transform = ""; app.style.opacity = "";
+        app.classList.remove("in-left", "in-right"); void app.offsetWidth;
+        app.classList.add(dx < 0 ? "in-left" : "in-right");
+        goPath(ORDER[next] === "stats" ? "/stats" : "/");
+        try { localStorage.setItem("ipo-db-swiped", "1"); } catch (e) { /* 무시 */ }
+      } else settle();
+    });
+    app.addEventListener("touchcancel", function () { if (active) { active = false; settle(); } });
+    app.addEventListener("animationend", function () { app.classList.remove("in-left", "in-right"); });
+  })();
+
+  if (!EMBED && "serviceWorker" in navigator) {
+    window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
+  }
+})();
