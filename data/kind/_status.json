@@ -1,9 +1,10 @@
 {
- "run_at": "2026-10-24T05:26:16+09:00",
- "fetch": "no_table",
+ "run_at": "2026-10-24T05:28:10+09:00",
+ "fetch": "ok",
  "http_status": 200,
- "response_bytes": 83638,
- "rows": 0,
- "dump": "data/kind/_last_response.html",
+ "response_bytes": 197823,
+ "rows": 335,
+ "saved": 335,
+ "approved": 220,
  "manual_rows": 0
 }
