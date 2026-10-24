@@ -1076,12 +1076,10 @@
     deals.forEach(function (d) {
       var names = uwSet(d);
       names.forEach(function (n) {
-        var r = lg[n] = lg[n] || { name: n, count: 0, amount: 0, tech: 0, upper: 0, posN: 0 };
+        var r = lg[n] = lg[n] || { name: n, count: 0, amount: 0, tech: 0 };
         r.count++;
         if (d.offer_amount) r.amount += d.offer_amount / names.length;
         if (d.board === "KOSDAQ_TECH") r.tech++;
-        var p = position(d);
-        if (p) { r.posN++; if (p === "상단" || p === "상단 초과") r.upper++; }
       });
     });
     var leag = Object.keys(lg).map(function (k) { return lg[k]; });
@@ -1090,12 +1088,12 @@
     var maxL = leag.length ? Math.max(1, leag[0][lk]) : 1, topN = leag.slice(0, 15);
     var leagueRows = topN.map(function (r, i) {
       return '<tr class="go" tabindex="0" data-uw="' + esc(r.name) + '"><td class="rank">' + (i + 1) + "</td><td>" + esc(r.name) + '</td><td class="num">' + r.count + '</td><td class="num">' + r.tech +
-        '</td><td class="num">' + eok(r.amount) + '</td><td class="num">' + (r.posN ? Math.round(r.upper / r.posN * 100) + "%" : "-") +
+        '</td><td class="num">' + eok(r.amount) +
         '</td><td class="bar-cell"><div class="hbar" style="width:' + (r[lk] / maxL * 100).toFixed(1) + '%"></div></td></tr>';
     }).join("");
     leaguePanel = '<section class="panel league"><header><div><h2>대표주관사 순위</h2><p>' + periodText + " 상장 기준. 공동 대표주관은 건수 각 1건, 공모액은 사 수로 나눔. 사명 변경·합병사는 현재 사명으로 합산. 행을 누르면 해당 딜 목록으로 이동합니다.</p></div>" +
       segBtns("data-l", [["count", "건수순"], ["amount", "공모액순"], ["tech", "기술특례순"]], lk) + '</header><div class="pbody">' +
-      '<div class="scroll"><table class="mini"><thead><tr><th>순위</th><th>대표주관</th><th class="num">건수</th><th class="num">기술특례</th><th class="num">공모액(억)</th><th class="num">상단 이상</th><th class="bar-cell"><span class="sr">막대</span></th></tr></thead><tbody>' + leagueRows + "</tbody></table></div>" +
+      '<div class="scroll"><table class="mini"><thead><tr><th>순위</th><th>대표주관</th><th class="num">건수</th><th class="num">기술특례</th><th class="num">공모액(억)</th><th class="bar-cell"><span class="sr">막대</span></th></tr></thead><tbody>' + leagueRows + "</tbody></table></div>" +
       '<p class="snote">상위 ' + topN.length + "개사 / 전체 " + leag.length + "개사</p></div></section>";
 
     })();
