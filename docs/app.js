@@ -419,6 +419,21 @@
       return "<tr>" + r.map(function (c, i) { return "<td" + (numCols.indexOf(i) >= 0 ? ' class="num"' : "") + ">" + c + "</td>"; }).join("") + "</tr>";
     }).join("") + "</tbody></table></div>";
   }
+  // 회사 개요: 요약문(신고서 '사업의 개요'를 바탕으로 작성) 또는 발췌, KIND 업종·주요제품
+  function companyBlock(d) {
+    var c = d.company;
+    if (!c || isSpac(d)) return "";
+    var text = c.summary || c.excerpt;
+    var meta = [];
+    if (c.industry) meta.push('<span><b>업종</b>' + esc(c.industry) + "</span>");
+    if (c.products) meta.push('<span><b>주요제품</b>' + esc(c.products) + "</span>");
+    if (!text && !meta.length) return "";
+    var src = c.summary ? "증권신고서 '사업의 개요'를 바탕으로 요약" : c.excerpt ? "증권신고서 '사업의 개요' 발췌" : "";
+    return '<section class="company" aria-label="회사 개요"><h3>회사 개요</h3>' +
+      (text ? "<p>" + esc(text) + "</p>" : "") +
+      (meta.length ? '<div class="cmeta">' + meta.join("") + "</div>" : "") +
+      '<p class="csrc">' + [src && (c.source_rcept_no ? src + " · " + dartLink(c.source_rcept_no) : src), meta.length ? "업종·주요제품: KIND 상장법인 목록" : ""].filter(Boolean).join(" / ") + "</p></section>";
+  }
   function dartLink(no, text) {
     return '<a href="' + DART_VIEW + esc(no) + '" target="_blank" rel="noopener noreferrer">' + esc(text || no) + "</a>";
   }
@@ -527,6 +542,7 @@
       '<a href="#/deal/' + encodeURIComponent(pv.deal_id) + '">철회된 공모 보기</a></p>';
 
     var p = position(d);
+    html += companyBlock(d);
     var amtLabel = srcMethod(d, "offer_amount") === "DOC" ? "공모액 · 확정" : "공모액 · 신고서 기재";
     var shrLabel = srcMethod(d, "shares_offered") === "DOC" ? "공모주식수 · 확정" : "공모주식수 · 신고서 기재";
     var term = function (k, v, sub, cls) { return '<div><span class="k">' + k + '</span><span class="v' + (cls ? " " + cls : "") + '">' + v + "</span>" + (sub ? '<span class="s">' + sub + "</span>" : "") + "</div>"; };
