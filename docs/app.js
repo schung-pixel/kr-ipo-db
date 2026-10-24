@@ -628,6 +628,15 @@
     });
   }
   function splitNames(s) { return (s || "").split(/\s*,\s*/).filter(Boolean); }
+  // 순위 집계용: 사명 변경·합병 증권사를 현재 사명으로 묶습니다(목록·상세에는 공시 당시 사명을 그대로 표시).
+  var UW_ALIAS = {
+    "미래에셋대우": "미래에셋증권", "대우증권": "미래에셋증권",
+    "케이비증권": "KB증권", "케이비투자증권": "KB증권", "현대증권": "KB증권",
+    "하나금융투자": "하나증권", "신한금융투자": "신한투자증권", "DB금융투자": "DB증권",
+    "이베스트투자증권": "LS증권", "엘에스증권": "LS증권", "하이투자증권": "iM증권", "아이엠증권": "iM증권",
+    "아이비케이투자증권": "IBK투자증권"
+  };
+  function uwKey(n) { return UW_ALIAS[n] || n; }
 
   function renderStats() {
     document.title = "통계 · IPO 공시 DB";
@@ -720,7 +729,7 @@
     // 3) 대표주관사 순위 (공동 대표주관은 건수는 각 사 1건, 공모액은 균등 배분)
     var lg = {};
     deals.forEach(function (d) {
-      var names = splitNames(d.lead_underwriters);
+      var names = splitNames(d.lead_underwriters).map(uwKey).filter(function (n, i, arr) { return arr.indexOf(n) === i; });
       names.forEach(function (n) {
         lg[n] = lg[n] || { name: n, count: 0, amount: 0, fixed: 0, upper: 0, posN: 0 };
         lg[n].count++;
@@ -756,7 +765,7 @@
       '<div class="panels">' +
       (svg2 ? '<section class="panel"><header><div><h2>밴드 대비 확정가 위치</h2><p>발행조건확정 신고서 제출월 기준. 단일 희망가 공모 제외. 위로 갈수록 높은 가격입니다.</p></div></header>' +
         '<div class="pbody chart">' + legend + svg2 + "</div></section>" : "") +
-      '<section class="panel league"><header><div><h2>대표주관사 순위</h2><p>공동 대표주관은 건수 각 1건, 공모액은 사 수로 나눠 반영. 상단 이상은 확정 건 기준.</p></div>' +
+      '<section class="panel league"><header><div><h2>대표주관사 순위</h2><p>공동 대표주관은 건수 각 1건, 공모액은 사 수로 나눠 반영. 상단 이상은 확정 건 기준. 사명 변경·합병사는 현재 사명으로 합산(미래에셋대우→미래에셋증권 등).</p></div>' +
       seg2("data-l", "count", "amount", "건수순", "공모액순", lk === "count") + '</header><div class="pbody">' +
       '<div class="scroll"><table class="mini"><thead><tr><th>순위</th><th>대표주관</th><th class="num">건수</th><th class="num">공모액(억)</th><th class="num">상단 이상</th><th class="bar-cell"><span class="sr">' + (lk === "amount" ? "공모액" : "건수") + "</span></th></tr></thead><tbody>" + leagueRows + "</tbody></table></div>" +
       '<p class="snote">상위 ' + topN.length + "개사 / 전체 " + leag.length + "개사</p></div></section></div></div>";

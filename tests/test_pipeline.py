@@ -323,7 +323,12 @@ class PipelineTests(unittest.TestCase):
 
             def viewer_html(self, no):
                 return "<html><script>x</script><P>공모희망가액인 1,935원 ~ 2,210원</P><TABLE><TR><TD>a</TD><TD>b</TD></TR></TABLE></html>"
-        t = doc_text(Old(), "20160714000393")
+        from unittest import mock
+        with mock.patch.dict(os.environ, {"DART_VIEWER": "1"}):
+            t = doc_text(Old(), "20160714000393")
+        with mock.patch.dict(os.environ, {"DART_VIEWER": "0"}):   # Actions: 뷰어 대체 조회 끔
+            with self.assertRaises(DartError):
+                doc_text(Old(), "20160714000393")
         self.assertEqual((doctext.extract_prices(t)["band_low"], doctext.extract_prices(t)["band_high"]), (1935, 2210))
         # XML 선언은 utf-8인데 본문이 cp949인 원문
         z = io.BytesIO()
