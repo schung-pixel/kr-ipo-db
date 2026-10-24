@@ -127,6 +127,7 @@ class FakeClient:
 
 
 def run(conn, client=None, **kw):
+    kw.setdefault("lockups", False)   # 유통물량 단계는 test_lockup_phase에서 따로 봅니다
     return collect(client or FakeClient(), conn, date(2025, 1, 1), date(2025, 6, 30),
                    log=lambda *_: None, **kw)
 
@@ -239,7 +240,7 @@ class PipelineTests(unittest.TestCase):
             {"rcept_no": "20250110000002", "slprc": "7,000 ~ 8,000", "slta": "8,000,000,000",
              "stkcnt": "1,000,000", "uw": UW}])}
         client = FakeClient(listing=listing, estk_data=data)
-        collect(client, self.conn, date(2025, 1, 1), date(2025, 3, 31), log=lambda *_: None)
+        collect(client, self.conn, date(2025, 1, 1), date(2025, 3, 31), log=lambda *_: None, lockups=False)
         deals = self.conn.execute("SELECT * FROM ipo_deal").fetchall()
         self.assertEqual(len(deals), 1)
         self.assertEqual(deals[0]["deal_id"], "00000004_20241220000001")
@@ -344,6 +345,18 @@ class PipelineTests(unittest.TestCase):
         r = doctext.extract_business(t)
         self.assertTrue(r["biz_excerpt"].startswith("당사는 2000년 설립된 반도체 소재 전문기업"))
         self.assertNotIn("빛에 반응해", r["biz_text"])
+
+    def test_lockup_phase(self):
+        client = FakeClient()
+        run(self.conn, client, lockups=True)
+        rows = {r["deal_id"]: r for r in self.conn.execute("SELECT * FROM deal_lockup")}
+        self.assertTrue(rows)                              # 후보 딜마다 한 행
+        calls = client.doc_calls
+        run(self.conn, client, lockups=True)
+        self.assertEqual(client.doc_calls, calls)          # 새 공시가 없으면 다시 받지 않음
+        from collector import webexport
+        payload = webexport.build_payload(self.conn)
+        self.assertTrue(all("lockup" in d for d in payload["deals"]))
 
     def test_doc_phase_idempotent_and_quota(self):
         client = FakeClient()

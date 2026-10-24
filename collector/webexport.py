@@ -76,6 +76,17 @@ def load_summaries(path=None) -> dict:
         return {}
 
 
+def _lockup_view(x: dict) -> dict | None:
+    """앱에 내보낼 유통물량·보호예수 값(근거 문장은 빼고 출처 접수번호만)."""
+    if not x or x.get("status") != "ok":
+        return None
+    f0 = x.get("float0")
+    return {"listed": x.get("listed"),
+            "float0": {"shares": f0["shares"], "pct": f0["pct"]} if f0 else None,
+            "schedule": x.get("schedule"), "groups": x.get("groups"), "commit": x.get("commit"),
+            "src_float": x.get("src_float"), "src_commit": x.get("src_commit")}
+
+
 def build_payload(conn) -> dict:
     deals = _rows(conn, f"SELECT {','.join('d.' + f for f in DEAL_FIELDS)}, "
                         "COALESCE(c.corp_name, f.corp_name) AS corp_name, c.corp_cls, c.stock_code, "
@@ -134,6 +145,8 @@ def build_payload(conn) -> dict:
             if d["is_ipo_candidate"] == 1 else []
         rv = review.get(d["deal_id"])
         d["correction_order"] = bool(rv and rv["correction_order"])
+        lk = conn.execute("SELECT data FROM deal_lockup WHERE deal_id=?", (d["deal_id"],)).fetchone()
+        d["lockup"] = _lockup_view(json.loads(lk["data"])) if lk and lk["data"] else None
 
     # KIND 예비심사: DART 딜에 예심 청구·승인일을 붙이고, 승인 후 아직 신고서가 없는 회사를 따로 담습니다.
     from datetime import date as _date

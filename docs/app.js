@@ -558,6 +558,59 @@
       (meta.length ? '<div class="cmeta">' + meta.join("") + "</div>" : "") +
       '<p class="csrc">' + [src && (c.source_rcept_no ? src + " · " + dartLink(c.source_rcept_no) : src), meta.length ? "업종·주요제품: KIND 상장법인 목록" : ""].filter(Boolean).join(" / ") + "</p></section>";
   }
+  // 유통물량·보호예수: 투자설명서(없으면 신고서) 원문의 표에서 읽은 값
+  function periodText(m) {
+    if (m < 1) return Math.round(m * 30) + "일";
+    var y = Math.floor(Math.round(m) / 12), r = Math.round(m) % 12;
+    return y && r ? y + "년 " + r + "개월" : y ? y + "년" : r + "개월";
+  }
+  function addPeriod(iso, m) {
+    if (!iso) return "";
+    var t = new Date(iso + "T00:00:00");
+    if (m < 1) t.setDate(t.getDate() + Math.round(m * 30));
+    else t.setMonth(t.getMonth() + Math.round(m));
+    return t.getFullYear() + "-" + String(t.getMonth() + 1).padStart(2, "0") + "-" + String(t.getDate()).padStart(2, "0");
+  }
+  function pct1(v) { return v == null ? "-" : (Math.round(v * 10) / 10).toFixed(1) + "%"; }
+  function lockupBlock(d) {
+    var L = d.lockup;
+    if (!L || (!L.float0 && !L.schedule && !L.commit)) return "";
+    var listed = L.listed, f0 = L.float0, c = L.commit;
+    var tile = function (k, v, sub) { return '<div><span class="k">' + k + '</span><span class="v">' + v + "</span>" + (sub ? '<span class="s">' + sub + "</span>" : "") + "</div>"; };
+    var h = '<div class="terms lk-terms">' +
+      tile("상장일 유통가능", f0 ? pct1(f0.pct) : '<span class="dim">-</span>', f0 ? int(f0.shares) + "주" : "") +
+      tile("기관 의무보유확약", c ? pct1(c.ratio) : '<span class="dim">-</span>', c ? "수요예측 신청수량 기준" : (d.status === "filed" ? "수요예측 결과가 나오면 표시" : "원문에서 찾지 못함")) +
+      tile("상장예정주식수", listed ? int(listed) + "<small>주</small>" : '<span class="dim">-</span>') + "</div>";
+    // 해제 일정(누적)
+    var sch = (L.schedule || []).slice();
+    if (f0 || sch.length) {
+      var pts = [{ m: 0, shares: f0 ? f0.shares : null, pct: f0 ? f0.pct : null }].concat(sch.map(function (x) { return { m: x.months, shares: x.shares, pct: x.pct }; }));
+      pts = pts.filter(function (x, i) { return x.pct != null && (i === 0 || x.pct !== pts[i - 1].pct || i === pts.length - 1); });
+      h += '<div class="lk-sub">보호예수 해제 일정 <span class="dim">(누적 유통가능)</span></div><ol class="lk-sched">' + pts.map(function (x, i) {
+        var prev = i ? pts[i - 1].pct : 0, add = i ? x.pct - prev : x.pct;
+        var when = x.m === 0 ? "상장일" : periodText(x.m) + " 후";
+        var dt = d.listing_dt ? addPeriod(d.listing_dt, x.m) : "";
+        return '<li><span class="w">' + when + (dt ? '<small>' + dt + "</small>" : "") + '</span><span class="bar"><i class="base" style="width:' + Math.min(100, prev).toFixed(2) + '%"></i><i class="add" style="left:' + Math.min(100, prev).toFixed(2) + "%;width:" + Math.max(0, Math.min(100 - prev, add)).toFixed(2) + '%"></i></span>' +
+          '<span class="p">' + pct1(x.pct) + (i ? '<small>+' + pct1(add) + "</small>" : "") + "</span></li>";
+      }).join("") + "</ol>" + (sch.some(function (x) { return x.derived; }) ? '<p class="snote">해제 일정은 주주별 매각제한 내역으로 계산했습니다.</p>' : "");
+    }
+    if (L.groups && L.groups.length) {
+      h += '<div class="lk-sub">보호예수·의무보유 내역</div>' + table(["구분", "기간", "주식수", "상장주식 대비"],
+        L.groups.map(function (g) { return [esc(g.category), esc(periodText(g.months)), int(g.shares), g.pct != null ? pct1(g.pct) : "-"]; }), [2, 3]);
+    }
+    if (c && c.by && c.by.length) {
+      h += '<div class="lk-sub">기관 의무보유확약 기간별 <span class="dim">(신청수량)</span></div>' + table(["확약 기간", "신청수량", c.total ? "참여수량 대비" : "확약 내 비중"],
+        c.by.slice().sort(function (a, b) { return b.months - a.months; }).map(function (b) {
+          return [esc(periodText(b.months)), int(b.qty), pct1(b.qty / (c.total || c.committed) * 100)];
+        }), [1, 2]);
+    }
+    var src = [];
+    if (L.src_float) src.push("유통물량 " + dartLink(L.src_float));
+    if (L.src_commit) src.push("확약 " + dartLink(L.src_commit));
+    h += '<p class="snote">상장일 유통가능 물량은 공모주 배정분의 기관 의무보유확약을 반영하지 않은 투자설명서 기준입니다. 원문의 표를 규칙으로 읽은 값이며, 검증이 맞지 않은 항목은 비워 둡니다.' +
+      (src.length ? " 출처: " + src.join(" · ") : "") + "</p>";
+    return section("유통물량·보호예수", h, true);
+  }
   function dartLink(no, text) {
     return '<a href="' + DART_VIEW + esc(no) + '" target="_blank" rel="noopener noreferrer">' + esc(text || no) + "</a>";
   }
@@ -681,6 +734,7 @@
       term("대표주관", '<span style="font-family:var(--f-body);font-size:14.5px;font-weight:600">' + esc(d.lead_underwriters || "-") + "</span>", d.co_underwriters ? "공동 " + esc(d.co_underwriters) : "") +
       "</div>";
     html += '<div id="bandviz-slot"></div>';
+    html += lockupBlock(d);
 
     html += section("일정·기타", '<dl class="kv">' +
       (d.prelim ? "<dt>예심 청구일</dt><dd>" + esc(d.prelim.filed_dt || "-") + "</dd><dt>예심 승인일</dt><dd>" + esc(d.prelim.decided_dt || "-") + (d.prelim.result ? ' <span class="dim">(' + esc(d.prelim.result) + ")</span>" : "") + "</dd>" : "") +

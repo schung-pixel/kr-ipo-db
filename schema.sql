@@ -190,6 +190,17 @@ CREATE TABLE IF NOT EXISTS doc_schedule (
 );
 
 -- KIND 상장법인 목록: 업종·주요제품 (회사명 정규화 키로 DART 회사와 연결)
+-- 상장 후 유통가능 물량·보호예수·기관 의무보유확약(투자설명서 원문 추출, 딜 단위로 여러 원문을 합침)
+CREATE TABLE IF NOT EXISTS deal_lockup (
+    deal_id        TEXT PRIMARY KEY,
+    corp_code      TEXT,
+    data           TEXT,       -- JSON: listed, float0, schedule, groups, commit, src
+    tried          TEXT,       -- 시도한 접수번호(JSON 배열)
+    status         TEXT,
+    parser_version INTEGER,
+    fetched_at     TEXT
+);
+
 CREATE TABLE IF NOT EXISTS kind_corp (
   name_key    TEXT PRIMARY KEY,
   corp_name   TEXT,

@@ -530,6 +530,56 @@ def save_doc_schedule(conn, rcept_no: str, corp_code: str, parsed: dict, now: st
         volatile=("fetched_at",))
 
 
+def lockup_plan(conn, min_year: str = "2020") -> list:
+    """유통물량·보호예수 추출 계획: [(deal_id, corp_code, [rcept_no, ...], priced)]. priced: 공모가 확정 여부.
+
+    딜마다 투자설명서(최근→과거), 이어서 증권신고서(최근→과거) 순서로 최대 4건. 이미 시도한 건은 빼고,
+    상장이 끝나 확약 비율까지 읽힌 딜이나 새 공시가 없는 딜은 건너뜁니다. min_year 이전 딜은 제외합니다
+    (2019년 이전 원문은 OpenDART가 주지 않아 공시 뷰어로 따로 받습니다).
+    """
+    import json as _json
+    from .lockup import LOCKUP_VERSION
+    cands = {r["deal_id"]: r for r in conn.execute(
+        "SELECT d.deal_id, d.corp_code, d.first_filing_dt, d.status, COALESCE(c.corp_name, f.corp_name) AS corp_name "
+        "FROM ipo_deal d LEFT JOIN company c USING (corp_code) LEFT JOIN filing f ON f.rcept_no = d.first_rcept_no "
+        "WHERE d.is_ipo_candidate=1 AND COALESCE(d.doc_signal, 1) != 0")}
+    done = {r["deal_id"]: r for r in conn.execute("SELECT deal_id, tried, status, parser_version, data FROM deal_lockup")}
+    alls = _group(conn)[1]
+    plan = []
+    for deal_id, c in sorted(cands.items(), key=lambda kv: kv[1]["first_filing_dt"] or "", reverse=True):
+        if (c["first_filing_dt"] or "") < min_year or deal_id not in alls:
+            continue
+        fl = alls[deal_id]
+        order = [f["rcept_no"] for f in reversed(fl) if f["doc_kind"] == "prospectus"] + \
+                [f["rcept_no"] for f in reversed(fl) if f["doc_kind"] == "reg_equity"]
+        order = order[:4]
+        if not order:
+            continue
+        d = done.get(deal_id)
+        if d and (d["parser_version"] or 0) >= LOCKUP_VERSION:
+            tried = set(_json.loads(d["tried"] or "[]"))
+            data = _json.loads(d["data"] or "{}")
+            spac = "기업인수목적" in (c["corp_name"] or "") or "스팩" in (c["corp_name"] or "")
+            priced = c["status"] in ("price_fixed", "completed")
+            complete = bool(data.get("float0")) and (bool(data.get("commit")) or spac or not priced
+                                                     or len(tried & set(order)) >= 2)
+            if order[0] in tried and (complete or all(no in tried for no in order)):
+                continue
+            plan.append((deal_id, c["corp_code"], order, c["status"] in ("price_fixed", "completed")))
+        else:
+            plan.append((deal_id, c["corp_code"], order, c["status"] in ("price_fixed", "completed")))
+    return plan
+
+
+def save_deal_lockup(conn, deal_id: str, corp_code: str, data: dict, tried: list, now: str) -> None:
+    import json as _json
+    from .lockup import LOCKUP_VERSION
+    upsert(conn, "deal_lockup", "deal_id", {
+        "deal_id": deal_id, "corp_code": corp_code, "data": _json.dumps(data, ensure_ascii=False, sort_keys=True),
+        "tried": _json.dumps(sorted(set(tried))), "status": data.get("status"),
+        "parser_version": LOCKUP_VERSION, "fetched_at": now}, volatile=("fetched_at",))
+
+
 def result_plan(conn) -> list:
     """증권발행실적보고서 추출 계획: [(corp_code, rcept_no)] 후보 딜의 가장 최근 보고서 중 미추출·구버전 건."""
     from .doctext import PARSER_VERSION

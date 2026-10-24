@@ -5,7 +5,7 @@ import os
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from . import doctext, store
+from . import doctext, lockup, store
 from .dart import FATAL_STATUS, DartError, DartQuotaExceeded
 from .parse import windows
 
@@ -25,15 +25,25 @@ def doc_text(client, rcept_no: str) -> str:
     return doctext.html_to_text(client.viewer_html(rcept_no))
 
 
+def doc_rows(client, rcept_no: str) -> str:
+    """표의 행을 보존한 원문 텍스트(유통물량·보호예수 표용). 2019년 이전 원문(014)은 공시 뷰어로 대신 받습니다."""
+    try:
+        return lockup.rows_text_from_zip(client.document(rcept_no))
+    except DartError as exc:
+        if exc.status != "014" or not hasattr(client, "viewer_html") or os.environ.get("DART_VIEWER") == "0":
+            raise
+    return lockup.rows_text(client.viewer_html(rcept_no, sections=lockup.VIEWER_SECTIONS))
+
+
 class _Prefetch:
     """공시 원문을 처리 순서대로 몇 건 앞서 병렬로 받아 둡니다(DART 응답이 느려 원문 단계가 대부분의 시간을 씀).
     document()는 미리 받은 결과를 돌려주고, 순서에 없는 접수번호는 그 자리에서 받습니다. 예외(한도 초과 등)는
     해당 건을 꺼낼 때 그대로 다시 발생합니다."""
 
-    def __init__(self, client, order, workers: int = 4, ahead: int = 8):
+    def __init__(self, client, order, workers: int = 4, ahead: int = 8, fetch=None):
         from concurrent.futures import ThreadPoolExecutor
         self.client, self.order, self.pos, self.fut, self.ahead = client, list(order), 0, {}, ahead
-        self.fetch = lambda no: doc_text(client, no)
+        self.fetch = (lambda no: fetch(client, no)) if fetch else (lambda no: doc_text(client, no))
         self.ex = ThreadPoolExecutor(max_workers=workers) if workers > 1 and self.order else None
         self._fill()
 
@@ -54,6 +64,65 @@ class _Prefetch:
             self.ex.shutdown(wait=False, cancel_futures=True)
 
 
+def _collect_lockups(client, conn, now, stats, log, workers, budget):
+    import json as _json
+    lplan = store.lockup_plan(conn, min_year=os.environ.get("LOCKUP_MIN_YEAR", "2020"))
+    existing = {r["deal_id"]: r for r in conn.execute("SELECT deal_id, data, tried FROM deal_lockup")}
+    first_docs = []
+    for deal_id, _, order, _ in lplan:
+        tried = set(_json.loads(existing[deal_id]["tried"] or "[]")) if deal_id in existing else set()
+        first_docs += [no for no in order if no not in tried][:1]
+    pf = _Prefetch(client, first_docs[: budget if budget is not None else None], workers, ahead=workers * 3, fetch=doc_rows)
+    for deal_id, corp, order, priced in lplan:
+        if stats["quota_hit"] or (budget is not None and budget <= 0):
+            break
+        row = existing.get(deal_id)
+        data = _json.loads(row["data"]) if row and row["data"] else {}
+        tried = set(_json.loads(row["tried"] or "[]")) if row else set()
+        fetched = 0
+        for no in order:
+            if no in tried:
+                continue
+            if budget is not None and budget <= 0:
+                break
+            # 유통물량을 이미 읽었으면, 확약 비율은 공모가 확정 뒤 원문에만 있으므로 확정 딜만 한 건 더 봅니다
+            if data.get("float0") and (data.get("commit") or not priced or fetched >= 2):
+                break
+            try:
+                text = pf.document(no)
+            except DartQuotaExceeded:
+                stats["quota_hit"] = True
+                log("DART 일일 요청 한도 도달: 남은 원문은 다음 실행에서 이어서 처리합니다.")
+                break
+            except DartError as exc:
+                if exc.status in FATAL_STATUS:
+                    raise
+                tried.add(no)
+                if exc.status != "014":
+                    stats["errors"] += 1
+                    log(f"원문 조회 오류({no}): {exc}")
+                _kind(stats, "조회:" + str(getattr(exc, "status", "") or type(exc).__name__))
+                continue
+            except Exception as exc:
+                stats["errors"] += 1
+                tried.add(no)
+                log(f"원문 처리 오류({no}): {type(exc).__name__}")
+                _kind(stats, "처리:" + type(exc).__name__)
+                continue
+            tried.add(no)
+            fetched += 1
+            if budget is not None:
+                budget -= 1
+            data = lockup.merge(data, lockup.extract_lockup(text), no)
+            if data.get("float0") and data.get("commit"):
+                break
+        store.save_deal_lockup(conn, deal_id, corp, data or {"status": "not_found"}, list(tried), now)
+        conn.commit()
+        stats["lockups"] += 1
+    pf.close()
+    return budget
+
+
 def _kind(stats: dict, key: str) -> None:
     stats["error_kinds"][key] = stats["error_kinds"].get(key, 0) + 1
 
@@ -63,7 +132,8 @@ def now_kst() -> datetime:
 
 
 def collect(client, conn, bgn: date, end: date, max_corps: int | None = None,
-            max_docs: int | None = None, refetch_docs: bool = False, log=print, workers: int = 4) -> dict:
+            max_docs: int | None = None, refetch_docs: bool = False, log=print, workers: int = 4,
+            lockups: bool = True) -> dict:
     now = now_kst().replace(microsecond=0).isoformat()
     today = now[:10]
     stats = {"filings": 0, "estk_calls": 0, "companies": 0, "deals": 0,
@@ -256,6 +326,11 @@ def collect(client, conn, bgn: date, end: date, max_corps: int | None = None,
     if stats["results"]:
         store.rebuild_deals(conn, now)
         conn.commit()
+
+    # 3-4) 투자설명서·신고서 원문에서 유통가능 물량·보호예수·기관 의무보유확약
+    stats["lockups"] = 0
+    if lockups and not stats["quota_hit"] and (budget is None or budget > 0):
+        budget = _collect_lockups(client, conn, now, stats, log, workers, budget)
 
     # 4) IPO 후보 기업 개황 (신규 또는 비상장 상태로 오래된 건만 갱신)
     candidates = [r["corp_code"] for r in conn.execute(
