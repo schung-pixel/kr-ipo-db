@@ -13,17 +13,17 @@
   function goPath(p) { if (EMBED) { memPath = p; route(); } else { location.hash = p; } }
 
   var DEFAULTS = { status: "all", cand: "ipo", spac: false, year: "", board: "", q: "", sortKey: "date", sortDir: -1 };
-  var state = Object.assign({}, DEFAULTS, { sYear: "", sPeriod: "all", sUnit: "year", metric: "count", league: "count", listScroll: 0 });
+  var state = Object.assign({}, DEFAULTS, { sYear: "", sPeriod: "all", sUnit: "year", sWin: null, metric: "count", league: "count", listScroll: 0 });
   try {
     var saved = JSON.parse(localStorage.getItem("ipo-db-view") || "null");
-    if (saved) ["status", "spac", "year", "board", "sortKey", "sortDir", "sPeriod", "sUnit", "metric", "league"].forEach(function (k) {
+    if (saved) ["status", "spac", "year", "board", "sortKey", "sortDir", "sPeriod", "sUnit", "sWin", "metric", "league"].forEach(function (k) {
       if (k in saved) state[k] = saved[k];
     });
   } catch (e) { /* 저장소를 쓸 수 없으면 기본값으로 시작 */ }
   function persist() {
     try {
       var o = {};
-      ["status", "cand", "spac", "year", "board", "sortKey", "sortDir", "sPeriod", "sUnit", "metric", "league"].forEach(function (k) { o[k] = state[k]; });
+      ["status", "cand", "spac", "year", "board", "sortKey", "sortDir", "sPeriod", "sUnit", "sWin", "metric", "league"].forEach(function (k) { o[k] = state[k]; });
       localStorage.setItem("ipo-db-view", JSON.stringify(o));
     } catch (e) { /* 무시 */ }
   }
@@ -653,6 +653,32 @@
     if (/^\d{4}$/.test(p)) return [+p, +p];
     return [first, last];
   }
+  // ---- 통계 기간 창: 기간 선택 또는 핀치·드래그로 정한 [시작 월, 끝 월]
+  function mIdx(k) { return +k.slice(0, 4) * 12 + (+k.slice(5, 7) - 1); }
+  function mKey(i) { var y = Math.floor(i / 12), m = i % 12 + 1; return y + "-" + (m < 10 ? "0" : "") + m; }
+  var statNow = null;   // 직전 렌더의 창·경계(제스처 계산용)
+  function statBounds() {
+    var ds = data.deals.map(listDate).filter(function (x) { return x && x <= asOf(); }).sort();
+    return [mIdx(ds[0].slice(0, 7)), mIdx(asOf().slice(0, 7))];
+  }
+  function statWindow(ys, b) {
+    var w = state.sWin;
+    if (w && w.from && w.to) return [Math.max(b[0], mIdx(w.from)), Math.min(b[1], mIdx(w.to))];
+    var rg = periodRange(ys);
+    return [Math.max(b[0], rg[0] * 12), Math.min(b[1], rg[1] * 12 + 11)];
+  }
+  function pickUnit(span) { return span > 72 ? "year" : span > 24 ? "quarter" : "month"; }
+  function snapWin(f, t, unit) {
+    if (unit === "year") return [f - (f % 12), t + (11 - (t % 12))];
+    if (unit === "quarter") return [f - (f % 3), t + (2 - (t % 3))];
+    return [f, t];
+  }
+  function winText(f, t) {
+    var a = mKey(f), b = mKey(t);
+    var lastM = statNow ? statNow.b1 : -1;
+    if (f % 12 === 0 && (t % 12 === 11 || t === lastM)) return a.slice(0, 4) === b.slice(0, 4) ? a.slice(0, 4) + "년" : a.slice(0, 4) + "~" + b.slice(0, 4) + "년";
+    return a.replace("-", ".") + "~" + b.replace("-", ".");
+  }
   function unitKey(dt, unit) {
     if (unit === "year") return dt.slice(0, 4);
     if (unit === "quarter") return dt.slice(0, 4) + "Q" + (Math.floor((+dt.slice(5, 7) - 1) / 3) + 1);
@@ -731,23 +757,29 @@
     var ys = Array.from(new Set(data.deals.map(listDate).filter(Boolean).map(function (s) { return s.slice(0, 4); }))).sort().reverse();
     ys = ys.filter(function (y) { return y <= asOf().slice(0, 4); });
     var unit = state.sUnit || "year";
+    var bnd = ys.length ? statBounds() : null, win = ys.length ? statWindow(ys, bnd) : null;
+    if (win) statNow = { from: win[0], to: win[1], b0: bnd[0], b1: bnd[1] };
+    var custom = !!(state.sWin && win);
     var head = '<div class="sfilters">' +
-      '<label class="flabel">기간<select class="sel" id="s-period" aria-label="기간">' + opt("all", "전체 기간", state.sPeriod) + opt("5y", "최근 5년", state.sPeriod) + opt("3y", "최근 3년", state.sPeriod) +
-      ys.map(function (y) { return opt(y, y + "년", state.sPeriod); }).join("") + "</select></label>" +
+      (custom ? '<button type="button" class="wchip" id="s-win-reset" title="확대 해제">' + esc(winText(win[0], win[1])) + '<span aria-hidden="true">×</span><span class="sr">전체 기간으로</span></button>' : "") +
+      '<label class="flabel">기간<select class="sel" id="s-period" aria-label="기간">' + (custom ? opt("custom", "사용자 지정", "custom") : "") + opt("all", "전체 기간", custom ? "" : state.sPeriod) + opt("5y", "최근 5년", custom ? "" : state.sPeriod) + opt("3y", "최근 3년", custom ? "" : state.sPeriod) +
+      ys.map(function (y) { return opt(y, y + "년", custom ? "" : state.sPeriod); }).join("") + "</select></label>" +
       '<div class="flabel">단위' + segBtns("data-u", [["year", "연"], ["quarter", "분기"], ["month", "월"]], unit) + "</div>" +
       boardSelect("s-board") +
       '<label class="switch"><input type="checkbox" id="s-spac"' + (state.spac ? " checked" : "") + ">스팩 포함</label></div>";
     if (!ys.length) { app.innerHTML = '<div class="content">' + head + '<div class="ledger"><div class="empty">상장 건이 없습니다.</div></div></div>'; bindStats(); return; }
-    var rg = periodRange(ys);
-    var deals = all.filter(function (d) { var y = +listDate(d).slice(0, 4); return y >= rg[0] && y <= rg[1]; });
-    var keys = unitKeys(rg[0], rg[1], unit, asOf());
+    var wf = win[0], wt = win[1];
+    statNow = { from: wf, to: wt, b0: bnd[0], b1: bnd[1] };
+    var deals = all.filter(function (d) { var m = mIdx(listDate(d).slice(0, 7)); return m >= wf && m <= wt; });
+    var keys = [];
+    for (var mi = wf; mi <= wt; mi++) { var uk = unitKey(mKey(mi) + "-01", unit); if (keys[keys.length - 1] !== uk) keys.push(uk); }
     var many = keys.length > 8;
     var labels = keys.map(function (k) { return unitLabel(k, unit, many); });
     var idx = {};
     keys.forEach(function (k, i) { idx[k] = i; });
     var byK = keys.map(function () { return []; });
     deals.forEach(function (d) { var i = idx[unitKey(listDate(d), unit)]; if (i != null) byK[i].push(d); });
-    var periodText = rg[0] === rg[1] ? rg[0] + "년" : rg[0] + "~" + rg[1] + "년";
+    var periodText = winText(wf, wt);
 
     // ---- KPI
     var totalAmt = deals.reduce(function (s, d) { return s + (d.offer_amount || 0); }, 0) / 1e8;
@@ -781,7 +813,7 @@
     var tots = cell.map(function (o) { return series.reduce(function (a, s) { return a + o[s.key]; }, 0); });
     var top1 = isAmt ? niceMax(Math.max.apply(null, tots.concat([1]))) : niceCountMax(Math.max.apply(null, tots.concat([1])));
     var iw = W - L - R, band = iw / keys.length, bw = Math.min(unit === "year" ? 44 : 26, band * 0.64);
-    var svg1 = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + unitTitle(keys[0], unit) + "부터 시장별 상장 " + (isAmt ? "공모액" : "건수") + ' 누적 막대">' +
+    var svg1 = '<svg data-w="' + W + '" data-l="' + L + '" data-r="' + R + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + unitTitle(keys[0], unit) + "부터 시장별 상장 " + (isAmt ? "공모액" : "건수") + ' 누적 막대">' +
       frame(W, H, L, R, T, B, top1, labels, function (v) { return isAmt ? jo(v) : int(Math.round(v)); });
     var maxI = tots.indexOf(Math.max.apply(null, tots));
     cell.forEach(function (o, i) {
@@ -826,7 +858,7 @@
     var med = LN.map(function (s, si) { return byK.map(function (ds, i) { return enough(si, i) ? median(ds.filter(function (d) { return !isSpac(d); }).map(function (d) { return d[s.key]; })) : null; }); });
     var mx = Math.max.apply(null, med[0].concat(med[1]).filter(function (v) { return v != null; }).concat([1]));
     var top2 = niceMax(mx), W2 = halfW, H2 = H - 10, ih2 = H2 - T - B, band2 = (W2 - L - R) / keys.length;
-    var svg2 = '<svg viewBox="0 0 ' + W2 + " " + H2 + '" role="img" aria-label="수요예측·일반청약 경쟁률 중앙값 추이">' +
+    var svg2 = '<svg data-w="' + W2 + '" data-l="' + L + '" data-r="' + R + '" viewBox="0 0 ' + W2 + " " + H2 + '" role="img" aria-label="수요예측·일반청약 경쟁률 중앙값 추이">' +
       frame(W2, H2, L, R, T, B, top2, labels, function (v) { return int(Math.round(v)); });
     var px = function (i) { return L + band2 * i + band2 / 2; }, py = function (v) { return T + ih2 - (v / top2) * ih2; };
     LN.forEach(function (s, si) {
@@ -855,7 +887,7 @@
     // ---- 3) 밴드 대비 위치 비중 (100% 누적 막대)
     var pc = byK.map(function (ds) { var o = {}; POS.forEach(function (p) { o[p] = 0; }); ds.forEach(function (d) { var p = position(d); if (p) o[p]++; }); return o; });
     var W3 = halfW, H3 = H - 10, ih3 = H3 - T - B, band3 = (W3 - L - R) / keys.length, bw3 = Math.min(unit === "year" ? 34 : 20, band3 * 0.64);
-    var svg3 = '<svg viewBox="0 0 ' + W3 + " " + H3 + '" role="img" aria-label="밴드 대비 확정가 위치 비중">' +
+    var svg3 = '<svg data-w="' + W3 + '" data-l="' + L + '" data-r="' + R + '" viewBox="0 0 ' + W3 + " " + H3 + '" role="img" aria-label="밴드 대비 확정가 위치 비중">' +
       frame(W3, H3, L, R, T, B, 100, labels, function (v) { return Math.round(v) + "%"; });
     pc.forEach(function (o, i) {
       var n = POS.reduce(function (a, p) { return a + o[p]; }, 0), x = L + band3 * i + (band3 - bw3) / 2, acc = 0, segs = "";
@@ -941,13 +973,14 @@
     var unitWord = unit === "year" ? "연도별" : unit === "quarter" ? "분기별" : "월별";
     app.innerHTML = '<div class="content">' + head + kpi +
       '<section class="panel"><header><div><h2>' + unitWord + " 상장 추이</h2><p>상장일 기준(상장 완료 건). 공모액은 확정 금액입니다." + (estN ? " 상장일을 원문에서 읽지 못한 " + estN + "건은 증권발행실적보고서 제출일로 추정했습니다." : "") + "</p></div>" +
-      segBtns("data-m", [["count", "건수"], ["amount", "공모액"]], isAmt ? "amount" : "count") + '</header><div class="pbody chart">' + legend1 + svg1 +
+      segBtns("data-m", [["count", "건수"], ["amount", "공모액"]], isAmt ? "amount" : "count") + '</header><div class="pbody chart zoomable">' + legend1 + svg1 +
+      '<p class="zhint">' + (COARSE ? "두 손가락으로 벌리거나 모아 기간 조정 · 확대 후 좌우로 끌어 이동 · 두 번 탭하면 원래대로" : "트랙패드 핀치 또는 Ctrl+스크롤로 기간 조정 · 확대 후 드래그로 이동 · 더블클릭하면 원래대로") + "</p>" +
       '<details class="tv"><summary>표로 보기</summary>' + tbl1 + "</details></div></section>" +
       '<div class="panels even">' +
       '<section class="panel"><header><div><h2>경쟁률 추이</h2><p>' + unitWord + " 상장 건의 수요예측·일반청약 경쟁률 중앙값(스팩 제외).</p></div></header>" +
-      '<div class="pbody chart">' + legend2 + svg2 + "</div></section>" +
+      '<div class="pbody chart zoomable">' + legend2 + svg2 + "</div></section>" +
       '<section class="panel"><header><div><h2>밴드 대비 확정가 위치</h2><p>' + unitWord + " 상장 건의 비중. 단일 희망가(스팩 등)는 제외. 위로 갈수록 높은 가격입니다.</p></div></header>" +
-      '<div class="pbody chart">' + legend3 + svg3 + "</div></section></div>" +
+      '<div class="pbody chart zoomable">' + legend3 + svg3 + "</div></section></div>" +
       '<div class="panels even">' + techPanel + leaguePanel + "</div></div>";
     bindStats();
     bindChart();
@@ -962,7 +995,12 @@
   }
   function bindStats() {
     var pe = document.getElementById("s-period");
-    if (pe) pe.addEventListener("change", function (e) { state.sPeriod = e.target.value; state.sUnit = autoUnit(state.sPeriod); persist(); renderStats(); });
+    if (pe) pe.addEventListener("change", function (e) {
+      if (e.target.value === "custom") return;
+      state.sWin = null; state.sPeriod = e.target.value; state.sUnit = autoUnit(state.sPeriod); persist(); renderStats();
+    });
+    var wr = document.getElementById("s-win-reset");
+    if (wr) wr.addEventListener("click", resetWin);
     var bs = document.getElementById("s-board");
     if (bs) bs.addEventListener("change", function (e) { state.board = e.target.value; persist(); renderStats(); });
     var sp = document.getElementById("s-spac");
@@ -986,6 +1024,127 @@
       tr.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
     });
   }
+
+  // ---------------------------------------------------------------- 통계 핀치 확대·축소
+  var COARSE = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+  var MIN_SPAN = 6;   // 최소 6개월
+  function resetWin() { state.sWin = null; state.sPeriod = "all"; state.sUnit = "year"; persist(); hideTip(); renderStats(); }
+  function commitWin(f, t) {
+    var n = statNow;
+    if (!n) return;
+    var full = n.b1 - n.b0 + 1, span = Math.max(MIN_SPAN, Math.min(full, t - f + 1));
+    if (span >= full) { resetWin(); return; }
+    f = Math.round(f); f = Math.max(n.b0, Math.min(f, n.b1 - span + 1)); t = f + span - 1;
+    var unit = pickUnit(span), sw = snapWin(f, t, unit);
+    f = Math.max(n.b0, sw[0]); t = Math.min(n.b1, sw[1]);
+    if (f <= n.b0 && t >= n.b1) { resetWin(); return; }
+    state.sWin = { from: mKey(f), to: mKey(t) }; state.sPeriod = "custom"; state.sUnit = unit;
+    persist(); hideTip(); renderStats();
+  }
+  function plotFrac(svg, clientX) {   // 화면 x → 플롯 안 비율(0~1)
+    var r = svg.getBoundingClientRect(), W = +svg.dataset.w || r.width, L = +svg.dataset.l || 0, R = +svg.dataset.r || 0;
+    var vx = (clientX - r.left) / r.width * W;
+    return { f: Math.max(0, Math.min(1, (vx - L) / (W - L - R))), plotPx: r.width * (W - L - R) / W };
+  }
+  function zoomAt(svg, clientX, scale) {   // scale > 1: 확대(기간 축소)
+    var n = statNow, span = n.to - n.from + 1, p = plotFrac(svg, clientX);
+    var ns = Math.max(MIN_SPAN, Math.round(span / scale)), c = n.from + p.f * span;
+    commitWin(c - p.f * ns, c - p.f * ns + ns - 1);
+  }
+  function panBy(svg, dxPx) {
+    var n = statNow, span = n.to - n.from + 1, p = plotFrac(svg, 0);
+    var shift = Math.round(-dxPx / p.plotPx * span);
+    if (shift) commitWin(n.from + shift, n.to + shift);
+  }
+  (function () {
+    var g = null, lastTap = 0;
+    function svgOf(e) { var z = e.target.closest && e.target.closest(".zoomable"); return z ? z.querySelector("svg") : null; }
+    function preview(svg, sx, tx, ox) {
+      svg.style.transformOrigin = ox + "px 50%";
+      svg.style.transform = "translateX(" + tx + "px) scaleX(" + sx + ")";
+    }
+    function clear(svg) { if (svg) { svg.style.transform = ""; svg.style.transformOrigin = ""; } }
+    app.addEventListener("touchstart", function (e) {
+      if (view !== "stats") return;
+      var svg = svgOf(e);
+      if (!svg) return;
+      var r = svg.getBoundingClientRect();
+      if (e.touches.length === 2) {
+        var a = e.touches[0], b = e.touches[1];
+        g = { mode: "pinch", svg: svg, d0: Math.max(30, Math.abs(a.clientX - b.clientX)), cx: (a.clientX + b.clientX) / 2, s: 1, ox: (a.clientX + b.clientX) / 2 - r.left };
+        hideTip();
+      } else if (e.touches.length === 1) {
+        var t = e.touches[0], now = Date.now();
+        if (now - lastTap < 300 && state.sWin) { lastTap = 0; g = null; resetWin(); return; }
+        lastTap = now;
+        g = state.sWin ? { mode: "pan", svg: svg, x0: t.clientX, y0: t.clientY, dx: 0, horiz: null, ox: 0 } : null;
+      }
+    }, { passive: true });
+    app.addEventListener("touchmove", function (e) {
+      if (!g) return;
+      if (g.mode === "pinch" && e.touches.length === 2) {
+        var d = Math.max(10, Math.abs(e.touches[0].clientX - e.touches[1].clientX));
+        g.s = Math.max(0.2, Math.min(8, d / g.d0));
+        preview(g.svg, g.s, 0, g.ox);
+      } else if (g.mode === "pan" && e.touches.length === 1) {
+        var mx = e.touches[0].clientX - g.x0, my = e.touches[0].clientY - g.y0;
+        if (g.horiz === null && (Math.abs(mx) > 8 || Math.abs(my) > 8)) g.horiz = Math.abs(mx) > Math.abs(my);
+        if (!g.horiz) return;
+        g.dx = mx; lastTap = 0; hideTip();
+        preview(g.svg, 1, mx, 0);
+      }
+    }, { passive: true });
+    function end() {
+      if (!g) return;
+      var x = g; g = null;
+      clear(x.svg);
+      if (x.mode === "pinch" && Math.abs(x.s - 1) > 0.08) zoomAt(x.svg, x.cx, x.s);
+      else if (x.mode === "pan" && x.horiz && Math.abs(x.dx) > 12) panBy(x.svg, x.dx);
+    }
+    app.addEventListener("touchend", function (e) { if (g && (g.mode === "pan" || e.touches.length < 2)) end(); });
+    app.addEventListener("touchcancel", function () { if (g) { clear(g.svg); g = null; } });
+    // 컴퓨터: 트랙패드 핀치(ctrl+wheel)·Ctrl+스크롤로 확대, 가로 스크롤·드래그로 이동, 더블클릭 초기화
+    var wheelAcc = 0, wheelX = 0, wheelSvg = null, wheelTimer = 0;
+    app.addEventListener("wheel", function (e) {
+      if (view !== "stats") return;
+      var svg = svgOf(e);
+      if (!svg) return;
+      if (e.ctrlKey) {
+        e.preventDefault();
+        wheelAcc += e.deltaY; wheelX = e.clientX; wheelSvg = svg;
+        clearTimeout(wheelTimer);
+        wheelTimer = setTimeout(function () { var sc = Math.exp(-wheelAcc * 0.004); wheelAcc = 0; if (Math.abs(sc - 1) > 0.03) zoomAt(wheelSvg, wheelX, sc); }, 120);
+      } else if (state.sWin && Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 4) {
+        e.preventDefault();
+        wheelAcc += e.deltaX; wheelSvg = svg;
+        clearTimeout(wheelTimer);
+        wheelTimer = setTimeout(function () { var dx = -wheelAcc; wheelAcc = 0; panBy(wheelSvg, dx); }, 120);
+      }
+    }, { passive: false });
+    var drag = null;
+    app.addEventListener("pointerdown", function (e) {
+      if (view !== "stats" || e.pointerType !== "mouse" || e.button !== 0 || !state.sWin) return;
+      var svg = svgOf(e);
+      if (svg) drag = { svg: svg, x0: e.clientX, dx: 0 };
+    });
+    window.addEventListener("pointermove", function (e) {
+      if (!drag) return;
+      drag.dx = e.clientX - drag.x0;
+      if (Math.abs(drag.dx) > 4) { hideTip(); preview(drag.svg, 1, drag.dx, 0); }
+    });
+    window.addEventListener("pointerup", function () {
+      if (!drag) return;
+      var d = drag; drag = null; clear(d.svg);
+      if (Math.abs(d.dx) > 12) panBy(d.svg, d.dx);
+    });
+    var lastClick = 0, lastX = 0;   // 더블클릭(브라우저 dblclick이 오지 않는 환경 대비 직접 판정)
+    app.addEventListener("click", function (e) {
+      if (view !== "stats" || !svgOf(e)) return;
+      var now = Date.now();
+      if (now - lastClick < 350 && Math.abs(e.clientX - lastX) < 12 && state.sWin) { lastClick = 0; resetWin(); return; }
+      lastClick = now; lastX = e.clientX;
+    });
+  })();
 
   // ---------------------------------------------------------------- 툴팁
   function showTip(g, x, y) {
@@ -1087,7 +1246,8 @@
     var ORDER = ["list", "stats"];
     function blocked(el) {
       // 가로로 스크롤되는 영역, 입력 요소, 시트가 열린 상태에서는 스와이프를 쓰지 않습니다.
-      return sheetId || !el || !!el.closest('.chips, .scroll, input, select, textarea, .sheet, [contenteditable]');
+      return sheetId || !el || !!el.closest('.chips, .scroll, input, select, textarea, .sheet, [contenteditable]') ||
+        (state.sWin && view === "stats" && !!el.closest(".zoomable"));
     }
     app.addEventListener("touchstart", function (e) {
       if (e.touches.length !== 1 || blocked(e.target) || window.innerWidth > 760) { active = false; return; }
@@ -1096,6 +1256,7 @@
     }, { passive: true });
     app.addEventListener("touchmove", function (e) {
       if (!active) return;
+      if (e.touches.length > 1) { active = false; settle(); return; }   // 두 손가락(핀치)은 화면 전환이 아님
       var t = e.touches[0], mx = t.clientX - x0, my = t.clientY - y0;
       if (horiz === null && (Math.abs(mx) > 10 || Math.abs(my) > 10)) horiz = Math.abs(mx) > Math.abs(my) * 1.4;
       if (!horiz) return;
