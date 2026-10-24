@@ -64,7 +64,7 @@
     if (earlierWithdrawn(d)) return '<span class="tag" title="이전 공모를 철회한 뒤 다시 신고한 공모입니다">재신고</span>';
     return "";
   }
-  function isSpac(d) { return /기업인수목적|스팩/.test(d.corp_name || ""); }
+  function isSpac(d) { return !!d.is_spac || /기업인수목적|스팩/.test(d.corp_name || ""); }
   // 상장 구분: KOSPI / KOSDAQ / KOSDAQ_TECH (원문의 상장 경로 서술, 시장은 KIND 예심 값 우선)
   var BOARDS = { KOSPI: "유가증권", KOSDAQ: "코스닥 일반", KOSDAQ_TECH: "코스닥 기술특례" };
   function boardOk(d, b) {
