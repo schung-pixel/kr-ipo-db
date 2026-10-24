@@ -209,7 +209,7 @@ mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1
 .dd-layer.closing .dd-panel { transition: transform .18s ease-in; transform: translateY(100%); }
 .dd-layer.closing .dd-scrim { transition: opacity .18s; opacity: 0; }
 /* 유통물량·보호예수 */
-.lk-terms { margin: 4px 0 6px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.terms.lk-terms { margin: 4px 0 6px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .lk-sub { font-size: 12px; font-weight: 600; color: var(--muted); margin: 14px 0 8px; letter-spacing: .02em; }
 .lk-sched { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
 .lk-sched li { display: grid; grid-template-columns: 112px minmax(0, 1fr) 92px; align-items: center; gap: 10px; font-size: 13px; }
@@ -493,7 +493,7 @@ details.tv summary { cursor: pointer; color: var(--muted); font-size: 12px; }
   .sfilters .sel.dd .ls { display: inline; }
   .sopt-m { display: flex; justify-content: flex-end; margin-top: -4px; }
   .lk-sched li { grid-template-columns: 92px minmax(0, 1fr) 70px; gap: 8px; }
-  .lk-terms { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .terms.lk-terms { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .lk-terms > div:last-child { grid-column: 1 / -1; }
   .grades .bar-cell { display: none; }
   .summary > div { padding: 11px 14px; }
