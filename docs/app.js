@@ -13,17 +13,17 @@
   function goPath(p) { if (EMBED) { memPath = p; route(); } else { location.hash = p; } }
 
   var DEFAULTS = { status: "all", cand: "ipo", spac: false, year: "", board: "", q: "", sortKey: "date", sortDir: -1 };
-  var state = Object.assign({}, DEFAULTS, { sYear: "", metric: "count", league: "count", listScroll: 0 });
+  var state = Object.assign({}, DEFAULTS, { sYear: "", sPeriod: "all", sUnit: "year", metric: "count", league: "count", listScroll: 0 });
   try {
     var saved = JSON.parse(localStorage.getItem("ipo-db-view") || "null");
-    if (saved) ["status", "spac", "year", "board", "sortKey", "sortDir", "sYear", "metric", "league"].forEach(function (k) {
+    if (saved) ["status", "spac", "year", "board", "sortKey", "sortDir", "sPeriod", "sUnit", "metric", "league"].forEach(function (k) {
       if (k in saved) state[k] = saved[k];
     });
   } catch (e) { /* 저장소를 쓸 수 없으면 기본값으로 시작 */ }
   function persist() {
     try {
       var o = {};
-      ["status", "cand", "spac", "year", "board", "sortKey", "sortDir", "sYear", "metric", "league"].forEach(function (k) { o[k] = state[k]; });
+      ["status", "cand", "spac", "year", "board", "sortKey", "sortDir", "sPeriod", "sUnit", "metric", "league"].forEach(function (k) { o[k] = state[k]; });
       localStorage.setItem("ipo-db-view", JSON.stringify(o));
     } catch (e) { /* 무시 */ }
   }
@@ -236,7 +236,7 @@
       if (!ignoreStatus && state.status !== "all" && d.status !== state.status) return false;
       if (state.year && d.first_filing_dt.slice(0, 4) !== state.year) return false;
       if (!boardOk(d, state.board)) return false;
-      if (q && findMatch(name(d), q) === -1 && findMatch(d.lead_underwriters || "", q) === -1) return false;
+      if (q && findMatch(name(d), q) === -1 && findMatch((d.lead_underwriters || "") + "," + uwSet(d).join(","), q) === -1) return false;
       return true;
     });
   }
@@ -581,50 +581,18 @@
   shade.addEventListener("click", function () { goPath(baseView()); });
 
   // ---------------------------------------------------------------- 통계
-  function monthList(from, to) {
-    var out = [], y = +from.slice(0, 4), m = +from.slice(5, 7), ey = +to.slice(0, 4), em = +to.slice(5, 7);
-    while (y < ey || (y === ey && m <= em)) {
-      out.push(y + "-" + (m < 10 ? "0" : "") + m);
-      if (++m > 12) { m = 1; y++; }
-    }
-    return out;
+  // 통계는 상장일 기준(상장 완료 건만). 상장일을 원문에서 못 읽은 일부 옛 건은 증권발행실적보고서 제출일로 추정합니다.
+  function listDate(d) {
+    if (d.status !== "completed") return null;
+    if (d.listing_dt) return d.listing_dt;
+    var no = d.result_rcept_no;
+    return no ? no.slice(0, 4) + "-" + no.slice(4, 6) + "-" + no.slice(6, 8) : null;
   }
-  function niceMax(v) {
-    if (v <= 0) return 4;
-    var p = Math.pow(10, Math.floor(Math.log10(v))), n = v / p;
-    var f = n <= 1 ? 1 : n <= 2 ? 2 : n <= 4 ? 4 : n <= 5 ? 5 : n <= 8 ? 8 : 10;
-    return f * p;
-  }
-  function niceCountMax(v) {
-    var step = Math.max(1, Math.ceil(v / 4));
-    var nice = [1, 2, 3, 4, 5, 6, 8, 10, 15, 20, 25, 50, 100].filter(function (n) { return n >= step; })[0] || step;
-    return nice * 4;
-  }
-  function barPath(x, y, w, h, r) {
-    r = Math.min(r, w / 2, h);
-    return "M" + x + "," + (y + h) + "V" + (y + r) + "Q" + x + "," + y + " " + (x + r) + "," + y +
-      "H" + (x + w - r) + "Q" + (x + w) + "," + y + " " + (x + w) + "," + (y + r) + "V" + (y + h) + "Z";
-  }
-  function chartFrame(W, H, L, R, T, B, top, months, fmtY) {
-    var ih = H - T - B, svg = "";
-    for (var g = 0; g <= 4; g++) {
-      var gy = T + ih - (ih * g) / 4;
-      svg += '<line class="' + (g === 0 ? "axis" : "grid") + '" x1="' + L + '" x2="' + (W - R) + '" y1="' + gy + '" y2="' + gy + '"/>' +
-        '<text x="' + (L - 6) + '" y="' + (gy + 4) + '" text-anchor="end">' + fmtY((top * g) / 4) + "</text>";
-    }
-    var band = (W - L - R) / months.length, step = Math.max(1, Math.ceil(40 / band));
-    var last = months.length - 1;
-    months.forEach(function (k, i) {
-      // 마지막 달은 직전 눈금과 겹치지 않을 때만 따로 표시
-      if (i % step === 0 || (i === last && last % step >= Math.ceil(step / 2) + (step === 1 ? 0 : 1))) {
-        svg += '<text x="' + (L + band * i + band / 2) + '" y="' + (H - 10) + '" text-anchor="middle">' + k.slice(2, 4) + "." + k.slice(5) + "</text>";
-      }
-    });
-    return svg;
-  }
-  function statsDeals() {
+  function listedDeals() {
+    var today = asOf();
     return data.deals.filter(function (d) {
-      return d.status !== "approved" && candOk(d, "ipo") && (state.spac || !isSpac(d)) && boardOk(d, state.board) && (!state.sYear || d.first_filing_dt.slice(0, 4) === state.sYear);
+      var ld = listDate(d);
+      return ld && ld <= today && candOk(d, "ipo") && (state.spac || !isSpac(d)) && boardOk(d, state.board);
     });
   }
   function splitNames(s) { return (s || "").split(/\s*,\s*/).filter(Boolean); }
@@ -637,160 +605,370 @@
     "아이비케이투자증권": "IBK투자증권"
   };
   function uwKey(n) { return UW_ALIAS[n] || n; }
+  function uwSet(d) {
+    return splitNames(d.lead_underwriters).map(uwKey).filter(function (n, i, arr) { return arr.indexOf(n) === i; });
+  }
+  function median(a) {
+    a = a.filter(function (v) { return v != null && !isNaN(v); }).sort(function (x, y) { return x - y; });
+    if (!a.length) return null;
+    var m = a.length >> 1;
+    return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+  }
+  function jo(eokVal) {   // 억원 → "1.2조" / "8,500억"
+    return eokVal >= 10000 ? (Math.round(eokVal / 1000) / 10).toLocaleString("ko-KR") + "조" : int(Math.round(eokVal)) + "억";
+  }
+
+  // 기간·단위
+  var STAT_SERIES = [
+    { key: "KOSPI", label: "유가증권", css: "var(--mk-ks)" },
+    { key: "KOSDAQ", label: "코스닥 일반", css: "var(--mk-kq)" },
+    { key: "KOSDAQ_TECH", label: "코스닥 기술특례", css: "var(--mk-tech)" },
+    { key: "SPAC", label: "스팩", css: "var(--mk-spac)" }
+  ];
+  function seriesOf(d) {
+    if (isSpac(d)) return "SPAC";
+    if (d.board === "KOSPI") return "KOSPI";
+    if (d.board === "KOSDAQ_TECH") return "KOSDAQ_TECH";
+    return "KOSDAQ";   // 시장 판정이 없는 옛 건은 코스닥 일반으로 둡니다(대부분 코스닥).
+  }
+  function periodRange(ys) {
+    var last = +ys[0], first = +ys[ys.length - 1], p = state.sPeriod;
+    if (p === "5y") return [Math.max(first, last - 4), last];
+    if (p === "3y") return [Math.max(first, last - 2), last];
+    if (/^\d{4}$/.test(p)) return [+p, +p];
+    return [first, last];
+  }
+  function unitKey(dt, unit) {
+    if (unit === "year") return dt.slice(0, 4);
+    if (unit === "quarter") return dt.slice(0, 4) + "Q" + (Math.floor((+dt.slice(5, 7) - 1) / 3) + 1);
+    return dt.slice(0, 7);
+  }
+  function unitKeys(y0, y1, unit, lastDt) {
+    var out = [];
+    for (var y = y0; y <= y1; y++) {
+      if (unit === "year") out.push(String(y));
+      else if (unit === "quarter") for (var q = 1; q <= 4; q++) out.push(y + "Q" + q);
+      else for (var m = 1; m <= 12; m++) out.push(y + "-" + (m < 10 ? "0" : "") + m);
+    }
+    var lastKey = unitKey(lastDt, unit);   // 아직 오지 않은 분기·월은 그리지 않습니다
+    return out.filter(function (k) { return k <= lastKey; });
+  }
+  function unitLabel(k, unit, many) {
+    if (unit === "year") return many ? "'" + k.slice(2) : k;
+    if (unit === "quarter") return k.slice(2, 4) + "Q" + k.slice(5);
+    return k.slice(2, 4) + "." + k.slice(5);
+  }
+  function unitTitle(k, unit) {
+    if (unit === "year") return k + "년";
+    if (unit === "quarter") return k.slice(0, 4) + "년 " + k.slice(5) + "분기";
+    return k.slice(0, 4) + "년 " + +k.slice(5) + "월";
+  }
+  function niceMax(v) {
+    if (v <= 0) return 4;
+    var p = Math.pow(10, Math.floor(Math.log10(v))), n = v / p;
+    var f = n <= 1 ? 1 : n <= 2 ? 2 : n <= 4 ? 4 : n <= 5 ? 5 : n <= 8 ? 8 : 10;
+    return f * p;
+  }
+  function niceCountMax(v) {
+    var step = Math.max(1, Math.ceil(v / 4));
+    var nice = [1, 2, 3, 4, 5, 6, 8, 10, 15, 20, 25, 30, 40, 50, 75, 100, 150, 200, 250].filter(function (n) { return n >= step; })[0] || step;
+    return nice * 4;
+  }
+  function barPath(x, y, w, h, r) {
+    r = Math.min(r, w / 2, h);
+    return "M" + x + "," + (y + h) + "V" + (y + r) + "Q" + x + "," + y + " " + (x + r) + "," + y +
+      "H" + (x + w - r) + "Q" + (x + w) + "," + y + " " + (x + w) + "," + (y + r) + "V" + (y + h) + "Z";
+  }
+  // 축·격자·가로 눈금(겹치지 않게 건너뛰기)
+  function frame(W, H, L, R, T, B, top, labels, fmtY, ticks) {
+    var ih = H - T - B, svg = "", n = ticks || 4;
+    for (var g = 0; g <= n; g++) {
+      var gy = T + ih - (ih * g) / n;
+      svg += '<line class="' + (g === 0 ? "axis" : "grid") + '" x1="' + L + '" x2="' + (W - R) + '" y1="' + gy + '" y2="' + gy + '"/>' +
+        '<text x="' + (L - 6) + '" y="' + (gy + 4) + '" text-anchor="end">' + fmtY((top * g) / n) + "</text>";
+    }
+    var band = (W - L - R) / labels.length, widest = Math.max.apply(null, labels.map(function (s) { return s.length; }));
+    var step = Math.max(1, Math.ceil((widest * 7 + 10) / band)), last = labels.length - 1;
+    labels.forEach(function (s, i) {
+      if (i % step === 0 || (i === last && last % step >= Math.ceil(step / 2) + (step === 1 ? 0 : 1))) {
+        svg += '<text x="' + (L + band * i + band / 2) + '" y="' + (H - 10) + '" text-anchor="middle">' + s + "</text>";
+      }
+    });
+    return svg;
+  }
+  function colHit(x, T, w, ih, tipHtml, aria, extra) {
+    return '<g class="col"' + (extra || "") + ' data-tip="' + esc(tipHtml) + '"><rect class="hit" tabindex="0" x="' + x + '" y="' + T + '" width="' + w + '" height="' + ih + '" aria-label="' + esc(aria) + '"/>';
+  }
+  function tipRow(color, label, value) {
+    return '<div class="row"><span>' + (color ? '<i style="background:' + color + '"></i>' : "") + label + "</span><span>" + value + "</span></div>";
+  }
+  function segBtns(attr, opts, cur) {
+    var i = Math.max(0, opts.map(function (o) { return o[0]; }).indexOf(cur));
+    return '<div class="seg" role="group" style="--n:' + opts.length + ";--i:" + i + '">' + opts.map(function (o) {
+      return '<button type="button" ' + attr + '="' + o[0] + '" aria-pressed="' + (o[0] === cur) + '">' + o[1] + "</button>";
+    }).join("") + "</div>";
+  }
 
   function renderStats() {
     document.title = "통계 · IPO 공시 DB";
-    var ys = years();
     view = "stats";
-    var head = '<div class="crow" style="justify-content:flex-end"><div class="fopts">' +
-      '<label class="switch"><input type="checkbox" id="s-spac"' + (state.spac ? " checked" : "") + ">스팩 포함</label>" +
+    var all = listedDeals();
+    var ys = Array.from(new Set(data.deals.map(listDate).filter(Boolean).map(function (s) { return s.slice(0, 4); }))).sort().reverse();
+    ys = ys.filter(function (y) { return y <= asOf().slice(0, 4); });
+    var unit = state.sUnit || "year";
+    var head = '<div class="sfilters">' +
+      '<label class="flabel">기간<select class="sel" id="s-period" aria-label="기간">' + opt("all", "전체 기간", state.sPeriod) + opt("5y", "최근 5년", state.sPeriod) + opt("3y", "최근 3년", state.sPeriod) +
+      ys.map(function (y) { return opt(y, y + "년", state.sPeriod); }).join("") + "</select></label>" +
+      '<div class="flabel">단위' + segBtns("data-u", [["year", "연"], ["quarter", "분기"], ["month", "월"]], unit) + "</div>" +
       boardSelect("s-board") +
-      '<select class="sel" id="s-year" aria-label="신고 연도">' + opt("", "전체 연도", state.sYear) + ys.map(function (y) { return opt(y, y + "년 신고", state.sYear); }).join("") + "</select></div></div>";
-    var deals = statsDeals();
-    if (!deals.length) {
-      app.innerHTML = '<div class="content">' + head + '<div class="ledger"><div class="empty">선택한 기간에 IPO 건이 없습니다.</div></div></div>';
-      bindStats();
-      return;
-    }
-    var W = Math.max(300, Math.min(app.clientWidth - 40, 1220)), H = W < 500 ? 230 : 270;
-    var L = 44, R = 8, T = 22, B = 30, iw = W - L - R, ih = H - T - B;
+      '<label class="switch"><input type="checkbox" id="s-spac"' + (state.spac ? " checked" : "") + ">스팩 포함</label></div>";
+    if (!ys.length) { app.innerHTML = '<div class="content">' + head + '<div class="ledger"><div class="empty">상장 건이 없습니다.</div></div></div>'; bindStats(); return; }
+    var rg = periodRange(ys);
+    var deals = all.filter(function (d) { var y = +listDate(d).slice(0, 4); return y >= rg[0] && y <= rg[1]; });
+    var keys = unitKeys(rg[0], rg[1], unit, asOf());
+    var many = keys.length > 8;
+    var labels = keys.map(function (k) { return unitLabel(k, unit, many); });
+    var idx = {};
+    keys.forEach(function (k, i) { idx[k] = i; });
+    var byK = keys.map(function () { return []; });
+    deals.forEach(function (d) { var i = idx[unitKey(listDate(d), unit)]; if (i != null) byK[i].push(d); });
+    var periodText = rg[0] === rg[1] ? rg[0] + "년" : rg[0] + "~" + rg[1] + "년";
 
-    // 1) 월별 신고 건수·공모액 (최초 신고일 기준)
-    var cnt = {}, amt = {};
-    deals.forEach(function (d) {
-      var k = d.first_filing_dt.slice(0, 7);
-      cnt[k] = (cnt[k] || 0) + 1;
-      if (d.offer_amount != null) amt[k] = (amt[k] || 0) + d.offer_amount;
-    });
-    var keys = Object.keys(cnt).sort();
-    var months = monthList(keys[0], keys[keys.length - 1]);
+    // ---- KPI
+    var totalAmt = deals.reduce(function (s, d) { return s + (d.offer_amount || 0); }, 0) / 1e8;
+    var posD = deals.filter(function (d) { return position(d); });
+    var upper = posD.filter(function (d) { var p = position(d); return p === "상단" || p === "상단 초과"; }).length;
+    var kq = deals.filter(function (d) { return !isSpac(d) && (d.board === "KOSDAQ" || d.board === "KOSDAQ_TECH"); });
+    var techN = kq.filter(function (d) { return d.board === "KOSDAQ_TECH"; }).length;
+    var instMed = median(deals.filter(function (d) { return !isSpac(d); }).map(function (d) { return d.inst_demand_ratio; }));
+    var estN = deals.filter(function (d) { return !d.listing_dt; }).length;
+    var kpi = '<section class="summary s5" aria-label="요약">' +
+      kpiTile(int(deals.length), "건", "상장 건수 · " + periodText) +
+      kpiTile(jo(totalAmt).replace(/(조|억)$/, ""), /조$/.test(jo(totalAmt)) ? "조원" : "억원", "공모액 합계") +
+      kpiTile(posD.length ? Math.round(upper / posD.length * 100) : "-", posD.length ? "%" : "", "밴드 상단 이상 확정 (" + posD.length + "건 기준)", true) +
+      kpiTile(kq.length ? Math.round(techN / kq.length * 100) : "-", kq.length ? "%" : "", "코스닥 중 기술특례 (" + techN + "/" + kq.length + "건)") +
+      kpiTile(instMed != null ? ratio(instMed, 0).replace(":1", "") : "-", instMed != null ? ":1" : "", "수요예측 경쟁률 중앙값 (스팩 제외)") + "</section>";
+
+    var W = Math.max(300, Math.min(app.clientWidth - 40, 1220)), H = W < 500 ? 240 : 280;
+    var L = 48, R = 10, T = 24, B = 30, ih = H - T - B;
+    var halfW = window.innerWidth > 1060 ? Math.round((Math.min(app.clientWidth, 1232) - 16) / 2) - 38 : W;
+
+    // ---- 1) 시장별 상장 추이 (누적 막대)
     var isAmt = state.metric === "amount";
-    var vals = months.map(function (k) { return isAmt ? (amt[k] || 0) / 1e8 : (cnt[k] || 0); });
-    var top = isAmt ? niceMax(Math.max.apply(null, vals)) : niceCountMax(Math.max.apply(null, vals));
-    var band = iw / months.length, bw = Math.min(24, band * 0.62);
-    var svg1 = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="월별 ' + (isAmt ? "공모액" : "신고 건수") + ' 막대 차트">' +
-      chartFrame(W, H, L, R, T, B, top, months, function (v) { return int(Math.round(v * 10) / 10); });
-    var maxI = vals.indexOf(Math.max.apply(null, vals));
-    months.forEach(function (k, i) {
-      var v = vals[i], h = (v / top) * ih, x = L + band * i + (band - bw) / 2, y = T + ih - h;
-      var tipText = "<b>" + k.slice(0, 4) + "년 " + +k.slice(5) + "월 신고</b><div class=\"row\"><span>건수</span><span>" + (cnt[k] || 0) + "건</span></div><div class=\"row\"><span>공모액</span><span>" + eok(amt[k] || 0) + "억원</span></div>";
-      svg1 += '<g class="col" data-tip="' + esc(tipText) + '"><rect class="hit" tabindex="0" x="' + (L + band * i) + '" y="' + T + '" width="' + band + '" height="' + ih + '" aria-label="' + esc(k + " " + (cnt[k] || 0) + "건, 공모액 " + eok(amt[k] || 0) + "억원") + '"/>' +
-        (v > 0 ? '<path class="bar" d="' + barPath(x, y, bw, h, 4) + '"/>' : "") +
-        (i === maxI && v > 0 ? '<text class="vlabel" x="' + (x + bw / 2) + '" y="' + (y - 6) + '" text-anchor="middle">' + int(Math.round(v)) + (isAmt ? "억원" : "건") + "</text>" : "") + "</g>";
+    var series = STAT_SERIES.filter(function (s) { return s.key !== "SPAC" || state.spac; });
+    if (state.board) series = series.filter(function (s) { return s.key === state.board; });
+    var cell = byK.map(function (ds) {
+      var o = {};
+      series.forEach(function (s) { o[s.key] = 0; });
+      ds.forEach(function (d) { var s = seriesOf(d); if (s in o) o[s] += isAmt ? (d.offer_amount || 0) / 1e8 : 1; });
+      return o;
+    });
+    var tots = cell.map(function (o) { return series.reduce(function (a, s) { return a + o[s.key]; }, 0); });
+    var top1 = isAmt ? niceMax(Math.max.apply(null, tots.concat([1]))) : niceCountMax(Math.max.apply(null, tots.concat([1])));
+    var iw = W - L - R, band = iw / keys.length, bw = Math.min(unit === "year" ? 44 : 26, band * 0.64);
+    var svg1 = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + unitTitle(keys[0], unit) + "부터 시장별 상장 " + (isAmt ? "공모액" : "건수") + ' 누적 막대">' +
+      frame(W, H, L, R, T, B, top1, labels, function (v) { return isAmt ? jo(v) : int(Math.round(v)); });
+    var maxI = tots.indexOf(Math.max.apply(null, tots));
+    cell.forEach(function (o, i) {
+      var x = L + band * i + (band - bw) / 2, acc = 0, segs = "", shown = series.filter(function (s) { return o[s.key] > 0; });
+      shown.forEach(function (s, j) {
+        var h = (o[s.key] / top1) * ih, y = T + ih - acc - h, gap = j > 0 ? 2 : 0;
+        segs += j === shown.length - 1
+          ? '<path class="seg-r" fill="' + s.css + '" d="' + barPath(x, y, bw, Math.max(0, h - gap), 4) + '"/>'
+          : '<rect class="seg-r" fill="' + s.css + '" x="' + x + '" y="' + y + '" width="' + bw + '" height="' + Math.max(0, h - gap) + '"/>';
+        acc += h;
+      });
+      var tipH = "<b>" + unitTitle(keys[i], unit) + " 상장 " + byK[i].length + "건</b>" +
+        series.slice().reverse().map(function (s) { return tipRow(s.css, s.label, isAmt ? jo(o[s.key]) + "원" : o[s.key] + "건"); }).join("") +
+        (isAmt ? "" : tipRow("", "공모액", jo(byK[i].reduce(function (a, d) { return a + (d.offer_amount || 0); }, 0) / 1e8) + "원"));
+      var showLbl = tots[i] > 0 && (keys.length <= 16 || i === maxI);
+      svg1 += colHit(L + band * i, T, band, ih, tipH, unitTitle(keys[i], unit) + " " + byK[i].length + "건") + segs +
+        (showLbl ? '<text class="vlabel" x="' + (x + bw / 2) + '" y="' + (T + ih - (tots[i] / top1) * ih - 6) + '" text-anchor="middle">' + (isAmt ? jo(tots[i]) : int(tots[i])) + "</text>" : "") + "</g>";
     });
     svg1 += "</svg>";
+    var legend1 = '<div class="legend">' + series.map(function (s) {
+      var t = cell.reduce(function (a, o) { return a + o[s.key]; }, 0);
+      return '<span><i style="background:' + s.css + '"></i>' + s.label + " " + (isAmt ? jo(t) + "원" : int(t) + "건") + "</span>";
+    }).join("") + "</div>";
+    var tbl1 = table([unit === "year" ? "연도" : unit === "quarter" ? "분기" : "월", "상장", "유가", "코스닥 일반", "기술특례"].concat(state.spac ? ["스팩"] : []).concat(["공모액", "수요예측 중앙값", "일반청약 중앙값", "상단 이상"]),
+      keys.map(function (k, i) {
+        var ds = byK[i], c = {};
+        STAT_SERIES.forEach(function (s) { c[s.key] = 0; });
+        ds.forEach(function (d) { c[seriesOf(d)]++; });
+        var pd = ds.filter(function (d) { return position(d); }), up = pd.filter(function (d) { var p = position(d); return p === "상단" || p === "상단 초과"; }).length;
+        var ns = ds.filter(function (d) { return !isSpac(d); });
+        var im = median(ns.map(function (d) { return d.inst_demand_ratio; })), rm = median(ns.map(function (d) { return d.retail_ratio; }));
+        return [unitTitle(k, unit), String(ds.length), String(c.KOSPI), String(c.KOSDAQ), String(c.KOSDAQ_TECH)].concat(state.spac ? [String(c.SPAC)] : [])
+          .concat([jo(ds.reduce(function (a, d) { return a + (d.offer_amount || 0); }, 0) / 1e8), im != null ? ratio(im, 0) : "-", rm != null ? ratio(rm, 0) : "-", pd.length ? Math.round(up / pd.length * 100) + "%" : "-"]);
+      }).reverse(), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
-    // 2) 월별 밴드 대비 위치 (발행조건확정 월 기준, 누적 막대)
-    var pm = {}, posN = 0, posCount = {};
-    POS.forEach(function (p) { posCount[p] = 0; });
-    deals.forEach(function (d) {
-      var p = position(d), pd = pricingDate(d);
-      if (!p || !pd) return;
-      var k = pd.slice(0, 7);
-      pm[k] = pm[k] || {}; pm[k][p] = (pm[k][p] || 0) + 1; posCount[p]++; posN++;
+    // ---- 2) 경쟁률 중앙값 추이 (선)
+    var LN = [{ key: "inst_demand_ratio", label: "수요예측", css: "var(--ln-inst)" }, { key: "retail_ratio", label: "일반청약", css: "var(--ln-retail)" }];
+    var MIN_N = 5;   // 표본이 적은 기간은 중앙값이 흔들리므로 선을 끊습니다
+    var nOf = LN.map(function (s) { return byK.map(function (ds) { return ds.filter(function (d) { return !isSpac(d) && d[s.key] != null; }).length; }); });
+    var baseN = byK.map(function (ds) { return ds.filter(function (d) { return !isSpac(d); }).length; });
+    var enough = function (si, i) { return nOf[si][i] >= MIN_N && nOf[si][i] >= baseN[i] * 0.5; };   // 추출률 50% 미만이면 편향 우려
+    var med = LN.map(function (s, si) { return byK.map(function (ds, i) { return enough(si, i) ? median(ds.filter(function (d) { return !isSpac(d); }).map(function (d) { return d[s.key]; })) : null; }); });
+    var mx = Math.max.apply(null, med[0].concat(med[1]).filter(function (v) { return v != null; }).concat([1]));
+    var top2 = niceMax(mx), W2 = halfW, H2 = H - 10, ih2 = H2 - T - B, band2 = (W2 - L - R) / keys.length;
+    var svg2 = '<svg viewBox="0 0 ' + W2 + " " + H2 + '" role="img" aria-label="수요예측·일반청약 경쟁률 중앙값 추이">' +
+      frame(W2, H2, L, R, T, B, top2, labels, function (v) { return int(Math.round(v)); });
+    var px = function (i) { return L + band2 * i + band2 / 2; }, py = function (v) { return T + ih2 - (v / top2) * ih2; };
+    LN.forEach(function (s, si) {
+      var d = "", pen = false;
+      med[si].forEach(function (v, i) {
+        if (v == null) { pen = false; return; }
+        d += (pen ? "L" : "M") + px(i).toFixed(1) + "," + py(v).toFixed(1); pen = true;
+      });
+      svg2 += '<path class="ln" style="stroke:' + s.css + '" d="' + d + '"/>';
     });
-    var pkeys = Object.keys(pm).sort();
-    var svg2 = "", legend = "";
-    if (pkeys.length) {
-      var pmonths = monthList(pkeys[0], pkeys[pkeys.length - 1]);
-      var tots = pmonths.map(function (k) { return POS.reduce(function (s, p) { return s + ((pm[k] || {})[p] || 0); }, 0); });
-      var ptop = niceCountMax(Math.max.apply(null, tots));
-      var W2 = window.innerWidth > 1060 ? Math.round((Math.min(app.clientWidth, 1232) - 16) * 1.3 / 2.3) - 36 : W;
-      var iw2 = W2 - L - R;
-      var pband = iw2 / pmonths.length, pbw = Math.min(20, pband * 0.62);
-      svg2 = '<svg viewBox="0 0 ' + W2 + " " + H + '" role="img" aria-label="발행조건확정 월별 밴드 대비 확정가 위치 누적 막대 차트">' +
-        chartFrame(W2, H, L, R, T, B, ptop, pmonths, function (v) { return int(Math.round(v)); });
-      pmonths.forEach(function (k, i) {
-        var x = L + pband * i + (pband - pbw) / 2, acc = 0, segs = "", m = pm[k] || {};
-        // 아래에서 위로: 하단 미달 → 상단 초과 (위쪽일수록 높은 가격)
-        var order = POS.slice().reverse(), shown = order.filter(function (p) { return m[p]; });
+    keys.forEach(function (k, i) {
+      var tipH = "<b>" + unitTitle(k, unit) + " 상장 (스팩 제외)</b>" + LN.map(function (s, si) { return tipRow(s.css, s.label + " 중앙값", (med[si][i] != null ? ratio(med[si][i], 0) : nOf[si][i] ? "표본 부족" : "-") + " (" + nOf[si][i] + "/" + baseN[i] + "건)"); }).join("");
+      svg2 += colHit(L + band2 * i, T, band2, ih2, tipH, unitTitle(k, unit)) + '<line class="xh" x1="' + px(i) + '" x2="' + px(i) + '" y1="' + T + '" y2="' + (T + ih2) + '"/>' +
+        LN.map(function (s, si) { var v = med[si][i]; return v == null ? "" : '<circle class="dot" style="fill:' + s.css + '" cx="' + px(i) + '" cy="' + py(v) + '" r="' + (keys.length > 30 ? 2.5 : 4) + '"/>'; }).join("") + "</g>";
+    });
+    // 마지막 값 직접 표시
+    LN.forEach(function (s, si) {
+      for (var i = keys.length - 1; i >= 0; i--) if (med[si][i] != null) {
+        svg2 += '<text class="vlabel" x="' + Math.min(px(i), W2 - R - 4) + '" y="' + (py(med[si][i]) - 9) + '" text-anchor="end">' + s.label + " " + int(Math.round(med[si][i])) + "</text>";
+        break;
+      }
+    });
+    svg2 += "</svg>";
+    var legend2 = '<div class="legend">' + LN.map(function (s) { return '<span><i class="ln-key" style="background:' + s.css + '"></i>' + s.label + " 경쟁률 중앙값</span>"; }).join("") + '<span class="fnote">값을 확보한 건이 ' + MIN_N + "건 미만이거나 상장 건의 절반 미만인 기간은 표시하지 않음</span></div>";
+
+    // ---- 3) 밴드 대비 위치 비중 (100% 누적 막대)
+    var pc = byK.map(function (ds) { var o = {}; POS.forEach(function (p) { o[p] = 0; }); ds.forEach(function (d) { var p = position(d); if (p) o[p]++; }); return o; });
+    var W3 = halfW, H3 = H - 10, ih3 = H3 - T - B, band3 = (W3 - L - R) / keys.length, bw3 = Math.min(unit === "year" ? 34 : 20, band3 * 0.64);
+    var svg3 = '<svg viewBox="0 0 ' + W3 + " " + H3 + '" role="img" aria-label="밴드 대비 확정가 위치 비중">' +
+      frame(W3, H3, L, R, T, B, 100, labels, function (v) { return Math.round(v) + "%"; });
+    pc.forEach(function (o, i) {
+      var n = POS.reduce(function (a, p) { return a + o[p]; }, 0), x = L + band3 * i + (band3 - bw3) / 2, acc = 0, segs = "";
+      if (n) {
+        var shown = POS.slice().reverse().filter(function (p) { return o[p]; });
         shown.forEach(function (p, j) {
-          var n = m[p], h = (n / ptop) * ih, y = T + ih - acc - h;
-          var isTop = j === shown.length - 1;
-          var gap = j > 0 ? 2 : 0;          // 구간 사이 2px 여백
-          segs += isTop
-            ? '<path class="seg-r" fill="var(--pos-' + POS_KEY[p] + ')" d="' + barPath(x, y, pbw, Math.max(0, h - gap), 4) + '"/>'
-            : '<rect class="seg-r" fill="var(--pos-' + POS_KEY[p] + ')" x="' + x + '" y="' + y + '" width="' + pbw + '" height="' + Math.max(0, h - gap) + '"/>';
+          var h = (o[p] / n) * ih3, y = T + ih3 - acc - h, gap = j > 0 ? 2 : 0;
+          segs += j === shown.length - 1
+            ? '<path class="seg-r" fill="var(--pos-' + POS_KEY[p] + ')" d="' + barPath(x, y, bw3, Math.max(0, h - gap), 4) + '"/>'
+            : '<rect class="seg-r" fill="var(--pos-' + POS_KEY[p] + ')" x="' + x + '" y="' + y + '" width="' + bw3 + '" height="' + Math.max(0, h - gap) + '"/>';
           acc += h;
         });
-        var tipRows = POS.filter(function (p) { return m[p]; }).map(function (p) {
-          return '<div class="row"><span><i style="background:var(--pos-' + POS_KEY[p] + ')"></i>' + p + "</span><span>" + m[p] + "건</span></div>";
-        }).join("");
-        var total = tots[i];
-        svg2 += '<g class="col" data-tip="' + esc("<b>" + k.slice(0, 4) + "년 " + +k.slice(5) + "월 확정 " + total + "건</b>" + (tipRows || "<div>확정 건 없음</div>")) + '">' +
-          '<rect class="hit" tabindex="0" x="' + (L + pband * i) + '" y="' + T + '" width="' + pband + '" height="' + ih + '" aria-label="' + esc(k + " 확정 " + total + "건") + '"/>' + segs + "</g>";
-      });
-      svg2 += "</svg>";
-      legend = '<div class="legend">' + POS.map(function (p) {
-        return '<span><i style="background:var(--pos-' + POS_KEY[p] + ')"></i>' + p + " " + posCount[p] + "건</span>";
-      }).join("") + "</div>";
-    }
+      }
+      var tipH = "<b>" + unitTitle(keys[i], unit) + " 확정 " + n + "건</b>" + (n ? POS.filter(function (p) { return o[p]; }).map(function (p) {
+        return tipRow("var(--pos-" + POS_KEY[p] + ")", p, o[p] + "건 (" + Math.round(o[p] / n * 100) + "%)");
+      }).join("") : "<div>밴드가 있는 확정 건 없음</div>");
+      svg3 += colHit(L + band3 * i, T, band3, ih3, tipH, unitTitle(keys[i], unit) + " 확정 " + n + "건") + segs + "</g>";
+    });
+    svg3 += "</svg>";
+    var posTot = {}; POS.forEach(function (p) { posTot[p] = pc.reduce(function (a, o) { return a + o[p]; }, 0); });
+    var legend3 = '<div class="legend">' + POS.map(function (p) { return '<span><i style="background:var(--pos-' + POS_KEY[p] + ')"></i>' + p + " " + posTot[p] + "</span>"; }).join("") + "</div>";
 
-    // 3) 대표주관사 순위 (공동 대표주관은 건수는 각 사 1건, 공모액은 균등 배분)
+    // ---- 4) 기술특례 분석
+    var tech = deals.filter(function (d) { return d.board === "KOSDAQ_TECH" && !isSpac(d); });
+    var grp = {};
+    tech.forEach(function (d) {
+      var GR = { AAA: 0, AA: 1, A: 2, BBB: 3, BB: 4, B: 5 };
+      var g = d.tech_grades ? d.tech_grades.split(/\s*,\s*/).sort(function (a, b) { return (GR[a] || 9) - (GR[b] || 9); }).join("·") : d.tech_track === "성장성 추천" ? "성장성 추천" : "등급 미확인";
+      if (d.tech_grades && d.tech_grades.indexOf(",") < 0) g += " (단수)";
+      (grp[g] = grp[g] || []).push(d);
+    });
+    var GRANK = { "AA·AA": 0, "AA·A": 1, "A·A": 2, "AA·BBB": 3, "A·BBB": 4 };
+    var gradeRank = function (g) { return g in GRANK ? GRANK[g] : /단수/.test(g) ? 6 : g === "성장성 추천" ? 8 : g === "등급 미확인" ? 9 : 5; };
+    var gkeys = Object.keys(grp).sort(function (a, b) { return gradeRank(a) - gradeRank(b) || grp[b].length - grp[a].length; });
+    var gmax = Math.max.apply(null, gkeys.map(function (g) { return grp[g].length; }).concat([1]));
+    var gradeRows = gkeys.map(function (g) {
+      var ds = grp[g], im = median(ds.map(function (d) { return d.inst_demand_ratio; })), rm = median(ds.map(function (d) { return d.retail_ratio; }));
+      var pd = ds.filter(function (d) { return position(d); }), up = pd.filter(function (d) { var p = position(d); return p === "상단" || p === "상단 초과"; }).length;
+      return '<tr><td><span class="gtag">' + esc(g) + '</span></td><td class="num">' + ds.length + '</td><td class="bar-cell"><div class="hbar t" style="width:' + (ds.length / gmax * 100).toFixed(1) + '%"></div></td><td class="num">' +
+        (im != null ? ratio(im, 0) : "-") + '</td><td class="num">' + (rm != null ? ratio(rm, 0) : "-") + '</td><td class="num">' + (pd.length ? Math.round(up / pd.length * 100) + "%" : "-") + "</td></tr>";
+    }).join("");
+    var routes = {};
+    tech.forEach(function (d) { var r = d.tech_track || "기타"; routes[r] = (routes[r] || 0) + 1; });
+    var nonTechKq = deals.filter(function (d) { return d.board === "KOSDAQ" && !isSpac(d); });
+    var cmp = [["기술특례", tech], ["코스닥 일반", nonTechKq]].map(function (r) {
+      var ds = r[1], pd = ds.filter(function (d) { return position(d); }), up = pd.filter(function (d) { var p = position(d); return p === "상단" || p === "상단 초과"; }).length;
+      return '<div><span class="k">' + r[0] + '</span><span class="v">' + (median(ds.map(function (d) { return d.inst_demand_ratio; })) != null ? int(Math.round(median(ds.map(function (d) { return d.inst_demand_ratio; })))) + "<small>:1</small>" : "-") +
+        '</span><span class="s">상단 이상 ' + (pd.length ? Math.round(up / pd.length * 100) + "%" : "-") + " · 공모액 중앙값 " + (median(ds.map(function (d) { return d.offer_amount; })) != null ? jo(median(ds.map(function (d) { return d.offer_amount; })) / 1e8) : "-") + "</span></div>";
+    }).join("");
+    var techPanel = '<section class="panel tech"><header><div><h2>기술특례 분석</h2><p>' + periodText + " 상장 기술특례 " + tech.length + "건. 등급은 전문평가기관 2곳 결과(소부장 단수평가는 1곳). 경쟁률은 중앙값입니다.</p></div></header>" +
+      '<div class="pbody">' + (tech.length ? '<div class="cmp">' + cmp + "</div>" +
+        '<div class="routes">' + Object.keys(routes).sort(function (a, b) { return routes[b] - routes[a]; }).map(function (r) { return '<span class="chip-s">' + esc(r) + " <b>" + routes[r] + "</b></span>"; }).join("") + "</div>" +
+        '<div class="scroll"><table class="mini grades"><thead><tr><th>평가 등급</th><th class="num">건수</th><th class="bar-cell"><span class="sr">건수 막대</span></th><th class="num">수요예측</th><th class="num">일반청약</th><th class="num">상단 이상</th></tr></thead><tbody>' + gradeRows + "</tbody></table></div>"
+        : '<div class="empty">선택한 조건에 기술특례 상장 건이 없습니다.</div>') + "</div></section>";
+
+    // ---- 5) 대표주관사 순위
     var lg = {};
     deals.forEach(function (d) {
-      var names = splitNames(d.lead_underwriters).map(uwKey).filter(function (n, i, arr) { return arr.indexOf(n) === i; });
+      var names = uwSet(d);
       names.forEach(function (n) {
-        lg[n] = lg[n] || { name: n, count: 0, amount: 0, fixed: 0, upper: 0, posN: 0 };
-        lg[n].count++;
-        if (d.offer_amount) lg[n].amount += d.offer_amount / names.length;
+        var r = lg[n] = lg[n] || { name: n, count: 0, amount: 0, tech: 0, upper: 0, posN: 0 };
+        r.count++;
+        if (d.offer_amount) r.amount += d.offer_amount / names.length;
+        if (d.board === "KOSDAQ_TECH") r.tech++;
         var p = position(d);
-        if (p) { lg[n].posN++; if (p === "상단" || p === "상단 초과") lg[n].upper++; }
+        if (p) { r.posN++; if (p === "상단" || p === "상단 초과") r.upper++; }
       });
     });
     var leag = Object.keys(lg).map(function (k) { return lg[k]; });
-    var lk = state.league === "amount" ? "amount" : "count";
+    var lk = ["amount", "tech"].indexOf(state.league) >= 0 ? state.league : "count";
     leag.sort(function (a, b) { return b[lk] - a[lk] || b.count - a.count; });
-    var maxL = leag.length ? leag[0][lk] : 1;
-    var topN = leag.slice(0, 15);
+    var maxL = leag.length ? Math.max(1, leag[0][lk]) : 1, topN = leag.slice(0, 15);
     var leagueRows = topN.map(function (r, i) {
-      return '<tr><td class="rank">' + (i + 1) + "</td><td>" + esc(r.name) + '</td><td class="num">' + r.count + '</td><td class="num">' + eok(r.amount) +
-        '</td><td class="num">' + (r.posN ? Math.round(r.upper / r.posN * 100) + "%" : "-") +
+      return '<tr class="go" tabindex="0" data-uw="' + esc(r.name) + '"><td class="rank">' + (i + 1) + "</td><td>" + esc(r.name) + '</td><td class="num">' + r.count + '</td><td class="num">' + r.tech +
+        '</td><td class="num">' + eok(r.amount) + '</td><td class="num">' + (r.posN ? Math.round(r.upper / r.posN * 100) + "%" : "-") +
         '</td><td class="bar-cell"><div class="hbar" style="width:' + (r[lk] / maxL * 100).toFixed(1) + '%"></div></td></tr>';
     }).join("");
+    var leaguePanel = '<section class="panel league"><header><div><h2>대표주관사 순위</h2><p>' + periodText + " 상장 기준. 공동 대표주관은 건수 각 1건, 공모액은 사 수로 나눔. 사명 변경·합병사는 현재 사명으로 합산. 행을 누르면 해당 딜 목록으로 이동합니다.</p></div>" +
+      segBtns("data-l", [["count", "건수순"], ["amount", "공모액순"], ["tech", "기술특례순"]], lk) + '</header><div class="pbody">' +
+      '<div class="scroll"><table class="mini"><thead><tr><th>순위</th><th>대표주관</th><th class="num">건수</th><th class="num">기술특례</th><th class="num">공모액(억)</th><th class="num">상단 이상</th><th class="bar-cell"><span class="sr">막대</span></th></tr></thead><tbody>' + leagueRows + "</tbody></table></div>" +
+      '<p class="snote">상위 ' + topN.length + "개사 / 전체 " + leag.length + "개사</p></div></section>";
 
-    var fixedN = deals.filter(function (d) { return d.final_price; }).length;
-    var upperN = posCount["상단"] + posCount["상단 초과"];
-    var total = deals.reduce(function (s, d) { return s + (d.offer_amount || 0); }, 0);
-    var tbl = table(["월", "신고 건수", "공모액(억원)"], months.map(function (k) { return [k, String(cnt[k] || 0), eok(amt[k] || 0)]; }), [1, 2]);
-
-    var seg2 = function (attr, a, b, la, lb, onA) {
-      return '<div class="seg" role="group" style="--n:2;--i:' + (onA ? 0 : 1) + '"><button type="button" ' + attr + '="' + a + '" aria-pressed="' + onA + '">' + la + "</button>" +
-        "<button type=\"button\" " + attr + '="' + b + '" aria-pressed="' + !onA + '">' + lb + "</button></div>";
-    };
-    app.innerHTML = '<div class="content">' + head + summaryStats(deals.length, fixedN, posN ? Math.round(upperN / posN * 100) : null, posN, total) +
-      '<section class="panel"><header><div><h2>월별 신고 추이</h2><p>최초 증권신고서 제출월 기준, 철회 건 포함. 공모액은 확정 건은 확정 금액, 그 외는 신고서 기재 금액입니다.</p></div>' +
-      seg2("data-m", "count", "amount", "건수", "공모액", !isAmt) + '</header><div class="pbody chart">' + svg1 +
-      '<details class="tv"><summary>표로 보기</summary>' + tbl + "</details></div></section>" +
-      '<div class="panels">' +
-      (svg2 ? '<section class="panel"><header><div><h2>밴드 대비 확정가 위치</h2><p>발행조건확정 신고서 제출월 기준. 단일 희망가 공모 제외. 위로 갈수록 높은 가격입니다.</p></div></header>' +
-        '<div class="pbody chart">' + legend + svg2 + "</div></section>" : "") +
-      '<section class="panel league"><header><div><h2>대표주관사 순위</h2><p>공동 대표주관은 건수 각 1건, 공모액은 사 수로 나눠 반영. 상단 이상은 확정 건 기준. 사명 변경·합병사는 현재 사명으로 합산(미래에셋대우→미래에셋증권 등).</p></div>' +
-      seg2("data-l", "count", "amount", "건수순", "공모액순", lk === "count") + '</header><div class="pbody">' +
-      '<div class="scroll"><table class="mini"><thead><tr><th>순위</th><th>대표주관</th><th class="num">건수</th><th class="num">공모액(억)</th><th class="num">상단 이상</th><th class="bar-cell"><span class="sr">' + (lk === "amount" ? "공모액" : "건수") + "</span></th></tr></thead><tbody>" + leagueRows + "</tbody></table></div>" +
-      '<p class="snote">상위 ' + topN.length + "개사 / 전체 " + leag.length + "개사</p></div></section></div></div>";
+    var unitWord = unit === "year" ? "연도별" : unit === "quarter" ? "분기별" : "월별";
+    app.innerHTML = '<div class="content">' + head + kpi +
+      '<section class="panel"><header><div><h2>' + unitWord + " 상장 추이</h2><p>상장일 기준(상장 완료 건). 공모액은 확정 금액입니다." + (estN ? " 상장일을 원문에서 읽지 못한 " + estN + "건은 증권발행실적보고서 제출일로 추정했습니다." : "") + "</p></div>" +
+      segBtns("data-m", [["count", "건수"], ["amount", "공모액"]], isAmt ? "amount" : "count") + '</header><div class="pbody chart">' + legend1 + svg1 +
+      '<details class="tv"><summary>표로 보기</summary>' + tbl1 + "</details></div></section>" +
+      '<div class="panels even">' +
+      '<section class="panel"><header><div><h2>경쟁률 추이</h2><p>' + unitWord + " 상장 건의 수요예측·일반청약 경쟁률 중앙값(스팩 제외).</p></div></header>" +
+      '<div class="pbody chart">' + legend2 + svg2 + "</div></section>" +
+      '<section class="panel"><header><div><h2>밴드 대비 확정가 위치</h2><p>' + unitWord + " 상장 건의 비중. 단일 희망가(스팩 등)는 제외. 위로 갈수록 높은 가격입니다.</p></div></header>" +
+      '<div class="pbody chart">' + legend3 + svg3 + "</div></section></div>" +
+      '<div class="panels even">' + techPanel + leaguePanel + "</div></div>";
     bindStats();
     bindChart();
   }
-  function summaryStats(n, fixedN, upperPct, posN, total) {
-    return '<section class="summary" aria-label="요약">' +
-      "<div><div class=\"v\">" + n + "<small>건</small></div><div class=\"l\">IPO 신고" + (state.spac ? "" : " (스팩 제외)") + "</div></div>" +
-      "<div><div class=\"v\">" + fixedN + "<small>건</small></div><div class=\"l\">확정가 확인</div></div>" +
-      "<div><div class=\"v hl\">" + (upperPct == null ? "-" : upperPct + "<small>%</small>") + "</div><div class=\"l\">밴드 상단 이상 확정 (" + posN + "건 기준)</div></div>" +
-      "<div><div class=\"v\">" + eok(total) + "<small>억원</small></div><div class=\"l\">공모액 합계</div></div></section>";
+  function kpiTile(v, unitTxt, label, hl) {
+    return '<div><div class="v' + (hl ? " hl" : "") + '">' + v + (unitTxt ? "<small>" + unitTxt + "</small>" : "") + '</div><div class="l">' + label + "</div></div>";
+  }
+  function autoUnit(p) {
+    if (/^\d{4}$/.test(p)) return "month";
+    if (p === "3y") return "quarter";
+    return "year";
   }
   function bindStats() {
-    var y = document.getElementById("s-year");
-    if (y) y.addEventListener("change", function (e) { state.sYear = e.target.value; persist(); renderStats(); });
+    var pe = document.getElementById("s-period");
+    if (pe) pe.addEventListener("change", function (e) { state.sPeriod = e.target.value; state.sUnit = autoUnit(state.sPeriod); persist(); renderStats(); });
     var bs = document.getElementById("s-board");
     if (bs) bs.addEventListener("change", function (e) { state.board = e.target.value; persist(); renderStats(); });
     var sp = document.getElementById("s-spac");
     if (sp) sp.addEventListener("change", function (e) { state.spac = e.target.checked; persist(); renderStats(); });
+    app.querySelectorAll("[data-u]").forEach(function (b) {
+      b.addEventListener("click", function () { state.sUnit = b.dataset.u; persist(); renderStats(); });
+    });
     app.querySelectorAll("[data-m]").forEach(function (b) {
       b.addEventListener("click", function () { state.metric = b.dataset.m; persist(); renderStats(); });
     });
     app.querySelectorAll("[data-l]").forEach(function (b) {
       b.addEventListener("click", function () { state.league = b.dataset.l; persist(); renderStats(); });
+    });
+    // 주관사 행 → 딜 목록(주관사 검색, 상장 건)
+    app.querySelectorAll("tr[data-uw]").forEach(function (tr) {
+      var go = function () {
+        state.q = tr.dataset.uw; state.status = "completed"; state.year = ""; persist();
+        view = null; goPath("/");
+      };
+      tr.addEventListener("click", go);
+      tr.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
     });
   }
 
