@@ -23,7 +23,21 @@
   {
    "from": "2023-01-01",
    "to": "2023-12-31",
-   "done": false
+   "done": true,
+   "runs": 1,
+   "last_run": "2026-10-24T09:23:57+09:00",
+   "last_stats": {
+    "filings": 1475,
+    "estk_calls": 197,
+    "companies": 125,
+    "deals": 718,
+    "docs": 150,
+    "doc_no_match": 14,
+    "results": 121,
+    "quota_hit": false,
+    "errors": 32,
+    "schedules": 119
+   }
   },
   {
    "from": "2022-01-01",
