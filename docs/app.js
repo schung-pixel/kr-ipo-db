@@ -273,6 +273,127 @@
   }
   function opt(v, label, cur) { return '<option value="' + esc(v) + '"' + (v === cur ? " selected" : "") + ">" + esc(label) + "</option>"; }
 
+  // ---- 드롭다운: 기본 <select>는 값과 change 이벤트를 그대로 맡고, 화면에는 자체 버튼과 목록을 보입니다.
+  //      PC는 버튼 아래 팝오버, 휴대폰(≤760px)은 아래에서 올라오는 시트로 엽니다.
+  var ddOpen = null;
+  var CHECK = '<svg class="ck" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  function ddLabel(sel) { var o = sel.options[sel.selectedIndex]; return o ? o.textContent : ""; }
+  function enhanceSelects(root) {
+    root.querySelectorAll("select.sel:not(.dd-native)").forEach(function (sel) {
+      sel.classList.add("dd-native"); sel.tabIndex = -1; sel.setAttribute("aria-hidden", "true");
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "sel dd"; b.setAttribute("aria-haspopup", "listbox"); b.setAttribute("aria-expanded", "false");
+      b.setAttribute("aria-label", (sel.getAttribute("aria-label") || "") + ": " + ddLabel(sel));
+      b.innerHTML = '<span class="dd-t">' + esc(ddLabel(sel)) + "</span>";
+      if (sel.dataset.def != null && sel.value !== sel.dataset.def) b.classList.add("on");
+      sel.after(b);
+      b.addEventListener("click", function (e) { e.preventDefault(); if (ddOpen && ddOpen.btn === b) ddClose(true); else ddShow(sel, b); });
+      b.addEventListener("keydown", function (e) {
+        if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); ddShow(sel, b); }
+      });
+      var lab = sel.closest("label");
+      if (lab) lab.addEventListener("click", function (e) { if (!e.target.closest(".dd")) { e.preventDefault(); b.click(); } });
+    });
+  }
+  function ddShow(sel, btn) {
+    if (ddOpen) ddClose(false);
+    var mobile = window.matchMedia("(max-width: 760px)").matches;
+    var title = sel.getAttribute("aria-label") || "";
+    var lid = "dd-" + sel.id;
+    var h = "";
+    var item = function (o) {
+      if (o.hidden) return "";
+      var on = o.selected;
+      return '<button type="button" role="option" class="dd-o" tabindex="-1" data-v="' + esc(o.value) + '" aria-selected="' + on + '"><span>' + esc(o.textContent) + "</span>" + CHECK + "</button>";
+    };
+    Array.prototype.forEach.call(sel.children, function (c) {
+      if (c.tagName === "OPTGROUP") {
+        var lbl = c.getAttribute("label");
+        h += '<div class="dd-g' + (c.dataset.grid ? " grid" : "") + '" role="group"' + (lbl ? ' aria-label="' + esc(lbl) + '"' : "") + ">" +
+          (lbl ? '<div class="dd-h" aria-hidden="true">' + esc(lbl) + "</div>" : '<div class="dd-sep" aria-hidden="true"></div>') +
+          '<div class="dd-items">' + Array.prototype.map.call(c.children, item).join("") + "</div></div>";
+      } else h += item(c);
+    });
+    var wrap = document.createElement("div");
+    wrap.className = "dd-layer" + (mobile ? " sheet-mode" : "");
+    wrap.innerHTML = (mobile ? '<div class="dd-scrim"></div>' : "") +
+      '<div class="dd-panel" id="' + lid + '" role="listbox" aria-label="' + esc(title) + '">' +
+      (mobile ? '<div class="dd-top"><span class="grab" aria-hidden="true"></span><b>' + esc(title) + '</b></div>' : "") +
+      '<div class="dd-body">' + h + "</div></div>";
+    document.body.appendChild(wrap);
+    var panel = wrap.querySelector(".dd-panel");
+    btn.setAttribute("aria-expanded", "true"); btn.setAttribute("aria-controls", lid); btn.classList.add("open");
+    if (!mobile) ddPlace(panel, btn);
+    var opts = Array.prototype.slice.call(panel.querySelectorAll(".dd-o"));
+    var cur = panel.querySelector('.dd-o[aria-selected="true"]') || opts[0];
+    ddOpen = { sel: sel, btn: btn, wrap: wrap, panel: panel, mobile: mobile };
+    if (cur) { cur.focus({ preventScroll: true }); cur.scrollIntoView({ block: "nearest" }); }
+    opts.forEach(function (o) {
+      o.addEventListener("click", function () { ddPick(o.dataset.v); });
+    });
+    panel.addEventListener("keydown", function (e) {
+      var i = opts.indexOf(document.activeElement), k = e.key;
+      if (k === "ArrowDown" || k === "ArrowRight") { e.preventDefault(); (opts[Math.min(opts.length - 1, i + 1)] || opts[0]).focus(); }
+      else if (k === "ArrowUp" || k === "ArrowLeft") { e.preventDefault(); (opts[Math.max(0, i - 1)] || opts[0]).focus(); }
+      else if (k === "Home") { e.preventDefault(); opts[0].focus(); }
+      else if (k === "End") { e.preventDefault(); opts[opts.length - 1].focus(); }
+      else if (k === "Escape") { e.preventDefault(); e.stopPropagation(); ddClose(true); }
+      else if (k === "Tab") { e.preventDefault(); ddClose(true); }
+    });
+    var scrim = wrap.querySelector(".dd-scrim");
+    if (scrim) scrim.addEventListener("click", function () { ddClose(true); });
+  }
+  function ddPlace(panel, btn) {
+    var r = btn.getBoundingClientRect(), vw = window.innerWidth, vh = window.innerHeight;
+    var grid = panel.querySelector(".dd-g.grid");
+    var w = Math.max(r.width, grid ? 280 : 196);
+    panel.style.minWidth = w + "px";
+    var pw = panel.offsetWidth, ph = panel.offsetHeight;
+    var left = Math.min(Math.max(8, r.left), vw - pw - 8);
+    var below = vh - r.bottom - 8, above = r.top - 8;
+    var up = ph > below && above > below;
+    var room = (up ? above : below) - 6;
+    panel.style.maxHeight = Math.max(160, Math.min(room, 420)) + "px";
+    panel.style.left = left + "px";
+    if (up) { panel.style.bottom = (vh - r.top + 6) + "px"; panel.classList.add("up"); }
+    else panel.style.top = (r.bottom + 6) + "px";
+  }
+  function ddPick(v) {
+    var o = ddOpen; if (!o) return;
+    var changed = o.sel.value !== v;
+    ddClose(true);
+    if (!changed) return;
+    o.sel.value = v;
+    o.sel.dispatchEvent(new Event("change", { bubbles: true }));
+    // 다시 그린 화면의 같은 버튼으로 초점을 옮깁니다.
+    var nb = document.getElementById(o.sel.id);
+    nb = nb && nb.nextElementSibling;
+    if (nb && nb.classList.contains("dd")) nb.focus({ preventScroll: true });
+  }
+  function ddClose(refocus) {
+    var o = ddOpen; if (!o) return;
+    ddOpen = null;
+    o.btn.setAttribute("aria-expanded", "false"); o.btn.classList.remove("open"); o.btn.removeAttribute("aria-controls");
+    if (o.mobile) {
+      o.wrap.classList.add("closing");
+      setTimeout(function () { o.wrap.remove(); }, 180);
+    } else o.wrap.remove();
+    if (refocus && document.contains(o.btn)) o.btn.focus({ preventScroll: true });
+  }
+  // 바깥을 눌러 닫을 때는 그 클릭이 뒤의 행·버튼까지 가지 않게 막습니다.
+  var ddSwallow = 0;
+  document.addEventListener("pointerdown", function (e) {
+    if (ddOpen && !ddOpen.mobile && !e.target.closest(".dd-panel") && !(e.target.closest(".dd") === ddOpen.btn)) { ddClose(false); ddSwallow = Date.now(); }
+  }, true);
+  document.addEventListener("click", function (e) {
+    if (ddSwallow && Date.now() - ddSwallow < 800) { e.preventDefault(); e.stopPropagation(); }
+    ddSwallow = 0;
+  }, true);
+  window.addEventListener("resize", function () { if (ddOpen && !ddOpen.mobile) ddClose(false); });
+  window.addEventListener("scroll", function (e) {
+    if (ddOpen && !ddOpen.mobile && !(e.target.closest && e.target.closest(".dd-panel"))) ddClose(false);
+  }, true);
+
   function renderList() {
     view = "list";
     var ys = years();
@@ -292,7 +413,7 @@
       chipBtn("all", "전체") + (counts.approved ? chipBtn("approved", "예심 승인") : "") + chipBtn("filed", "진행 중") + chipBtn("price_fixed", "확정") + chipBtn("completed", "상장") + chipBtn("withdrawn", "철회") + "</div>" +
       '<div class="fopts"><label class="switch"><input type="checkbox" id="f-spac"' + (state.spac ? " checked" : "") + '>스팩 포함</label>' +
       boardSelect("f-board") +
-      '<select class="sel" id="f-year" aria-label="신고 연도">' + opt("", "전체 연도", state.year) + ys.map(function (y) { return opt(y, y + "년 신고", state.year); }).join("") + "</select>" +
+      '<select class="sel" id="f-year" aria-label="신고 연도" data-def="">' + opt("", "전체 연도", state.year) + '<optgroup label="" data-grid="1">' + ys.map(function (y) { return opt(y, y + "년 신고", state.year); }).join("") + "</optgroup></select>" +
       (changed ? '<button type="button" class="linkbtn" id="f-reset">초기화</button>' : "") + "</div></div>" +
       '<section class="ledger" aria-label="IPO 딜 목록"><div class="ledger-top" id="ledger-top"></div><div id="result"></div></section>' +
       '<p class="note">희망 밴드·확정가·경쟁률·상장일은 공시 원문에서 규칙으로 추출한 값입니다. 스팩 등 단일 희망가는 밴드에 한 값으로 표시하고, 밴드가 없는 건의 * 값은 신고서 기재 기준가입니다. 공모액은 확정 건은 확정 금액, 그 외는 신고서 기재 금액입니다. 상장사 유상증자 등은 제외했습니다.</p>' +
@@ -314,11 +435,12 @@
     var rb = document.getElementById("f-reset");
     if (rb) rb.addEventListener("click", resetFilters);
     renderRows();
+    enhanceSelects(app);
     requestAnimationFrame(function () { placeInd(chips); });
   }
   function boardSelect(id) {
-    return '<select class="sel" id="' + id + '" aria-label="상장 시장">' + opt("", "전체 시장", state.board) +
-      Object.keys(BOARDS).map(function (k) { return opt(k, BOARDS[k], state.board); }).join("") + "</select>";
+    return '<select class="sel" id="' + id + '" aria-label="상장 시장" data-def="">' + opt("", "전체 시장", state.board) + '<optgroup label="">' +
+      Object.keys(BOARDS).map(function (k) { return opt(k, BOARDS[k], state.board); }).join("") + "</optgroup></select>";
   }
   function syncReset() {
     var changed = state.status !== DEFAULTS.status || state.spac !== DEFAULTS.spac || state.year || state.board || state.q;
@@ -762,8 +884,9 @@
     var custom = !!(state.sWin && win);
     var head = '<div class="sfilters">' +
       (custom ? '<button type="button" class="wchip" id="s-win-reset" title="확대 해제">' + esc(winText(win[0], win[1])) + '<span aria-hidden="true">×</span><span class="sr">전체 기간으로</span></button>' : "") +
-      '<label class="flabel">기간<select class="sel" id="s-period" aria-label="기간">' + (custom ? opt("custom", "사용자 지정", "custom") : "") + opt("all", "전체 기간", custom ? "" : state.sPeriod) + opt("5y", "최근 5년", custom ? "" : state.sPeriod) + opt("3y", "최근 3년", custom ? "" : state.sPeriod) +
-      ys.map(function (y) { return opt(y, y + "년", custom ? "" : state.sPeriod); }).join("") + "</select></label>" +
+      '<label class="flabel">기간<select class="sel" id="s-period" aria-label="기간" data-def="all">' + (custom ? '<option value="custom" selected hidden>사용자 지정</option>' : "") +
+      '<optgroup label="빠른 선택">' + opt("all", "전체 기간", custom ? "" : state.sPeriod) + opt("5y", "최근 5년", custom ? "" : state.sPeriod) + opt("3y", "최근 3년", custom ? "" : state.sPeriod) + "</optgroup>" +
+      '<optgroup label="연도별" data-grid="1">' + ys.map(function (y) { return opt(y, y + "년", custom ? "" : state.sPeriod); }).join("") + "</optgroup></select></label>" +
       '<div class="flabel">단위' + segBtns("data-u", [["year", "연"], ["quarter", "분기"], ["month", "월"]], unit) + "</div>" +
       boardSelect("s-board") +
       '<label class="switch"><input type="checkbox" id="s-spac"' + (state.spac ? " checked" : "") + ">스팩 포함</label></div>";
@@ -1016,6 +1139,7 @@
     return "year";
   }
   function bindStats() {
+    enhanceSelects(app);
     var pe = document.getElementById("s-period");
     if (pe) pe.addEventListener("change", function (e) {
       if (e.target.value === "custom") return;
