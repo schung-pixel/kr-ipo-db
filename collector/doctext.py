@@ -23,15 +23,39 @@ _HDR_SHARES = re.compile(r"모집\s*또는\s*매출\s*증권의\s*종류\s*:[^\d
 _FIXED = re.compile(r"확정\s*공모\s*(?:가액|가격)\s*(?:은|는|이|을|를|:|인)?\s*(?:(?:금|약)\s*)?([\d,]{3,})\s*원")
 
 
+def _decode(b: bytes) -> str:
+    """원문 인코딩 판별. 2020~2022년 무렵 원문은 XML 선언이 utf-8이어도 실제로는 EUC-KR(cp949)인 경우가 있습니다."""
+    try:
+        return b.decode("utf-8")
+    except UnicodeDecodeError:
+        pass
+    try:
+        return b.decode("cp949")
+    except UnicodeDecodeError:
+        u, c = b.decode("utf-8", errors="replace"), b.decode("cp949", errors="replace")
+        return u if u.count("\ufffd") <= c.count("\ufffd") else c
+
+
 def to_text(zip_bytes: bytes) -> str:
     """document.xml 응답(zip)을 태그를 걷어낸 줄 단위 텍스트로 바꿉니다."""
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
-        raw = "\n".join(z.read(n).decode("utf-8", errors="replace")
+        raw = "\n".join(_decode(z.read(n))
                         for n in z.namelist() if n.lower().endswith((".xml", ".html", ".htm")))
+    return _clean(raw)
+
+
+def html_to_text(html: str) -> str:
+    """DART 공시 뷰어(report/viewer.do) HTML을 같은 형식의 텍스트로 바꿉니다. 2019년 이전 원문은
+    OpenDART document.xml이 '014 파일이 존재하지 않습니다'로 응답하므로 뷰어 화면으로 대신 받습니다."""
+    html = re.sub(r"<(?:script|style)[^>]*>.*?</(?:script|style)>", " ", html, flags=re.I | re.S)
+    return _clean(html)
+
+
+def _clean(raw: str) -> str:
     raw = re.sub(r"<(?:TR|P|BR|TABLE)[^>]*>", "\n", raw, flags=re.I)
     raw = re.sub(r"</(?:TD|TH|TE|TU)>", " | ", raw, flags=re.I)
     raw = re.sub(r"<[^>]+>", "", raw)
-    raw = raw.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&").replace("&nbsp;", " ")
+    raw = raw.replace("&cr;", " ").replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&").replace("&nbsp;", " ")
     raw = re.sub(r"[ \t ]+", " ", raw)
     return re.sub(r"\s*\n\s*", "\n", raw)
 
@@ -95,7 +119,7 @@ def extract_prices(text: str) -> dict:
 
 
 # ---------------------------------------------------------------- 2차 추출: 수요예측·청약·상장일
-PARSER_VERSION = 3   # 추출 규칙이 바뀌면 올립니다. 이전 버전으로 추출한 원문은 다시 받습니다.
+PARSER_VERSION = 4   # 추출 규칙이 바뀌면 올립니다. 이전 버전으로 추출한 원문은 다시 받습니다.
 
 _NUM = re.compile(r"^[\d,]+(?:\.\d+)?$")
 
@@ -192,7 +216,7 @@ def extract_result(text: str) -> dict:
 # ---------------------------------------------------------------- 수요예측 기일
 # 증권신고서(정정 포함) '공모일정' 표: "수요예측 일시 | [국내 |] 2025년 04월 17일(목) ~ [2025년] 04월 23일(수)".
 # [발행조건확정] 신고서에는 이 표가 없으므로 확정 직전의 신고서에서 읽습니다.
-SCHEDULE_VERSION = 4   # 2: 상장 시장·기술특례 구분 / 3: 기술평가 등급·평가기관 / 4: 이익미실현 경로
+SCHEDULE_VERSION = 5   # 5: 원문 인코딩(cp949)·공시 뷰어 대체 / 2: 상장 시장·기술특례 구분 / 3: 기술평가 등급·평가기관 / 4: 이익미실현 경로
 _DATE = r"(\d{4})\s*(?:년|[.\-/])\s*(\d{1,2})\s*(?:월|[.\-/])\s*(\d{1,2})\s*일?"
 _DEMAND = re.compile(
     r"수요\s*예측\s*(?:일시|일자|기간|기일|일정|일)\s*(?:\([^)]{0,10}\))?\s*\|(?:\s*국내\s*\|)?\s*" + _DATE +

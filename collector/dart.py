@@ -15,6 +15,9 @@ from typing import Iterator
 import requests
 
 BASE_URL = "https://opendart.fss.or.kr/api"
+VIEWER_URL = "https://dart.fss.or.kr"
+VIEWER_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+             "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 FATAL_STATUS = {"010", "011", "012", "800", "901"}
 
 
@@ -110,6 +113,32 @@ class DartClient:
             if page >= int(data.get("total_page") or 1):
                 return
             page += 1
+
+    def viewer_html(self, rcept_no: str) -> str:
+        """DART 공시 뷰어에서 문서 전체 HTML을 받습니다. OpenDART document.xml이 원문을 주지 않는
+        2019년 이전 공시(status 014)에 씁니다. 인증키는 쓰지 않습니다."""
+        import re
+        h = {"User-Agent": VIEWER_UA}
+        last = None
+        for attempt in range(self.retries):
+            try:
+                main = self.session.get(f"{VIEWER_URL}/dsaf001/main.do", params={"rcpNo": rcept_no},
+                                        headers=h, timeout=self.timeout)
+                main.raise_for_status()
+                m = re.search(r'viewDoc\("(\d+)",\s*"(\d+)",\s*"(\d+)",\s*"(\d+)",\s*"(\d+)",\s*"([^"]+)"', main.text)
+                if not m:
+                    raise DartError("viewer", "문서 번호를 찾지 못했습니다")
+                doc = self.session.get(f"{VIEWER_URL}/report/viewer.do", headers=h, timeout=max(self.timeout, 90),
+                                       params={"rcpNo": rcept_no, "dcmNo": m.group(2), "eleId": "0",
+                                               "offset": "0", "length": "0", "dtd": m.group(6)})
+                doc.raise_for_status()
+                doc.encoding = doc.encoding or "utf-8"
+                time.sleep(self.pause)
+                return doc.text
+            except requests.RequestException as exc:
+                last = exc
+                time.sleep(2 ** attempt)
+        raise RuntimeError(f"viewer 요청 실패: {type(last).__name__}")
 
     def company(self, corp_code: str) -> dict | None:
         data = self._get("company", corp_code=corp_code)

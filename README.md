@@ -43,6 +43,8 @@ docs/data/deals.json    PWA가 읽는 데이터 (수집 후 자동 갱신)
 
 `data/backfill.json`에 연도 구간 대기열이 있습니다(2024년부터 2016년까지 최근 연도 먼저). 워크플로는 매 실행에서 일일 수집 뒤 대기열을 4시간 30분 동안 처리하고, 구간 하나가 끝날 때마다 `data/ipo.sql`, `docs/data/deals.json`, 대기열을 커밋합니다. DART 일일 한도(020)에 걸리면 그 구간을 미완료로 두고 다음 실행에서 이어 갑니다. 대기열 파일을 고쳐 올리면 바로 한 번 실행됩니다.
 
+원문 확보: OpenDART `document.xml`은 2019년 이전 증권신고서 원문을 주지 않습니다(status 014). 이 경우 DART 공시 뷰어(`dart.fss.or.kr/report/viewer.do`)의 문서 전체 화면을 받아 같은 규칙으로 읽습니다. 2020~2022년 무렵 원문은 XML 선언이 utf-8인데 본문이 EUC-KR인 경우가 있어 인코딩을 판별해 읽습니다.
+
 ## 조회 앱(PWA) 배포
 
 `docs/` 폴더가 앱입니다. 수집 때마다 `docs/data/deals.json`이 함께 갱신되어 커밋됩니다.

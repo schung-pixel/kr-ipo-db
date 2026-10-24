@@ -313,6 +313,24 @@ class PipelineTests(unittest.TestCase):
         w = ex(boiler + "[2023년 이후 코스닥 기술특례상장기업 신규 상장법인의 평가액 대비 할인율]")
         self.assertEqual(w["tech_track"], "기술특례(추정)")
 
+    def test_old_filing_fallbacks(self):
+        from collector.dart import DartError
+        from collector.pipeline import doc_text
+
+        class Old:
+            def document(self, no):
+                raise DartError("014", "파일이 존재하지 않습니다.")
+
+            def viewer_html(self, no):
+                return "<html><script>x</script><P>공모희망가액인 1,935원 ~ 2,210원</P><TABLE><TR><TD>a</TD><TD>b</TD></TR></TABLE></html>"
+        t = doc_text(Old(), "20160714000393")
+        self.assertEqual((doctext.extract_prices(t)["band_low"], doctext.extract_prices(t)["band_high"]), (1935, 2210))
+        # XML 선언은 utf-8인데 본문이 cp949인 원문
+        z = io.BytesIO()
+        with zipfile.ZipFile(z, "w") as zz:
+            zz.writestr("d.xml", '<?xml version="1.0" encoding="utf-8"?><P>확정공모가액 5,500원</P>'.encode("cp949"))
+        self.assertIn("확정공모가액 5,500원", doctext.to_text(z.getvalue()))
+
     def test_doc_phase_idempotent_and_quota(self):
         client = FakeClient()
         run(self.conn, client)

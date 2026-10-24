@@ -13,6 +13,16 @@ DETAIL_TYPE_EQUITY_REG = "C001"  # 증권신고(지분증권)
 HISTORY_LOOKBACK_DAYS = 180      # 정정 건에서 최초 신고서를 찾을 때 되짚는 기간
 
 
+def doc_text(client, rcept_no: str) -> str:
+    """공시 원문 텍스트. OpenDART가 원문을 주지 않으면(014, 대개 2019년 이전) 공시 뷰어 화면으로 대신 받습니다."""
+    try:
+        return doctext.to_text(client.document(rcept_no))
+    except DartError as exc:
+        if exc.status != "014" or not hasattr(client, "viewer_html"):
+            raise
+    return doctext.html_to_text(client.viewer_html(rcept_no))
+
+
 class _Prefetch:
     """공시 원문을 처리 순서대로 몇 건 앞서 병렬로 받아 둡니다(DART 응답이 느려 원문 단계가 대부분의 시간을 씀).
     document()는 미리 받은 결과를 돌려주고, 순서에 없는 접수번호는 그 자리에서 받습니다. 예외(한도 초과 등)는
@@ -21,6 +31,7 @@ class _Prefetch:
     def __init__(self, client, order, workers: int = 4, ahead: int = 8):
         from concurrent.futures import ThreadPoolExecutor
         self.client, self.order, self.pos, self.fut, self.ahead = client, list(order), 0, {}, ahead
+        self.fetch = lambda no: doc_text(client, no)
         self.ex = ThreadPoolExecutor(max_workers=workers) if workers > 1 and self.order else None
         self._fill()
 
@@ -29,12 +40,12 @@ class _Prefetch:
             no = self.order[self.pos]
             self.pos += 1
             if no not in self.fut:
-                self.fut[no] = self.ex.submit(self.client.document, no)
+                self.fut[no] = self.ex.submit(self.fetch, no)
 
     def document(self, rcept_no):
         f = self.fut.pop(rcept_no, None)
         self._fill()
-        return f.result() if f is not None else self.client.document(rcept_no)
+        return f.result() if f is not None else self.fetch(rcept_no)
 
     def close(self):
         if self.ex:
@@ -118,7 +129,7 @@ def collect(client, conn, bgn: date, end: date, max_corps: int | None = None,
 
     def _needs(rcept_no, is_fixed):
         row = conn.execute("SELECT parser_version FROM doc_price WHERE rcept_no=?", (rcept_no,)).fetchone()
-        return row is None or (is_fixed and (row["parser_version"] or 0) < doctext.PARSER_VERSION)
+        return row is None or (row["parser_version"] or 0) < doctext.PARSER_VERSION
     order = [next((no for no in rc if _needs(no, fx)), None) for _, rc, fx in plan]
     pf = _Prefetch(client, [no for no in order if no][: budget if budget is not None else None], workers)
     for corp, rcepts, is_fixed in plan:
@@ -128,16 +139,17 @@ def collect(client, conn, bgn: date, end: date, max_corps: int | None = None,
             row = conn.execute("SELECT status, final_price, parser_version FROM doc_price WHERE rcept_no=?",
                                (rcept_no,)).fetchone()
             # 확정 신고서는 수요예측 결과(2차 규칙)까지 읽어야 하므로 구버전 추출 건은 다시 받습니다.
-            stale = row is not None and is_fixed and (row["parser_version"] or 0) < doctext.PARSER_VERSION
+            stale = row is not None and (row["parser_version"] or 0) < doctext.PARSER_VERSION
             if row is None or stale:
                 if budget is not None and budget <= 0:
                     break
                 try:
-                    text = doctext.to_text(pf.document(rcept_no))
+                    text = pf.document(rcept_no)
                     parsed = doctext.extract_prices(text)
                     if is_fixed:
-                        parsed.update(doctext.extract_demand(text), parser_version=doctext.PARSER_VERSION)
-                    else:   # 확정 전 신고서는 같은 원문에서 수요예측 기일도 읽어 둡니다(추가 조회 없음).
+                        parsed.update(doctext.extract_demand(text))
+                    parsed["parser_version"] = doctext.PARSER_VERSION
+                    if not is_fixed:   # 확정 전 신고서는 같은 원문에서 수요예측 기일도 읽어 둡니다(추가 조회 없음).
                         store.save_doc_schedule(conn, rcept_no, corp, doctext.extract_listing_info(text), now)
                 except DartQuotaExceeded:
                     stats["quota_hit"] = True
@@ -179,7 +191,7 @@ def collect(client, conn, bgn: date, end: date, max_corps: int | None = None,
             break
         for rcept_no in rcepts:
             try:
-                parsed = doctext.extract_listing_info(doctext.to_text(pf.document(rcept_no)))
+                parsed = doctext.extract_listing_info(pf.document(rcept_no))
             except DartQuotaExceeded:
                 stats["quota_hit"] = True
                 log("DART 일일 요청 한도 도달: 남은 원문은 다음 실행에서 이어서 처리합니다.")
@@ -216,7 +228,7 @@ def collect(client, conn, bgn: date, end: date, max_corps: int | None = None,
         if stats["quota_hit"] or (budget is not None and budget <= 0):
             break
         try:
-            parsed = doctext.extract_result(doctext.to_text(pf.document(rcept_no)))
+            parsed = doctext.extract_result(pf.document(rcept_no))
         except DartQuotaExceeded:
             stats["quota_hit"] = True
             log("DART 일일 요청 한도 도달: 남은 원문은 다음 실행에서 이어서 처리합니다.")
