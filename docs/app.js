@@ -67,6 +67,7 @@
   function isSpac(d) { return !!d.is_spac || /기업인수목적|스팩/.test(d.corp_name || ""); }
   // 상장 구분: KOSPI / KOSDAQ / KOSDAQ_TECH (원문의 상장 경로 서술, 시장은 KIND 예심 값 우선)
   var BOARDS = { KOSPI: "유가증권", KOSDAQ: "코스닥 일반", KOSDAQ_TECH: "코스닥 기술특례" };
+  var BOARD_SHORT = { KOSPI: "유가증권", KOSDAQ: "코스닥", KOSDAQ_TECH: "기술특례" };
   function boardOk(d, b) {
     if (!b) return true;
     if (d.tech_unknown && d.board === "KOSDAQ") return b === "KOSDAQ" || b === "KOSDAQ_TECH";
@@ -284,7 +285,8 @@
       var b = document.createElement("button");
       b.type = "button"; b.className = "sel dd"; b.setAttribute("aria-haspopup", "listbox"); b.setAttribute("aria-expanded", "false");
       b.setAttribute("aria-label", (sel.getAttribute("aria-label") || "") + ": " + ddLabel(sel));
-      b.innerHTML = '<span class="dd-t">' + esc(ddLabel(sel)) + "</span>";
+      var so = sel.options[sel.selectedIndex], short = so && so.dataset.s;
+      b.innerHTML = '<span class="dd-t">' + (short ? '<span class="lf">' + esc(ddLabel(sel)) + '</span><span class="ls">' + esc(short) + "</span>" : esc(ddLabel(sel))) + "</span>";
       if (sel.dataset.def != null && sel.value !== sel.dataset.def) b.classList.add("on");
       sel.after(b);
       b.addEventListener("click", function (e) { e.preventDefault(); if (ddOpen && ddOpen.btn === b) ddClose(true); else ddShow(sel, b); });
@@ -440,7 +442,7 @@
   }
   function boardSelect(id) {
     return '<select class="sel" id="' + id + '" aria-label="상장 시장" data-def="">' + opt("", "전체 시장", state.board) + '<optgroup label="">' +
-      Object.keys(BOARDS).map(function (k) { return opt(k, BOARDS[k], state.board); }).join("") + "</optgroup></select>";
+      Object.keys(BOARDS).map(function (k) { return opt(k, BOARDS[k], state.board).replace("<option ", '<option data-s="' + BOARD_SHORT[k] + '" '); }).join("") + "</optgroup></select>";
   }
   function syncReset() {
     var changed = state.status !== DEFAULTS.status || state.spac !== DEFAULTS.spac || state.year || state.board || state.q;
@@ -882,14 +884,15 @@
     var bnd = ys.length ? statBounds() : null, win = ys.length ? statWindow(ys, bnd) : null;
     if (win) statNow = { from: win[0], to: win[1], b0: bnd[0], b1: bnd[1] };
     var custom = !!(state.sWin && win);
-    var head = '<div class="sfilters">' +
+    var spacSw = function (id) { return '<label class="switch"><input type="checkbox" class="s-spac" id="' + id + '"' + (state.spac ? " checked" : "") + ">스팩 포함</label>"; };
+    var head = '<div class="sfilters glass" role="group" aria-label="통계 조건">' +
       (custom ? '<button type="button" class="wchip" id="s-win-reset" title="확대 해제">' + esc(winText(win[0], win[1])) + '<span aria-hidden="true">×</span><span class="sr">전체 기간으로</span></button>' : "") +
-      '<label class="flabel">기간<select class="sel" id="s-period" aria-label="기간" data-def="all">' + (custom ? '<option value="custom" selected hidden>사용자 지정</option>' : "") +
+      '<label class="flabel"><span class="fl-t">기간</span><select class="sel" id="s-period" aria-label="기간" data-def="all">' + (custom ? '<option value="custom" selected hidden data-s="' + esc(winText(win[0], win[1]).replace(/(^|~)20(\d\d)/g, "$1$2")) + '">' + esc(winText(win[0], win[1])) + "</option>" : "") +
       '<optgroup label="빠른 선택">' + opt("all", "전체 기간", custom ? "" : state.sPeriod) + opt("5y", "최근 5년", custom ? "" : state.sPeriod) + opt("3y", "최근 3년", custom ? "" : state.sPeriod) + "</optgroup>" +
       '<optgroup label="연도별" data-grid="1">' + ys.map(function (y) { return opt(y, y + "년", custom ? "" : state.sPeriod); }).join("") + "</optgroup></select></label>" +
-      '<div class="flabel">단위' + segBtns("data-u", [["year", "연"], ["quarter", "분기"], ["month", "월"]], unit) + "</div>" +
-      boardSelect("s-board") +
-      '<label class="switch"><input type="checkbox" id="s-spac"' + (state.spac ? " checked" : "") + ">스팩 포함</label></div>";
+      '<div class="flabel"><span class="fl-t">단위</span>' + segBtns("data-u", [["year", "연"], ["quarter", "분기"], ["month", "월"]], unit) + "</div>" +
+      boardSelect("s-board") + '<span class="sw-d">' + spacSw("s-spac") + "</span></div>" +
+      '<div class="sopt-m">' + spacSw("s-spac-m") + "</div>";
     if (!ys.length) { app.innerHTML = '<div class="content">' + head + '<div class="ledger"><div class="empty">상장 건이 없습니다.</div></div></div>'; bindStats(); return; }
     var wf = win[0], wt = win[1];
     statNow = { from: wf, to: wt, b0: bnd[0], b1: bnd[1] };
@@ -1149,8 +1152,9 @@
     if (wr) wr.addEventListener("click", resetWin);
     var bs = document.getElementById("s-board");
     if (bs) bs.addEventListener("change", function (e) { state.board = e.target.value; persist(); renderStats(); });
-    var sp = document.getElementById("s-spac");
-    if (sp) sp.addEventListener("change", function (e) { state.spac = e.target.checked; persist(); renderStats(); });
+    app.querySelectorAll(".s-spac").forEach(function (sp) {
+      sp.addEventListener("change", function (e) { state.spac = e.target.checked; persist(); renderStats(); });
+    });
     app.querySelectorAll("[data-u]").forEach(function (b) {
       b.addEventListener("click", function () { state.sUnit = b.dataset.u; persist(); renderStats(); });
     });
@@ -1354,6 +1358,12 @@
     var to = a.getAttribute("href").slice(1);
     if (EMBED) { e.preventDefault(); goPath(to); }
   });
+  function syncTopH() {
+    var t = document.querySelector(".top");
+    if (t) document.documentElement.style.setProperty("--toph", t.offsetHeight + "px");
+  }
+  syncTopH();
+  window.addEventListener("resize", syncTopH);
   var lastW = window.innerWidth, rt;
   window.addEventListener("resize", function () {
     clearTimeout(rt);
