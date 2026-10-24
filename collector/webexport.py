@@ -38,6 +38,20 @@ def _rows(conn, sql, args=()):
     return [dict(r) for r in conn.execute(sql, args)]
 
 
+# 증권사 영문 사명을 한글 음차로 적은 공시가 있어 앱에는 공식 표기로 보여 줍니다(사명 변경·합병은 바꾸지 않음).
+UW_DISPLAY = {
+    "케이비증권": "KB증권", "케이비투자증권": "KB투자증권", "엔에이치투자증권": "NH투자증권",
+    "아이비케이투자증권": "IBK투자증권", "엘에스증권": "LS증권", "아이엠증권": "iM증권",
+    "디비금융투자": "DB금융투자", "디비증권": "DB증권", "에스케이증권": "SK증권", "비엔케이투자증권": "BNK투자증권",
+}
+
+
+def uw_display(s):
+    if not s:
+        return s
+    return ", ".join(UW_DISPLAY.get(n.strip(), n.strip()) for n in str(s).split(","))
+
+
 def build_payload(conn) -> dict:
     deals = _rows(conn, f"SELECT {','.join('d.' + f for f in DEAL_FIELDS)}, "
                         "COALESCE(c.corp_name, f.corp_name) AS corp_name, c.corp_cls, c.stock_code, "
@@ -77,6 +91,10 @@ def build_payload(conn) -> dict:
         d["underwriters"] = _rows(
             conn, "SELECT actsen, actnmn, stksen, udtcnt, udtamt, udtprc, udtmth FROM underwriter "
                   "WHERE rcept_no=? ORDER BY row_no", (estk,)) if estk else []
+        for u in d["underwriters"]:
+            u["actnmn"] = uw_display(u.get("actnmn"))
+        d["lead_underwriters"] = uw_display(d.get("lead_underwriters"))
+        d["co_underwriters"] = uw_display(d.get("co_underwriters"))
         d["securities"] = _rows(
             conn, "SELECT stksen, stkcnt, fv, slprc, slta, slmthn FROM estk_security "
                   "WHERE rcept_no=? ORDER BY row_no", (estk,)) if estk else []
@@ -99,6 +117,8 @@ def build_payload(conn) -> dict:
     for d in deals:
         rv = kind.review_for(conn, d.get("corp_name") or "", d["first_filing_dt"])
         d["prelim"] = {k: rv.get(k) for k in ("filed_dt", "decided_dt", "result", "market", "listing_type", "sponsor")} if rv else None
+        if d["prelim"]:
+            d["prelim"]["sponsor"] = uw_display(d["prelim"]["sponsor"])
         km = _KIND_MARKET.get((rv or {}).get("market") or "")
         if km:   # KIND 예심 시장 구분이 있으면 원문 판정보다 우선
             d["market_src"] = "KIND" if d.get("market") in (None, km) else "KIND(원문 판정 " + str(d.get("market")) + "와 다름)"
@@ -113,10 +133,11 @@ def build_payload(conn) -> dict:
             "deal_id": f"kind_{r['review_key']}", "corp_code": None, "corp_name": r["corp_name"],
             "status": "approved", "is_ipo_candidate": 1, "doc_signal": None,
             "first_filing_dt": r.get("decided_dt") or r.get("filed_dt"), "first_rcept_no": "",
-            "lead_underwriters": r.get("sponsor"), "market": _KIND_MARKET.get(r.get("market") or "", r.get("market")),
+            "lead_underwriters": uw_display(r.get("sponsor")), "market": _KIND_MARKET.get(r.get("market") or "", r.get("market")),
             "board": board(_KIND_MARKET.get(r.get("market") or ""), None), "tech_unknown": True,
             "listing_type": r.get("listing_type"),
-            "prelim": {k: r.get(k) for k in ("filed_dt", "decided_dt", "result", "market", "listing_type", "sponsor")},
+            "prelim": {k: (uw_display(r.get(k)) if k == "sponsor" else r.get(k))
+                       for k in ("filed_dt", "decided_dt", "result", "market", "listing_type", "sponsor")},
             "filings": [], "underwriters": [], "securities": [], "use_of_proceeds": [], "sellers": [], "sources": [],
         })
 
