@@ -550,7 +550,12 @@ def lockup_plan(conn, min_year: str = "2020") -> list:
         if (c["first_filing_dt"] or "") < min_year or deal_id not in alls:
             continue
         fl = alls[deal_id]
-        order = [f["rcept_no"] for f in reversed(fl) if f["doc_kind"] == "prospectus"] + \
+        # 같은 회사의 이후 유상증자 투자설명서가 딜에 붙는 경우가 있어, 마지막 신고서 뒤 90일 안의 것만 씁니다
+        from datetime import date as _d, timedelta as _td
+        regs = [f["rcept_no"] for f in fl if f["doc_kind"] == "reg_equity"]
+        lr = max(regs) if regs else None
+        cut = (_d(int(lr[:4]), int(lr[4:6]), int(lr[6:8])) + _td(days=90)).strftime("%Y%m%d") if lr else "99999999"
+        order = [f["rcept_no"] for f in reversed(fl) if f["doc_kind"] == "prospectus" and f["rcept_no"][:8] <= cut] + \
                 [f["rcept_no"] for f in reversed(fl) if f["doc_kind"] == "reg_equity"]
         order = order[:4]
         if not order:

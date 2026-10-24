@@ -12,9 +12,9 @@ import zipfile
 
 from .doctext import _clean, _decode
 
-LOCKUP_VERSION = 3
+LOCKUP_VERSION = 4
 # 2019년 이전 원문을 공시 뷰어로 받을 때 읽을 목차(투자위험요소·공모 일반사항)
-VIEWER_SECTIONS = ("투자위험요소", "모집또는매출에관한일반사항", "모집 또는 매출에 관한 일반사항", "공모개요")
+VIEWER_SECTIONS = ("기타위험", "투자위험요소", "공모가격결정방법", "모집또는매출에관한일반사항", "공모개요", "유통")
 
 
 # ---------------------------------------------------------------- 원문 → 행 보존 텍스트
@@ -58,7 +58,7 @@ def _cells(line: str) -> list[str]:
     return cs
 
 
-_PERIOD = re.compile(r"^(?:상장\s*(?:일로부터|일부터|일\s*기준|후)?\s*)?"
+_PERIOD = re.compile(r"^(?:(?:상장|예탁)\s*(?:일로부터|일부터|일\s*기준|후)?\s*)?"
                      r"((?:\d+\s*년)?\s*(?:\d+\s*개월)?|\d+\s*일)\s*(?:간|뒤|후|경과)?$")
 
 
@@ -104,7 +104,10 @@ _FLOAT = [
     # 상장 직후 … 발행주식총수의 40.64%에 해당하는 2,044,627주
     (re.compile(r"상장\s*(?:직후|일)\s*[^.。]{0,60}?([\d.]+)\s*%\s*에\s*해당하는\s*([\d,]{3,})\s*주"), (None, 1, 2)),
 ]
-_FLOAT_ROW = re.compile(r"^(?:상장\s*일|상장\s*직후|상장\s*당일)\s*(?:유통\s*가능\s*(?:물량|주식\s*수?)?)?\s*\|\s*([\d,]+)\s*(?:주)?\s*\|\s*([\d.]+)\s*%", re.M)
+_FLOAT_ROW = re.compile(r"^(?:상장\s*일|상장\s*직후|상장\s*당일)\s*(?:유통\s*가능\s*(?:물량|주식\s*수?)?)?"
+                        r"\s*\|\s*([\d,]+)\s*(?:주)?\s*\|\s*([\d.]+)\s*%", re.M)
+# 주주별 표의 '유통가능물량 소계 | (공모 전) | (공모 후)' 행: 마지막 주식수·지분율 쌍이 공모 후 값
+_FLOAT_SUB = re.compile(r"^유통\s*가능\s*(?:물량|주식\s*수?)\s*(?:소\s*계|합\s*계|계)\s*\|(.*)$", re.M)
 
 
 def _listed(text: str) -> tuple[int | None, str | None]:
@@ -133,6 +136,13 @@ def _float0(text: str, listed: int | None = None) -> dict | None:
         sh, pc = _n(m.group(1)), _pct(m.group(2))
         if sh and pc and 0 < pc <= 100:
             cands.append((m.start(), {"shares": sh, "pct": pc, "listed": None, "evidence": _snip(text, m)}))
+
+    for m in _FLOAT_SUB.finditer(text):
+        cs = _cells(m.group(1))
+        prs = [(_n(cs[i]), _pct(cs[i + 1])) for i in range(len(cs) - 1)
+               if _n(cs[i]) and _IS_PCT.match(cs[i + 1] or "")]
+        if prs and prs[-1][1] and 0 < prs[-1][1] <= 100:
+            cands.append((m.start(), {"shares": prs[-1][0], "pct": prs[-1][1], "listed": None, "evidence": _snip(text, m)}))
 
     def ok(c):
         base = c["listed"] or listed
@@ -215,6 +225,8 @@ def _category(group: str, row_text: str) -> str:
     t = group + " " + row_text
     if re.search(r"우리\s*사주", t):
         return "우리사주조합"
+    if re.search(r"수요\s*예측|의무\s*보유\s*확약|기관\s*(?:투자자\s*)?확약", row_text):
+        return "기관 의무보유확약"
     if re.search(r"의무\s*인수|상장\s*주선인|주관\s*회?사?\s*(?:의무)?\s*(?:인수|취득)", t):
         return "상장주선인 의무인수"
     if re.search(r"최대\s*주주|특수\s*관계", group) or (
@@ -253,9 +265,12 @@ def _holder_groups(text: str) -> tuple[list | None, int | None]:
     # '가능여부' 열(유통제한물량/유통가능물량)이 있으면 떼어 내고 행마다 상태로 기억합니다
     norm, status = [], None
     for cs in rows:
-        if re.search(r"유통\s*가능\s*(?:물량|주식)", cs[0]):
+        if re.search(r"소\s*계|합\s*계|총\s*계", cs[0]):
+            pass                       # '유통제한물량 소계' 같은 소계 행은 그대로(소계로 처리)
+        elif re.search(r"유통\s*가능\s*(?:물량|주식)", cs[0]):
             status, cs = "free", cs[1:]
-        elif re.search(r"유통\s*제한|매각\s*제한|매도\s*(?:금지|제한)|보호\s*예수|의무\s*보유", cs[0]) and len(cs) > 3:
+        elif re.fullmatch(r"(?:유통\s*제한|매각\s*제한|매도\s*(?:금지|제한)|보호\s*예수|의무\s*보유)\s*(?:물량|주식\s*수?)?", cs[0]) \
+                and len(cs) > 3:
             status, cs = "lock", cs[1:]
         if cs:
             norm.append((cs, status))
@@ -309,7 +324,7 @@ def _holder_groups(text: str) -> tuple[list | None, int | None]:
             total_row = lock
             break
         if is_sub:
-            after_sub = True
+            after_sub, group = True, ""     # 소계가 나오면 그 구분은 끝
             continue
         if after_sub and re.fullmatch(r"보통주|종류\s*주식|우선주|전환\s*우선주|상환전환우선주", cs[0]):
             continue
@@ -329,13 +344,13 @@ def _holder_groups(text: str) -> tuple[list | None, int | None]:
         if period is None:
             return None, None          # 기간을 알 수 없는 매각제한 → 표를 믿지 않음
         # 한 주주의 기간별 분할 행(주식수·지분율·기간만 있는 행)은 바로 위 주주의 구분을 따릅니다
-        cont = last_cat and (len(cs) <= 4 or _n(cs[0]) is not None)
+        cont = last_cat and _n(cs[0]) is not None     # 첫 칸이 숫자면 위 주주의 기간별 분할 행
         cat = last_cat if cont else _category(group, joined)
         last_cat = cat
         key = (cat, period)
         agg[key] = agg.get(key, 0) + lock
     out = [{"category": k[0], "months": k[1], "shares": v} for k, v in agg.items()]
-    order = ["최대주주등", "우리사주조합", "상장주선인 의무인수", "벤처금융·전문투자자", "기타 주주"]
+    order = ["최대주주등", "우리사주조합", "상장주선인 의무인수", "기관 의무보유확약", "벤처금융·전문투자자", "기타 주주"]
     out.sort(key=lambda r: (order.index(r["category"]), -r["months"]))
     return (out or None), total_row
 
@@ -363,7 +378,7 @@ def _commitment(text: str) -> dict | None:
     for i, l in enumerate(lines):
         if _COMMIT_ROW.match(l):
             cur.append(i)
-        elif cur and re.match(r"^\s*(?:확약\s*합\s*계|합\s*계|총\s*(?:참여|신청)[^|]*|계)\s*\|", l):
+        elif cur and re.match(r"^\s*(?:확약\s*합\s*계|합\s*계|총\s*[^|]*대비[^|]*|총\s*(?:참여|신청)[^|]*|계)\s*\|", l):
             cur.append(i)
         elif cur:
             blocks.append(cur)
@@ -403,7 +418,7 @@ def _commitment(text: str) -> dict | None:
                 else:
                     mo = int(m.group(2)) / 30 if m.group(3) == "일" else int(m.group(2))
                     by[round(mo, 2)] = by.get(round(mo, 2), 0) + (q or 0)
-            elif re.match(r"^\s*총\s*(?:참여|신청)", lines[i]):
+            elif re.match(r"^\s*총\s*(?:참여|신청|[^|]*대비)", lines[i]):
                 pc = [_pct(c.replace("%", "")) for c in cs[1:] if "%" in c]
                 if pc:
                     ratio = pc[-1] if qcol is None else (pc[1] if len(pc) > 1 else pc[0])
@@ -413,8 +428,9 @@ def _commitment(text: str) -> dict | None:
         if not by:
             continue
         total = (committed + unc) if unc is not None else None
-        if tot and unc is not None and abs(tot - total) > max(5, tot * 0.002):
-            continue        # 합계가 맞지 않으면 열을 잘못 고른 것
+        if tot and unc is not None and abs(tot - total) > max(5, tot * 0.002) \
+                and not (single and abs(tot - committed) <= max(5, tot * 0.002)):
+            continue        # 합계가 맞지 않으면 열을 잘못 고른 것(단일표의 합계는 확약 합계일 수 있음)
         if total is None and tot and single:
             total = None    # 단일표의 합계는 확약 합계일 뿐
         if total:
