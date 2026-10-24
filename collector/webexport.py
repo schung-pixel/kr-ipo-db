@@ -176,7 +176,9 @@ def build_payload(conn) -> dict:
                                "AND biz_excerpt IS NOT NULL ORDER BY rcept_no DESC LIMIT 1", regs).fetchone()
         # 스팩 합병 뒤 사명이 바뀐 스팩 공모: 회사명에는 '스팩'이 없지만 신고서 사업 개요가 기업인수목적회사
         d["is_spac"] = bool(re.search(r"기업인수목적|스팩", d.get("corp_name") or "")) or bool(
-            biz and re.search(r"기업\s*인수\s*목적\s*회사|SPAC", biz["biz_text"] or ""))
+            biz and re.search(r"기업\s*인수\s*목적\s*회사|SPAC", biz["biz_text"] or "")) or (
+            # 합병 뒤 사명이 바뀐 스팩: 공모가가 밴드 없이 2,000원(일부 10,000원) 단일가
+            d.get("offer_price_low") in (2000, 10000) and d.get("offer_price_low") == d.get("offer_price_high"))
         if d["is_spac"]:
             biz = None
         ci = kind.corp_info(conn, d.get("corp_name") or "")
