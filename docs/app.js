@@ -910,6 +910,8 @@
     var posTot = {}; POS.forEach(function (p) { posTot[p] = pc.reduce(function (a, o) { return a + o[p]; }, 0); });
     var legend3 = '<div class="legend">' + POS.map(function (p) { return '<span><i style="background:var(--pos-' + POS_KEY[p] + ')"></i>' + p + " " + posTot[p] + "</span>"; }).join("") + "</div>";
 
+    var techPanel = "", leaguePanel = "";
+    if (!statFast) (function () {   // 기술특례·주관사 표는 제스처가 끝난 뒤에만 다시 계산
     // ---- 4) 기술특례 분석
     var tech = deals.filter(function (d) { return d.board === "KOSDAQ_TECH" && !isSpac(d); });
     var grp = {};
@@ -937,7 +939,7 @@
       return '<div><span class="k">' + r[0] + '</span><span class="v">' + (median(ds.map(function (d) { return d.inst_demand_ratio; })) != null ? int(Math.round(median(ds.map(function (d) { return d.inst_demand_ratio; })))) + "<small>:1</small>" : "-") +
         '</span><span class="s">상단 이상 ' + (pd.length ? Math.round(up / pd.length * 100) + "%" : "-") + " · 공모액 중앙값 " + (median(ds.map(function (d) { return d.offer_amount; })) != null ? jo(median(ds.map(function (d) { return d.offer_amount; })) / 1e8) : "-") + "</span></div>";
     }).join("");
-    var techPanel = '<section class="panel tech"><header><div><h2>기술특례 분석</h2><p>' + periodText + " 상장 기술특례 " + tech.length + "건. 등급은 전문평가기관 2곳 결과(소부장 단수평가는 1곳). 경쟁률은 중앙값입니다.</p></div></header>" +
+    techPanel = '<section class="panel tech"><header><div><h2>기술특례 분석</h2><p>' + periodText + " 상장 기술특례 " + tech.length + "건. 등급은 전문평가기관 2곳 결과(소부장 단수평가는 1곳). 경쟁률은 중앙값입니다.</p></div></header>" +
       '<div class="pbody">' + (tech.length ? '<div class="cmp">' + cmp + "</div>" +
         '<div class="routes">' + Object.keys(routes).sort(function (a, b) { return routes[b] - routes[a]; }).map(function (r) { return '<span class="chip-s">' + esc(r) + " <b>" + routes[r] + "</b></span>"; }).join("") + "</div>" +
         '<div class="scroll"><table class="mini grades"><thead><tr><th>평가 등급</th><th class="num">건수</th><th class="bar-cell"><span class="sr">건수 막대</span></th><th class="num">수요예측</th><th class="num">일반청약</th><th class="num">상단 이상</th></tr></thead><tbody>' + gradeRows + "</tbody></table></div>"
@@ -965,13 +967,14 @@
         '</td><td class="num">' + eok(r.amount) + '</td><td class="num">' + (r.posN ? Math.round(r.upper / r.posN * 100) + "%" : "-") +
         '</td><td class="bar-cell"><div class="hbar" style="width:' + (r[lk] / maxL * 100).toFixed(1) + '%"></div></td></tr>';
     }).join("");
-    var leaguePanel = '<section class="panel league"><header><div><h2>대표주관사 순위</h2><p>' + periodText + " 상장 기준. 공동 대표주관은 건수 각 1건, 공모액은 사 수로 나눔. 사명 변경·합병사는 현재 사명으로 합산. 행을 누르면 해당 딜 목록으로 이동합니다.</p></div>" +
+    leaguePanel = '<section class="panel league"><header><div><h2>대표주관사 순위</h2><p>' + periodText + " 상장 기준. 공동 대표주관은 건수 각 1건, 공모액은 사 수로 나눔. 사명 변경·합병사는 현재 사명으로 합산. 행을 누르면 해당 딜 목록으로 이동합니다.</p></div>" +
       segBtns("data-l", [["count", "건수순"], ["amount", "공모액순"], ["tech", "기술특례순"]], lk) + '</header><div class="pbody">' +
       '<div class="scroll"><table class="mini"><thead><tr><th>순위</th><th>대표주관</th><th class="num">건수</th><th class="num">기술특례</th><th class="num">공모액(억)</th><th class="num">상단 이상</th><th class="bar-cell"><span class="sr">막대</span></th></tr></thead><tbody>' + leagueRows + "</tbody></table></div>" +
       '<p class="snote">상위 ' + topN.length + "개사 / 전체 " + leag.length + "개사</p></div></section>";
 
+    })();
     var unitWord = unit === "year" ? "연도별" : unit === "quarter" ? "분기별" : "월별";
-    app.innerHTML = '<div class="content">' + head + kpi +
+    setStatsHtml('<div class="content">' + head + kpi +
       '<section class="panel"><header><div><h2>' + unitWord + " 상장 추이</h2><p>상장일 기준(상장 완료 건). 공모액은 확정 금액입니다." + (estN ? " 상장일을 원문에서 읽지 못한 " + estN + "건은 증권발행실적보고서 제출일로 추정했습니다." : "") + "</p></div>" +
       segBtns("data-m", [["count", "건수"], ["amount", "공모액"]], isAmt ? "amount" : "count") + '</header><div class="pbody chart zoomable">' + legend1 + svg1 +
       '<p class="zhint">' + (COARSE ? "두 손가락으로 벌리거나 모아 기간 조정 · 확대 후 좌우로 끌어 이동 · 두 번 탭하면 원래대로" : "트랙패드 핀치 또는 Ctrl+스크롤로 기간 조정 · 확대 후 드래그로 이동 · 더블클릭하면 원래대로") + "</p>" +
@@ -981,9 +984,28 @@
       '<div class="pbody chart zoomable">' + legend2 + svg2 + "</div></section>" +
       '<section class="panel"><header><div><h2>밴드 대비 확정가 위치</h2><p>' + unitWord + " 상장 건의 비중. 단일 희망가(스팩 등)는 제외. 위로 갈수록 높은 가격입니다.</p></div></header>" +
       '<div class="pbody chart zoomable">' + legend3 + svg3 + "</div></section></div>" +
-      '<div class="panels even">' + techPanel + leaguePanel + "</div></div>";
+      (statFast ? '<div class="keep"></div>' : '<div class="panels even">' + techPanel + leaguePanel + "</div>") + "</div>");
     bindStats();
     bindChart();
+  }
+  // 제스처 중에는 그래프 상자(.zoomable)를 DOM에서 떼지 않고 안쪽만 바꿉니다(포인터 캡처 유지).
+  function patchNode(o, n) {
+    if (n.classList && n.classList.contains("keep")) return;   // 제스처 중에는 그대로 둠
+    if (o.classList && o.classList.contains("zoomable")) { o.innerHTML = n.innerHTML; return; }
+    if (!o.querySelector || !o.querySelector(".zoomable") || o.childNodes.length !== n.childNodes.length || o.tagName !== n.tagName) {
+      o.replaceWith(n); return;
+    }
+    var oc = Array.prototype.slice.call(o.childNodes), nc = Array.prototype.slice.call(n.childNodes);
+    for (var i = 0; i < oc.length; i++) patchNode(oc[i], nc[i]);
+    if (n.attributes) Array.prototype.forEach.call(n.attributes, function (a) { o.setAttribute(a.name, a.value); });
+  }
+  function setStatsHtml(html) {
+    var old = app.firstElementChild;
+    if (statLive && old && old.querySelector(".zoomable")) {
+      var t = document.createElement("div");
+      t.innerHTML = html;
+      patchNode(old, t.firstElementChild);
+    } else app.innerHTML = html;
   }
   function kpiTile(v, unitTxt, label, hl) {
     return '<div><div class="v' + (hl ? " hl" : "") + '">' + v + (unitTxt ? "<small>" + unitTxt + "</small>" : "") + '</div><div class="l">' + label + "</div></div>";
@@ -1011,6 +1033,7 @@
     app.querySelectorAll("[data-m]").forEach(function (b) {
       b.addEventListener("click", function () { state.metric = b.dataset.m; persist(); renderStats(); });
     });
+    if (statFast) return;   // 기술특례·주관사 표는 그대로 두었으므로 다시 묶지 않음
     app.querySelectorAll("[data-l]").forEach(function (b) {
       b.addEventListener("click", function () { state.league = b.dataset.l; persist(); renderStats(); });
     });
@@ -1025,125 +1048,112 @@
     });
   }
 
-  // ---------------------------------------------------------------- 통계 핀치 확대·축소
+  // ---------------------------------------------------------------- 통계 핀치 확대·축소(실시간)
   var COARSE = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
   var MIN_SPAN = 6;   // 최소 6개월
-  function resetWin() { state.sWin = null; state.sPeriod = "all"; state.sUnit = "year"; persist(); hideTip(); renderStats(); }
-  function commitWin(f, t) {
+  var statLive = false, statFast = false, liveFrame = 0;
+  function resetWin() { state.sWin = null; state.sPeriod = "all"; state.sUnit = "year"; persist(); hideTip(); statLive = false; renderStats(); }
+  // 창 적용: final이면 단위 경계에 맞추고 저장, 아니면 다음 프레임에 그래프만 갱신
+  function applyWin(f, t, final) {
     var n = statNow;
     if (!n) return;
-    var full = n.b1 - n.b0 + 1, span = Math.max(MIN_SPAN, Math.min(full, t - f + 1));
-    if (span >= full) { resetWin(); return; }
-    f = Math.round(f); f = Math.max(n.b0, Math.min(f, n.b1 - span + 1)); t = f + span - 1;
-    var unit = pickUnit(span), sw = snapWin(f, t, unit);
-    f = Math.max(n.b0, sw[0]); t = Math.min(n.b1, sw[1]);
-    if (f <= n.b0 && t >= n.b1) { resetWin(); return; }
-    state.sWin = { from: mKey(f), to: mKey(t) }; state.sPeriod = "custom"; state.sUnit = unit;
-    persist(); hideTip(); renderStats();
+    var full = n.b1 - n.b0 + 1, span = Math.max(MIN_SPAN, Math.min(full, Math.round(t - f + 1)));
+    f = Math.round(f);
+    f = Math.max(n.b0, Math.min(f, n.b1 - span + 1)); t = f + span - 1;
+    var unit = pickUnit(span);
+    if (final) { var sw = snapWin(f, t, unit); f = Math.max(n.b0, sw[0]); t = Math.min(n.b1, sw[1]); }
+    if (span >= full || (f <= n.b0 && t >= n.b1)) { state.sWin = null; state.sPeriod = "all"; state.sUnit = "year"; }
+    else { state.sWin = { from: mKey(f), to: mKey(t) }; state.sPeriod = "custom"; state.sUnit = unit; }
+    if (final) {
+      cancelAnimationFrame(liveFrame); liveFrame = 0;
+      persist(); statLive = true; renderStats(); statLive = false;
+      return;
+    }
+    if (!liveFrame) liveFrame = requestAnimationFrame(function () { liveFrame = 0; statLive = statFast = true; renderStats(); statLive = statFast = false; });
   }
-  function plotFrac(svg, clientX) {   // 화면 x → 플롯 안 비율(0~1)
-    var r = svg.getBoundingClientRect(), W = +svg.dataset.w || r.width, L = +svg.dataset.l || 0, R = +svg.dataset.r || 0;
-    var vx = (clientX - r.left) / r.width * W;
-    return { f: Math.max(0, Math.min(1, (vx - L) / (W - L - R))), plotPx: r.width * (W - L - R) / W };
-  }
-  function zoomAt(svg, clientX, scale) {   // scale > 1: 확대(기간 축소)
-    var n = statNow, span = n.to - n.from + 1, p = plotFrac(svg, clientX);
-    var ns = Math.max(MIN_SPAN, Math.round(span / scale)), c = n.from + p.f * span;
-    commitWin(c - p.f * ns, c - p.f * ns + ns - 1);
-  }
-  function panBy(svg, dxPx) {
-    var n = statNow, span = n.to - n.from + 1, p = plotFrac(svg, 0);
-    var shift = Math.round(-dxPx / p.plotPx * span);
-    if (shift) commitWin(n.from + shift, n.to + shift);
+  function plotGeom(z, clientX) {   // 화면 x → 플롯 안 비율(0~1), 플롯 폭(px)
+    var svg = z.querySelector("svg"), r = svg.getBoundingClientRect();
+    var W = +svg.dataset.w || r.width, L = +svg.dataset.l || 0, R = +svg.dataset.r || 0;
+    var px = r.width * (W - L - R) / W, x0 = r.left + r.width * L / W;
+    return { f: Math.max(0, Math.min(1, (clientX - x0) / px)), px: px };
   }
   (function () {
-    var g = null, lastTap = 0;
-    function svgOf(e) { var z = e.target.closest && e.target.closest(".zoomable"); return z ? z.querySelector("svg") : null; }
-    function preview(svg, sx, tx, ox) {
-      svg.style.transformOrigin = ox + "px 50%";
-      svg.style.transform = "translateX(" + tx + "px) scaleX(" + sx + ")";
+    var ptr = {}, g = null, lastTap = 0, lastX = 0;
+    function zoneOf(e) { return e.target.closest ? e.target.closest(".zoomable") : null; }
+    function pts() { return Object.keys(ptr).map(function (k) { return ptr[k]; }); }
+    function startPinch(z, ids) {
+      ids.forEach(function (id) { try { z.setPointerCapture(id); } catch (err) { /* 무시 */ } });
+      var p = pts(), a = p[0], b = p[1], cx = (a.x + b.x) / 2, geo = plotGeom(z, cx), n = statNow;
+      g = { mode: "pinch", z: z, from0: n.from, span0: n.to - n.from + 1, d0: Math.max(24, Math.abs(a.x - b.x)), c0: n.from + geo.f * (n.to - n.from + 1) };
+      hideTip();
     }
-    function clear(svg) { if (svg) { svg.style.transform = ""; svg.style.transformOrigin = ""; } }
-    app.addEventListener("touchstart", function (e) {
-      if (view !== "stats") return;
-      var svg = svgOf(e);
-      if (!svg) return;
-      var r = svg.getBoundingClientRect();
-      if (e.touches.length === 2) {
-        var a = e.touches[0], b = e.touches[1];
-        g = { mode: "pinch", svg: svg, d0: Math.max(30, Math.abs(a.clientX - b.clientX)), cx: (a.clientX + b.clientX) / 2, s: 1, ox: (a.clientX + b.clientX) / 2 - r.left };
-        hideTip();
-      } else if (e.touches.length === 1) {
-        var t = e.touches[0], now = Date.now();
-        if (now - lastTap < 300 && state.sWin) { lastTap = 0; g = null; resetWin(); return; }
-        lastTap = now;
-        g = state.sWin ? { mode: "pan", svg: svg, x0: t.clientX, y0: t.clientY, dx: 0, horiz: null, ox: 0 } : null;
-      }
-    }, { passive: true });
-    app.addEventListener("touchmove", function (e) {
-      if (!g) return;
-      if (g.mode === "pinch" && e.touches.length === 2) {
-        var d = Math.max(10, Math.abs(e.touches[0].clientX - e.touches[1].clientX));
-        g.s = Math.max(0.2, Math.min(8, d / g.d0));
-        preview(g.svg, g.s, 0, g.ox);
-      } else if (g.mode === "pan" && e.touches.length === 1) {
-        var mx = e.touches[0].clientX - g.x0, my = e.touches[0].clientY - g.y0;
-        if (g.horiz === null && (Math.abs(mx) > 8 || Math.abs(my) > 8)) g.horiz = Math.abs(mx) > Math.abs(my);
-        if (!g.horiz) return;
-        g.dx = mx; lastTap = 0; hideTip();
-        preview(g.svg, 1, mx, 0);
-      }
-    }, { passive: true });
-    function end() {
-      if (!g) return;
-      var x = g; g = null;
-      clear(x.svg);
-      if (x.mode === "pinch" && Math.abs(x.s - 1) > 0.08) zoomAt(x.svg, x.cx, x.s);
-      else if (x.mode === "pan" && x.horiz && Math.abs(x.dx) > 12) panBy(x.svg, x.dx);
+    function startPan(z, x) {
+      var n = statNow;
+      g = { mode: "pan", z: z, from0: n.from, span0: n.to - n.from + 1, x0: x, px: plotGeom(z, x).px, moved: false };
     }
-    app.addEventListener("touchend", function (e) { if (g && (g.mode === "pan" || e.touches.length < 2)) end(); });
-    app.addEventListener("touchcancel", function () { if (g) { clear(g.svg); g = null; } });
-    // 컴퓨터: 트랙패드 핀치(ctrl+wheel)·Ctrl+스크롤로 확대, 가로 스크롤·드래그로 이동, 더블클릭 초기화
-    var wheelAcc = 0, wheelX = 0, wheelSvg = null, wheelTimer = 0;
+    app.addEventListener("pointerdown", function (e) {
+      if (view !== "stats" || !statNow) return;
+      var z = zoneOf(e);
+      if (!z || (e.pointerType === "mouse" && e.button !== 0)) return;
+      ptr[e.pointerId] = { x: e.clientX, y: e.clientY };
+      var n = pts().length;
+      if (n === 2) { startPinch(z, Object.keys(ptr).map(Number)); return; }
+      if (n === 1) {
+        var now = Date.now();
+        if (now - lastTap < 320 && Math.abs(e.clientX - lastX) < 24 && state.sWin) { lastTap = 0; ptr = {}; g = null; resetWin(); return; }
+        lastTap = now; lastX = e.clientX;
+        if (state.sWin) { try { z.setPointerCapture(e.pointerId); } catch (err) { /* 무시 */ } startPan(z, e.clientX); }
+      }
+    });
+    app.addEventListener("pointermove", function (e) {
+      if (!ptr[e.pointerId]) return;
+      ptr[e.pointerId].x = e.clientX; ptr[e.pointerId].y = e.clientY;
+      if (!g) return;
+      if (g.mode === "pinch" && pts().length >= 2) {
+        var p = pts(), d = Math.max(8, Math.abs(p[0].x - p[1].x)), cx = (p[0].x + p[1].x) / 2;
+        var span = Math.max(MIN_SPAN, g.span0 * g.d0 / d), f = plotGeom(g.z, cx).f;
+        applyWin(g.c0 - f * span, g.c0 - f * span + span - 1, false);   // 손가락 사이 지점이 같은 날짜에 머물도록
+      } else if (g.mode === "pan") {
+        var dx = e.clientX - g.x0;
+        if (!g.moved && Math.abs(dx) < 6) return;
+        g.moved = true; lastTap = 0; hideTip();
+        var shift = -dx / g.px * g.span0;
+        applyWin(g.from0 + shift, g.from0 + shift + g.span0 - 1, false);
+      }
+    });
+    function up(e) {
+      if (!ptr[e.pointerId]) return;
+      delete ptr[e.pointerId];
+      if (!g) return;
+      var left = pts().length;
+      if (g.mode === "pinch" && left >= 2) return;
+      var done = g; g = null;
+      if (done.mode === "pinch" || done.moved) applyWin(statNow.from, statNow.to, true);
+      if (done.mode === "pinch" && left === 1 && state.sWin) {   // 한 손가락이 남으면 이어서 이동
+        var k = Object.keys(ptr)[0]; startPan(done.z, ptr[k].x);
+      }
+    }
+    app.addEventListener("pointerup", up);
+    app.addEventListener("pointercancel", up);
+    // 컴퓨터: 트랙패드 핀치(ctrl+wheel)·Ctrl+스크롤 확대, 가로 스크롤 이동 — 즉시 반영, 멈추면 단위 경계에 맞춤
+    var wheelTimer = 0;
     app.addEventListener("wheel", function (e) {
-      if (view !== "stats") return;
-      var svg = svgOf(e);
-      if (!svg) return;
+      if (view !== "stats" || !statNow) return;
+      var z = zoneOf(e);
+      if (!z) return;
+      var n = statNow, span = n.to - n.from + 1;
       if (e.ctrlKey) {
         e.preventDefault();
-        wheelAcc += e.deltaY; wheelX = e.clientX; wheelSvg = svg;
-        clearTimeout(wheelTimer);
-        wheelTimer = setTimeout(function () { var sc = Math.exp(-wheelAcc * 0.004); wheelAcc = 0; if (Math.abs(sc - 1) > 0.03) zoomAt(wheelSvg, wheelX, sc); }, 120);
-      } else if (state.sWin && Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 4) {
+        var geo = plotGeom(z, e.clientX), c = n.from + geo.f * span, ns = Math.max(MIN_SPAN, span * Math.exp(e.deltaY * 0.004));
+        applyWin(c - geo.f * ns, c - geo.f * ns + ns - 1, false);
+      } else if (state.sWin && Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 1) {
         e.preventDefault();
-        wheelAcc += e.deltaX; wheelSvg = svg;
-        clearTimeout(wheelTimer);
-        wheelTimer = setTimeout(function () { var dx = -wheelAcc; wheelAcc = 0; panBy(wheelSvg, dx); }, 120);
-      }
+        var sh = e.deltaX / plotGeom(z, e.clientX).px * span;
+        applyWin(n.from + sh, n.to + sh, false);
+      } else return;
+      clearTimeout(wheelTimer);
+      wheelTimer = setTimeout(function () { applyWin(statNow.from, statNow.to, true); }, 220);
     }, { passive: false });
-    var drag = null;
-    app.addEventListener("pointerdown", function (e) {
-      if (view !== "stats" || e.pointerType !== "mouse" || e.button !== 0 || !state.sWin) return;
-      var svg = svgOf(e);
-      if (svg) drag = { svg: svg, x0: e.clientX, dx: 0 };
-    });
-    window.addEventListener("pointermove", function (e) {
-      if (!drag) return;
-      drag.dx = e.clientX - drag.x0;
-      if (Math.abs(drag.dx) > 4) { hideTip(); preview(drag.svg, 1, drag.dx, 0); }
-    });
-    window.addEventListener("pointerup", function () {
-      if (!drag) return;
-      var d = drag; drag = null; clear(d.svg);
-      if (Math.abs(d.dx) > 12) panBy(d.svg, d.dx);
-    });
-    var lastClick = 0, lastX = 0;   // 더블클릭(브라우저 dblclick이 오지 않는 환경 대비 직접 판정)
-    app.addEventListener("click", function (e) {
-      if (view !== "stats" || !svgOf(e)) return;
-      var now = Date.now();
-      if (now - lastClick < 350 && Math.abs(e.clientX - lastX) < 12 && state.sWin) { lastClick = 0; resetWin(); return; }
-      lastClick = now; lastX = e.clientX;
-    });
   })();
 
   // ---------------------------------------------------------------- 툴팁
