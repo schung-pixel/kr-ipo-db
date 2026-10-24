@@ -127,7 +127,24 @@
   {
    "from": "2018-01-01",
    "to": "2018-12-31",
-   "done": false
+   "done": true,
+   "runs": 1,
+   "last_run": "2026-10-24T09:59:03+09:00",
+   "last_stats": {
+    "filings": 1509,
+    "estk_calls": 197,
+    "companies": 100,
+    "deals": 1681,
+    "docs": 4,
+    "doc_no_match": 3,
+    "results": 97,
+    "quota_hit": false,
+    "errors": 490,
+    "error_kinds": {
+     "조회:014": 490
+    },
+    "schedules": 14
+   }
   },
   {
    "from": "2017-01-01",
