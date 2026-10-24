@@ -141,7 +141,7 @@ if __name__ == "__main__":
 class UwDisplayTest(unittest.TestCase):
     def test_short_names(self):
         from collector.webexport import uw_display
-        self.assertEqual(uw_display("제이피모간증권회사 서울지점, 케이비증권"), "JP모간, KB증권")
+        self.assertEqual(uw_display("제이피모간증권회사 서울지점, 케이비증권"), "JP모건, KB증권")
         self.assertEqual(uw_display("유비에스증권리미티드(영업소)"), "UBS")
         self.assertEqual(uw_display("크레디트스위스퍼스트보스톤증권 서울지점"), "CS")
         self.assertEqual(uw_display("미래에셋증권"), "미래에셋증권")
