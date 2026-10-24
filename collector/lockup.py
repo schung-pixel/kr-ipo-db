@@ -12,7 +12,7 @@ import zipfile
 
 from .doctext import _clean, _decode
 
-LOCKUP_VERSION = 2
+LOCKUP_VERSION = 3
 # 2019년 이전 원문을 공시 뷰어로 받을 때 읽을 목차(투자위험요소·공모 일반사항)
 VIEWER_SECTIONS = ("투자위험요소", "모집또는매출에관한일반사항", "모집 또는 매출에 관한 일반사항", "공모개요")
 

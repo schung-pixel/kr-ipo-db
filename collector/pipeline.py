@@ -67,7 +67,9 @@ class _Prefetch:
 def _collect_lockups(client, conn, now, stats, log, workers, budget):
     import json as _json
     lplan = store.lockup_plan(conn, min_year=os.environ.get("LOCKUP_MIN_YEAR", "2020"))
-    existing = {r["deal_id"]: r for r in conn.execute("SELECT deal_id, data, tried FROM deal_lockup")}
+    # 추출 규칙 버전이 오른 행은 처음부터 다시 읽습니다(이전 결과·시도 목록을 쓰지 않음)
+    existing = {r["deal_id"]: r for r in conn.execute(
+        "SELECT deal_id, data, tried FROM deal_lockup WHERE parser_version >= ?", (lockup.LOCKUP_VERSION,))}
     first_docs = []
     for deal_id, _, order, _ in lplan:
         tried = set(_json.loads(existing[deal_id]["tried"] or "[]")) if deal_id in existing else set()

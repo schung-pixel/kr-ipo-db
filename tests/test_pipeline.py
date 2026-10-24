@@ -354,6 +354,10 @@ class PipelineTests(unittest.TestCase):
         calls = client.doc_calls
         run(self.conn, client, lockups=True)
         self.assertEqual(client.doc_calls, calls)          # 새 공시가 없으면 다시 받지 않음
+        # 규칙 버전이 오르면 다시 받습니다
+        self.conn.execute("UPDATE deal_lockup SET parser_version = 0")
+        run(self.conn, client, lockups=True)
+        self.assertGreater(client.doc_calls, calls)
         from collector import webexport
         payload = webexport.build_payload(self.conn)
         self.assertTrue(all("lockup" in d for d in payload["deals"]))
