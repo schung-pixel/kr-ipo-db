@@ -308,6 +308,8 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(g["tech_track"], "성장성 추천")
         k = ex("유가증권시장 상장 유가증권시장 코스닥시장 당사는 기술특례")
         self.assertEqual((k["market"], k["tech_track"]), ("KOSPI", None))
+        u = ex(boiler + "금번 공모는 「코스닥시장 상장규정」 제28조 제1항 제2호 나목의 이익미실현기업 상장요건의 적용을 받으며")
+        self.assertEqual((u["tech_track"], u["alt_route"]), (None, "이익미실현"))
         w = ex(boiler + "[2023년 이후 코스닥 기술특례상장기업 신규 상장법인의 평가액 대비 할인율]")
         self.assertEqual(w["tech_track"], "기술특례(추정)")
 

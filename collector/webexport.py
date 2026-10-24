@@ -19,7 +19,7 @@ DEAL_FIELDS = (
     "estk_rcept_no", "estk_before_fixing", "fixed_rcept_no", "doc_signal", "final_price", "shares_offered",
     "secondary_shares", "offer_amount", "lead_underwriters", "co_underwriters",
     "subscription_raw", "payment_raw", "listing_dt", "demand_start", "demand_end", "result_rcept_no", "inst_demand_ratio",
-    "inst_demand_count", "retail_ratio", "retail_count", "tech_track", "tech_grades", "tech_agencies",
+    "inst_demand_count", "retail_ratio", "retail_count", "tech_track", "tech_grades", "tech_agencies", "alt_route",
 )
 
 _KIND_MARKET = {"코스닥": "KOSDAQ", "유가증권": "KOSPI", "코넥스": "KONEX"}

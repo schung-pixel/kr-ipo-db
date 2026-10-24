@@ -77,13 +77,14 @@
     if (d.board === "KOSPI") return '<span class="tag b-ks">유가</span>';
     if (d.board === "KOSDAQ_TECH") return '<span class="tag b-tech" title="코스닥 기술특례 · ' + esc(d.tech_track || "") + (d.tech_agencies ? " · " + esc(d.tech_agencies) : "") + '">기술특례' +
       (d.tech_grades ? " " + esc(d.tech_grades.replace(/\s*,\s*/g, "·")) : d.tech_track === "성장성 추천" ? " 성장성" : "") + "</span>";
-    if (d.board === "KOSDAQ") return '<span class="tag b-kq">코스닥</span>';
+    if (d.board === "KOSDAQ") return '<span class="tag b-kq"' + (d.alt_route ? ' title="이익미실현(테슬라) 요건 상장"' : "") + ">코스닥" + (d.alt_route ? " · " + esc(d.alt_route) : "") + "</span>";
     return "";
   }
   function boardText(d) {
     if (!d.board) return "-";
     var t = BOARDS[d.board];
     if (d.board === "KOSDAQ_TECH" && d.tech_track) t += " (" + d.tech_track + (d.tech_grades ? " " + d.tech_grades.replace(/\s*,\s*/g, "·") : "") + ")";
+    if (d.board === "KOSDAQ" && d.alt_route) t += " (" + d.alt_route + " 요건)";
     if (d.tech_unknown && d.board === "KOSDAQ") t = "코스닥 (기술특례 여부 미확인)";
     return t;
   }

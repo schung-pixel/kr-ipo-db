@@ -41,6 +41,10 @@ class _Prefetch:
             self.ex.shutdown(wait=False, cancel_futures=True)
 
 
+def _kind(stats: dict, key: str) -> None:
+    stats["error_kinds"][key] = stats["error_kinds"].get(key, 0) + 1
+
+
 def now_kst() -> datetime:
     return datetime.now(KST)
 
@@ -50,7 +54,7 @@ def collect(client, conn, bgn: date, end: date, max_corps: int | None = None,
     now = now_kst().replace(microsecond=0).isoformat()
     today = now[:10]
     stats = {"filings": 0, "estk_calls": 0, "companies": 0, "deals": 0,
-             "docs": 0, "doc_no_match": 0, "results": 0, "quota_hit": False, "errors": 0,
+             "docs": 0, "doc_no_match": 0, "results": 0, "quota_hit": False, "errors": 0, "error_kinds": {},
              "unknown_groups": []}
 
     # 1) 공시 목록 (기간을 80일 단위로 분할)
@@ -144,10 +148,12 @@ def collect(client, conn, bgn: date, end: date, max_corps: int | None = None,
                         raise
                     stats["errors"] += 1
                     log(f"원문 조회 오류({rcept_no}): {exc}")
+                    _kind(stats, "조회:" + str(getattr(exc, "status", "") or type(exc).__name__))
                     break
                 except Exception as exc:  # 손상된 zip 등: 건너뛰고 다음 실행에서 다시 시도
                     stats["errors"] += 1
                     log(f"원문 처리 오류({rcept_no}): {type(exc).__name__}")
+                    _kind(stats, "처리:" + type(exc).__name__)
                     break
                 store.save_doc_price(conn, rcept_no, corp, parsed, now)
                 conn.commit()
@@ -183,10 +189,12 @@ def collect(client, conn, bgn: date, end: date, max_corps: int | None = None,
                     raise
                 stats["errors"] += 1
                 log(f"원문 조회 오류({rcept_no}): {exc}")
+                _kind(stats, "조회:" + str(getattr(exc, "status", "") or type(exc).__name__))
                 break
             except Exception as exc:
                 stats["errors"] += 1
                 log(f"원문 처리 오류({rcept_no}): {type(exc).__name__}")
+                _kind(stats, "처리:" + type(exc).__name__)
                 break
             store.save_doc_schedule(conn, rcept_no, corp, parsed, now)
             conn.commit()
@@ -218,10 +226,12 @@ def collect(client, conn, bgn: date, end: date, max_corps: int | None = None,
                 raise
             stats["errors"] += 1
             log(f"원문 조회 오류({rcept_no}): {exc}")
+            _kind(stats, "조회:" + str(getattr(exc, "status", "") or type(exc).__name__))
             continue
         except Exception as exc:
             stats["errors"] += 1
             log(f"원문 처리 오류({rcept_no}): {type(exc).__name__}")
+            _kind(stats, "처리:" + type(exc).__name__)
             continue
         store.save_doc_result(conn, rcept_no, corp, parsed, now)
         conn.commit()
