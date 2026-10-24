@@ -360,9 +360,9 @@ details.tv summary { cursor: pointer; color: var(--muted); font-size: 12px; }
   .wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 20px; }
   .top { position: relative; top: auto; margin-block: 8px 8px; padding: 6px 0; border: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
   .top .tabs { display: none; }
-  .brand { flex-direction: column; align-items: flex-start; gap: 0; }
+  .brand { flex-direction: column; align-items: flex-start; gap: 0; min-width: 0; flex: 1 1 auto; }
   .brand h1 { font-size: 22px; line-height: 1.25; }
-  .brand .bt { font-size: 11.5px; }
+  .brand .bt { font-size: 11px; white-space: normal; line-height: 1.45; }
   .tgl .tl { display: none; }
   .tgl button { padding: 0 11px; height: 32px; }
   .tgl button svg { width: 17px; height: 17px; }
