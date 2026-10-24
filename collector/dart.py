@@ -114,31 +114,58 @@ class DartClient:
                 return
             page += 1
 
+    # 목차가 나뉜 문서는 viewer.do가 목차 한 칸씩만 돌려주므로, 추출에 쓰는 목차만 골라 이어 붙입니다.
+    VIEWER_SECTIONS = ("정정신고", "요약정보", "핵심투자위험", "모집또는매출에관한일반사항", "공모개요", "공모방법",
+                       "공모가격결정방법", "모집또는매출절차", "인수등에관한사항", "사업위험", "회사위험", "기타위험",
+                       "인수인의의견", "증권신고서")
+
     def viewer_html(self, rcept_no: str) -> str:
-        """DART 공시 뷰어에서 문서 전체 HTML을 받습니다. OpenDART document.xml이 원문을 주지 않는
+        """DART 공시 뷰어에서 문서 HTML을 받습니다. OpenDART document.xml이 원문을 주지 않는
         2019년 이전 공시(status 014)에 씁니다. 인증키는 쓰지 않습니다."""
         import re
         h = {"User-Agent": VIEWER_UA}
-        last = None
-        for attempt in range(self.retries):
-            try:
-                main = self.session.get(f"{VIEWER_URL}/dsaf001/main.do", params={"rcpNo": rcept_no},
-                                        headers=h, timeout=self.timeout)
-                main.raise_for_status()
-                m = re.search(r'viewDoc\("(\d+)",\s*"(\d+)",\s*"(\d+)",\s*"(\d+)",\s*"(\d+)",\s*"([^"]+)"', main.text)
-                if not m:
-                    raise DartError("viewer", "문서 번호를 찾지 못했습니다")
-                doc = self.session.get(f"{VIEWER_URL}/report/viewer.do", headers=h, timeout=max(self.timeout, 90),
-                                       params={"rcpNo": rcept_no, "dcmNo": m.group(2), "eleId": "0",
-                                               "offset": "0", "length": "0", "dtd": m.group(6)})
-                doc.raise_for_status()
-                doc.encoding = doc.encoding or "utf-8"
-                time.sleep(self.pause)
-                return doc.text
-            except requests.RequestException as exc:
-                last = exc
-                time.sleep(2 ** attempt)
-        raise RuntimeError(f"viewer 요청 실패: {type(last).__name__}")
+
+        def get(url, **params):
+            last = None
+            for attempt in range(self.retries):
+                try:
+                    r = self.session.get(url, params=params, headers=h, timeout=max(self.timeout, 60))
+                    r.raise_for_status()
+                    r.encoding = r.encoding or "utf-8"
+                    time.sleep(self.pause)
+                    return r.text
+                except requests.RequestException as exc:
+                    last = exc
+                    time.sleep(2 ** attempt)
+            raise RuntimeError(f"viewer 요청 실패: {type(last).__name__}")
+
+        main = get(f"{VIEWER_URL}/dsaf001/main.do", rcpNo=rcept_no)
+        m = re.search(r'viewDoc\("(\d+)",\s*"(\d+)",\s*"(\d+)",\s*"(\d+)",\s*"(\d+)",\s*"([^"]+)"', main)
+        if not m:
+            raise DartError("viewer", "문서 번호를 찾지 못했습니다")
+        dcm, dtd = m.group(2), m.group(6)
+        if m.group(3) == "0":   # 목차가 하나인 문서: 전체를 한 번에
+            return get(f"{VIEWER_URL}/report/viewer.do", rcpNo=rcept_no, dcmNo=dcm, eleId="0",
+                       offset="0", length="0", dtd=dtd)
+        nodes = re.findall(r"\['text'\]\s*=\s*\"(.*?)\";.*?\['eleId'\]\s*=\s*\"(\d+)\";\s*"
+                           r"\w+\['offset'\]\s*=\s*\"(\d+)\";\s*\w+\['length'\]\s*=\s*\"(\d+)\";", main, re.S)
+        parts, seen = [], set()
+        for title, ele, off, ln in nodes:
+            key = re.sub(r"[\s\W_]+", "", title)
+            if ele in seen or not any(k in key for k in self.VIEWER_SECTIONS):
+                continue
+            seen.add(ele)
+            parts.append(get(f"{VIEWER_URL}/report/viewer.do", rcpNo=rcept_no, dcmNo=dcm, eleId=ele,
+                             offset=off, length=ln, dtd=dtd))
+        if not parts:   # 목차 이름이 다른 서식(증권발행실적보고서 등): 앞쪽 목차부터 최대 30칸
+            for title, ele, off, ln in nodes[:30]:
+                if ele not in seen:
+                    seen.add(ele)
+                    parts.append(get(f"{VIEWER_URL}/report/viewer.do", rcpNo=rcept_no, dcmNo=dcm, eleId=ele,
+                                     offset=off, length=ln, dtd=dtd))
+        if not parts:
+            raise DartError("viewer", "가져올 목차가 없습니다")
+        return "\n".join(parts)
 
     def company(self, corp_code: str) -> dict | None:
         data = self._get("company", corp_code=corp_code)

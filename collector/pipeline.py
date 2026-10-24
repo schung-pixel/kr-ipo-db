@@ -1,6 +1,7 @@
 """수집 파이프라인: 공시 목록 → 증권신고서 주요정보 → 기업개황 → 딜 집계."""
 from __future__ import annotations
 
+import os
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -18,7 +19,8 @@ def doc_text(client, rcept_no: str) -> str:
     try:
         return doctext.to_text(client.document(rcept_no))
     except DartError as exc:
-        if exc.status != "014" or not hasattr(client, "viewer_html"):
+        # GitHub Actions에서는 공시 뷰어 접속이 막혀 시간만 쓰므로 DART_VIEWER=0이면 대체 조회를 하지 않습니다.
+        if exc.status != "014" or not hasattr(client, "viewer_html") or os.environ.get("DART_VIEWER") == "0":
             raise
     return doctext.html_to_text(client.viewer_html(rcept_no))
 

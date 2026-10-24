@@ -35,9 +35,13 @@ concurrency:
 jobs:
   collect:
     runs-on: ubuntu-latest
+    env:
+      DART_VIEWER: "0"   # 공시 뷰어(dart.fss.or.kr)는 Actions에서 접속되지 않음: 2019년 이전 원문은 로컬에서 채워 커밋
     timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main   # 실행을 일으킨 커밋이 아니라 최신 main(최신 데이터)에서 시작해야 이전 데이터로 덮어쓰지 않습니다.
 
       - uses: actions/setup-python@v5
         with:
@@ -87,7 +91,7 @@ jobs:
             git add data/ipo.sql docs/data/deals.json data/backfill.json
             if ! git diff --cached --quiet; then
               git commit -q -m "data: 과거 구간 수집 진행분"
-              git pull --rebase -X theirs origin main || { git rebase --abort; break; }
+              git pull --rebase origin main || { git rebase --abort; break; }
               git push
             fi
             if [ "$rc" = "4" ]; then echo "DART 한도 도달: 다음 실행에서 재개"; break; fi
@@ -107,6 +111,6 @@ jobs:
           else
             git commit -m "data: $(date -u +%Y-%m-%d) 수집분 반영"
             # 실행 중에 코드 커밋이 올라온 경우를 대비해 최신 main 위에 얹어서 올립니다.
-            git pull --rebase -X theirs origin main || { git rebase --abort; echo "원격 변경과 충돌: 다음 실행에서 다시 수집합니다."; exit 0; }
+            git pull --rebase origin main || { git rebase --abort; echo "원격 변경과 충돌: 다음 실행에서 다시 수집합니다."; exit 0; }
             git push
           fi
