@@ -1250,55 +1250,7 @@
     if (e.key === "Escape") goPath(baseView());
   });
 
-  // ---------------------------------------------------------------- 좌우 스와이프로 화면 전환 (휴대폰)
-  (function () {
-    var x0 = 0, y0 = 0, t0 = 0, dx = 0, active = false, horiz = null;
-    var ORDER = ["list", "stats"];
-    function blocked(el) {
-      // 가로로 스크롤되는 영역, 입력 요소, 시트가 열린 상태에서는 스와이프를 쓰지 않습니다.
-      return sheetId || !el || !!el.closest('.chips, .scroll, input, select, textarea, .sheet, [contenteditable]') ||
-        (state.sWin && view === "stats" && !!el.closest(".zoomable"));
-    }
-    app.addEventListener("touchstart", function (e) {
-      if (e.touches.length !== 1 || blocked(e.target) || window.innerWidth > 760) { active = false; return; }
-      var t = e.touches[0];
-      x0 = t.clientX; y0 = t.clientY; t0 = Date.now(); dx = 0; active = true; horiz = null;
-    }, { passive: true });
-    app.addEventListener("touchmove", function (e) {
-      if (!active) return;
-      if (e.touches.length > 1) { active = false; settle(); return; }   // 두 손가락(핀치)은 화면 전환이 아님
-      var t = e.touches[0], mx = t.clientX - x0, my = t.clientY - y0;
-      if (horiz === null && (Math.abs(mx) > 10 || Math.abs(my) > 10)) horiz = Math.abs(mx) > Math.abs(my) * 1.4;
-      if (!horiz) return;
-      dx = mx;
-      var cur = ORDER.indexOf(view || "list");
-      var edge = (cur === 0 && dx > 0) || (cur === ORDER.length - 1 && dx < 0);   // 더 갈 화면이 없으면 저항을 크게
-      app.classList.add("drag");
-      app.style.transform = "translateX(" + (dx * (edge ? 0.12 : 0.35)) + "px)";
-      app.style.opacity = String(1 - Math.min(Math.abs(dx) / 900, edge ? 0.05 : 0.25));
-    }, { passive: true });
-    function settle() {
-      app.classList.remove("drag"); app.classList.add("settle");
-      app.style.transform = ""; app.style.opacity = "";
-      setTimeout(function () { app.classList.remove("settle"); }, 300);
-    }
-    app.addEventListener("touchend", function () {
-      if (!active) return;
-      active = false;
-      if (!horiz) return;
-      var fast = Math.abs(dx) > 40 && Date.now() - t0 < 300;
-      var cur = ORDER.indexOf(view || "list"), next = cur + (dx < 0 ? 1 : -1);
-      if ((Math.abs(dx) > 70 || fast) && next >= 0 && next < ORDER.length) {
-        app.classList.remove("drag", "settle"); app.style.transform = ""; app.style.opacity = "";
-        app.classList.remove("in-left", "in-right"); void app.offsetWidth;
-        app.classList.add(dx < 0 ? "in-left" : "in-right");
-        goPath(ORDER[next] === "stats" ? "/stats" : "/");
-        try { localStorage.setItem("ipo-db-swiped", "1"); } catch (e) { /* 무시 */ }
-      } else settle();
-    });
-    app.addEventListener("touchcancel", function () { if (active) { active = false; settle(); } });
-    app.addEventListener("animationend", function () { app.classList.remove("in-left", "in-right"); });
-  })();
+  // 화면 전환은 상단 탭(휴대폰은 페이지 점)으로만 합니다. 좌우 끌기는 통계 그래프의 기간 이동에 씁니다.
 
   if (!EMBED && "serviceWorker" in navigator) {
     window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });

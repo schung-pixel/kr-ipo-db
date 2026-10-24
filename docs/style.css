@@ -370,8 +370,8 @@ details.tv summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 .foot { color: var(--faint); font-size: 12px; padding: 18px 2px 0; }
 .foot p { margin: 0; max-width: 92ch; }
 
-.pager { display: none; gap: 6px; align-items: center; margin: -2px 0 10px; }
-.pager a { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 8px; border-radius: 999px; color: var(--faint); font-size: 12px; text-decoration: none; transition: color .2s, background-color .2s; }
+.pager { display: none; gap: 6px; align-items: center; margin: 0 0 10px; }
+.pager a { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px 0 12px; border-radius: 999px; color: var(--muted); font-size: 13.5px; text-decoration: none; transition: color .2s, background-color .2s; }
 .pager a i { width: 6px; height: 6px; border-radius: 999px; background: currentColor; opacity: .6; transition: width .35s var(--spring), opacity .2s; }
 .pager a[aria-current="true"] { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
 .pager a[aria-current="true"] i { width: 14px; opacity: 1; }
