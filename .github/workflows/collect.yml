@@ -3,6 +3,7 @@ name: collect
 on:
   schedule:
     - cron: "30 9 * * 1-5"   # UTC 09:30 = KST 18:30, 평일 (DART 당일 접수분 반영 후)
+    - cron: "10 3,15 * * *"  # KST 12:10·00:10: 과거 구간 대기열 이어 받기 (남은 구간이 없으면 일일 수집만 하고 끝남)
   push:                       # 수집기·워크플로를 고치면 바로 한 번 돌려 확인
     branches: [main]
     paths: ["collector/**", ".github/workflows/**", "data/backfill.json"]
