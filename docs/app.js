@@ -597,6 +597,7 @@
     if (L.groups && L.groups.length) {
       h += '<div class="lk-sub">보호예수·의무보유 내역</div>' + table(["구분", "기간", "주식수", "상장주식 대비"],
         L.groups.map(function (g) { return [esc(g.category), esc(periodText(g.months)), int(g.shares), g.pct != null ? pct1(g.pct) : "-"]; }), [2, 3]);
+      if (!L.groups_full) h += '<p class="snote">원문 표에 실린 주주 기준입니다. 표 밖의 물량(공모주 배정분 등)은 빠져 있을 수 있습니다.</p>';
     }
     if (c && c.by && c.by.length) {
       h += '<div class="lk-sub">기관 의무보유확약 기간별 <span class="dim">(신청수량)</span></div>' + table(["확약 기간", "신청수량", c.total ? "참여수량 대비" : "확약 내 비중"],

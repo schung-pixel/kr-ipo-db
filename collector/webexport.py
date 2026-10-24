@@ -83,7 +83,8 @@ def _lockup_view(x: dict) -> dict | None:
     f0 = x.get("float0")
     return {"listed": x.get("listed"),
             "float0": {"shares": f0["shares"], "pct": f0["pct"]} if f0 else None,
-            "schedule": x.get("schedule"), "groups": x.get("groups"), "commit": x.get("commit"),
+            "schedule": x.get("schedule"), "groups": x.get("groups"), "groups_full": x.get("groups_full"),
+            "commit": x.get("commit"),
             "src_float": x.get("src_float"), "src_commit": x.get("src_commit")}
 
 

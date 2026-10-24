@@ -12,7 +12,7 @@ import zipfile
 
 from .doctext import _clean, _decode
 
-LOCKUP_VERSION = 1
+LOCKUP_VERSION = 2
 # 2019년 이전 원문을 공시 뷰어로 받을 때 읽을 목차(투자위험요소·공모 일반사항)
 VIEWER_SECTIONS = ("투자위험요소", "모집또는매출에관한일반사항", "모집 또는 매출에 관한 일반사항", "공모개요")
 
@@ -266,8 +266,8 @@ def _holder_groups(text: str) -> tuple[list | None, int | None]:
     group, period, agg, total_row, after_sub, last_cat = "", None, {}, None, False, None
     for cs, st in norm:
         joined = " ".join(cs)
-        is_total = bool(re.match(r"^(?:합\s*계|총\s*계|계)$", cs[0]))
-        is_sub = any(re.fullmatch(r"소\s*계", c) for c in cs[:2])
+        is_total = any(re.fullmatch(r"(?:공모\s*후\s*)?(?:합\s*계|총\s*계|계)", c) for c in cs[:2])
+        is_sub = any(re.search(r"(?:^|\s)소\s*계$", c) for c in cs[:2])
         if len(cs) >= full - 0 and not is_total and not is_sub and _GROUP_LABEL.search(cs[0]):
             group = cs[0]
         # 기간 셀(오른쪽에서 찾음)
@@ -321,7 +321,8 @@ def _holder_groups(text: str) -> tuple[list | None, int | None]:
         if period is None:
             return None, None          # 기간을 알 수 없는 매각제한 → 표를 믿지 않음
         # 한 주주의 기간별 분할 행(주식수·지분율·기간만 있는 행)은 바로 위 주주의 구분을 따릅니다
-        cat = last_cat if (len(cs) <= 4 and last_cat) else _category(group, joined)
+        cont = last_cat and (len(cs) <= 4 or _n(cs[0]) is not None)
+        cat = last_cat if cont else _category(group, joined)
         last_cat = cat
         key = (cat, period)
         agg[key] = agg.get(key, 0) + lock
@@ -431,16 +432,19 @@ def extract_lockup(text: str) -> dict:
     if sched and listed and sched[-1]["shares"] > listed * 1.02:
         sched = None
     # 검증: 주주별 매각제한 합 ≈ 상장주식수 − 상장일 유통가능 (또는 표의 합계 행)
+    groups_full = False
     if groups:
         s = sum(g["shares"] for g in groups)
-        ref = (listed - f0["shares"]) if (listed and f0) else total_lock
-        if not ref or abs(s - ref) > ref * 0.03:
-            groups = None
+        ref = (listed - f0["shares"]) if (listed and f0) else None
+        if ref and abs(s - ref) <= ref * 0.03:
+            groups_full = True
+        elif not (total_lock and abs(s - total_lock) <= total_lock * 0.01):
+            groups = None      # 표의 합계와도 맞지 않으면 버림(표의 합계와만 맞으면 표에 실린 범위로 보여 줌)
     if groups and listed:
         for g in groups:
             g["pct"] = round(g["shares"] / listed * 100, 2)
     # 해제 일정이 없으면 검증된 주주별 내역으로 만듭니다
-    if not sched and groups and f0 and listed:
+    if not sched and groups and groups_full and f0 and listed:
         cum, acc = [], f0["shares"]
         for mo in sorted({g["months"] for g in groups}):
             acc += sum(g["shares"] for g in groups if g["months"] == mo)
@@ -451,10 +455,10 @@ def extract_lockup(text: str) -> dict:
     ok = any([f0, sched, groups, commit])
     return {"status": "ok" if ok else "not_found", "listed": listed,
             "float0": {k: f0[k] for k in ("shares", "pct", "evidence")} if f0 else None,
-            "schedule": sched, "groups": groups, "commit": commit}
+            "schedule": sched, "groups": groups, "groups_full": bool(groups) and groups_full, "commit": commit}
 
 
-_BUNDLE = ("listed", "float0", "schedule", "groups")
+_BUNDLE = ("listed", "float0", "schedule", "groups", "groups_full")
 
 
 def merge(base: dict, new: dict, rcept_no: str) -> dict:
