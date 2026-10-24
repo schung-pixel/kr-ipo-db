@@ -81,9 +81,18 @@ def _lockup_view(x: dict) -> dict | None:
     if not x or x.get("status") != "ok":
         return None
     f0 = x.get("float0")
-    return {"listed": x.get("listed"),
+    lst = x.get("listed")
+    # 상장주식수와 비율이 맞지 않는 값, 100%를 넘는 해제 일정은 내보내지 않습니다(추출 오류로 봄)
+    if f0 and lst and abs(f0["shares"] / lst * 100 - f0["pct"]) > 2:
+        f0 = None
+    sched = x.get("schedule")
+    if sched and sched[-1].get("pct", 0) > 100.5:
+        sched = None
+    if not (f0 or sched or x.get("commit")):
+        return None
+    return {"listed": lst,
             "float0": {"shares": f0["shares"], "pct": f0["pct"]} if f0 else None,
-            "schedule": x.get("schedule"), "groups": x.get("groups"), "groups_full": x.get("groups_full"),
+            "schedule": sched, "groups": x.get("groups") if f0 or sched else None, "groups_full": x.get("groups_full"),
             "commit": x.get("commit"),
             "src_float": x.get("src_float"), "src_commit": x.get("src_commit")}
 

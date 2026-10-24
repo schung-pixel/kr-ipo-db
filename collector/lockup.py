@@ -119,20 +119,28 @@ _LOCKED_SENT = re.compile(r"상장\s*예정\s*주식\s*수\s*([\d,]{5,})\s*주\s
                           r"(?:는|은)\s*(?:보호\s*예수|매도\s*금지|매각\s*제한|의무\s*보유|유통\s*제한)")
 
 
-def _float0(text: str) -> dict | None:
-    hit = None
+def _float0(text: str, listed: int | None = None) -> dict | None:
+    """상장일 유통가능 물량. 후보가 여럿이면 본문 뒤쪽 것을 쓰되, 상장예정주식수와 비율이 맞지 않는 후보
+    (주식수 ÷ 상장주식수와 적힌 비율이 1.5%p 넘게 차이)는 버립니다."""
+    cands = []
     for p, (gi, gp, gs) in _FLOAT:
         for m in p.finditer(text):
             sh, pc = _n(m.group(gs)), _pct(m.group(gp))
             if sh and pc and 0 < pc <= 100:
-                hit = (m.start(), {"shares": sh, "pct": pc, "listed": _n(m.group(gi)) if gi else None,
-                                   "evidence": _snip(text, m)})
+                cands.append((m.start(), {"shares": sh, "pct": pc, "listed": _n(m.group(gi)) if gi else None,
+                                          "evidence": _snip(text, m)}))
     for m in _FLOAT_ROW.finditer(text):
         sh, pc = _n(m.group(1)), _pct(m.group(2))
-        if sh and pc and 0 < pc <= 100 and (hit is None or m.start() > hit[0]):
-            hit = (m.start(), {"shares": sh, "pct": pc, "listed": None, "evidence": _snip(text, m)})
-    if hit:
-        return hit[1]
+        if sh and pc and 0 < pc <= 100:
+            cands.append((m.start(), {"shares": sh, "pct": pc, "listed": None, "evidence": _snip(text, m)}))
+
+    def ok(c):
+        base = c["listed"] or listed
+        return not base or abs(c["shares"] / base * 100 - c["pct"]) <= 1.5
+
+    good = [c for c in cands if ok(c[1])]
+    if good:
+        return max(good, key=lambda c: c[0])[1]
     # 직접 적힌 유통가능 물량이 없으면 '상장예정주식수 X주 중 Y주(Z%)는 보호예수…'에서 계산
     ms = list(_LOCKED_SENT.finditer(text))
     if ms:
@@ -421,7 +429,7 @@ def _commitment(text: str) -> dict | None:
 # ---------------------------------------------------------------- 묶음
 def extract_lockup(text: str) -> dict:
     listed, listed_ev = _listed(text)
-    f0 = _float0(text)
+    f0 = _float0(text, listed)
     if f0 and f0.get("listed"):
         listed = f0["listed"]
     sched = _schedule(text)
