@@ -336,6 +336,15 @@ class PipelineTests(unittest.TestCase):
             zz.writestr("d.xml", '<?xml version="1.0" encoding="utf-8"?><P>확정공모가액 5,500원</P>'.encode("cp949"))
         self.assertIn("확정공모가액 5,500원", doctext.to_text(z.getvalue()))
 
+    def test_business_overview(self):
+        t = ("목차 | 1. 사업의 개요 | 참조\nII. 사업의 내용\n1. 사업의 개요\n영위하는 사업 분야에 대한 용어 해설을 아래 표와 같이 기재합니다.\n"
+             "노광공정 | 반도체 제조 공정 중 하나 |\n포토레지스트 빛에 반응해 특성이 변하는 화학 물질\n"
+             "당사는 2000년 설립된 반도체 소재 전문기업으로 포토레지스트용 고분자를 생산하고 있습니다. "
+             "주요 고객은 국내외 반도체 제조사입니다.\n2. 주요 제품\n")
+        r = doctext.extract_business(t)
+        self.assertTrue(r["biz_excerpt"].startswith("당사는 2000년 설립된 반도체 소재 전문기업"))
+        self.assertNotIn("빛에 반응해", r["biz_text"])
+
     def test_doc_phase_idempotent_and_quota(self):
         client = FakeClient()
         run(self.conn, client)

@@ -52,6 +52,18 @@ def uw_display(s):
     return ", ".join(UW_DISPLAY.get(n.strip(), n.strip()) for n in str(s).split(","))
 
 
+SUMMARY_PATH = Path(__file__).resolve().parent.parent / "data" / "biz_summary.json"
+
+
+def load_summaries(path=None) -> dict:
+    """회사 개요 요약문: {corp_code: {"summary", "source_rcept_no", "generated_at"}}. 없으면 빈 사전."""
+    p = Path(path or SUMMARY_PATH)
+    try:
+        return json.loads(p.read_text(encoding="utf-8")).get("companies", {})
+    except (OSError, ValueError):
+        return {}
+
+
 def build_payload(conn) -> dict:
     deals = _rows(conn, f"SELECT {','.join('d.' + f for f in DEAL_FIELDS)}, "
                         "COALESCE(c.corp_name, f.corp_name) AS corp_name, c.corp_cls, c.stock_code, "
@@ -114,11 +126,27 @@ def build_payload(conn) -> dict:
     # KIND 예비심사: DART 딜에 예심 청구·승인일을 붙이고, 승인 후 아직 신고서가 없는 회사를 따로 담습니다.
     from datetime import date as _date
     from . import kind
+    summaries = load_summaries()
     for d in deals:
         rv = kind.review_for(conn, d.get("corp_name") or "", d["first_filing_dt"])
         d["prelim"] = {k: rv.get(k) for k in ("filed_dt", "decided_dt", "result", "market", "listing_type", "sponsor")} if rv else None
         if d["prelim"]:
             d["prelim"]["sponsor"] = uw_display(d["prelim"]["sponsor"])
+        # 회사 개요: 요약문(data/biz_summary.json) > 신고서 '사업의 개요' 발췌, KIND 업종·주요제품
+        regs = [f["rcept_no"] for f in d.get("filings", []) if f.get("doc_kind") == "reg_equity"]
+        biz = None
+        if regs:
+            marks = ",".join("?" for _ in regs)
+            biz = conn.execute(f"SELECT rcept_no, biz_excerpt FROM doc_schedule WHERE rcept_no IN ({marks}) "
+                               "AND biz_excerpt IS NOT NULL ORDER BY rcept_no DESC LIMIT 1", regs).fetchone()
+        ci = kind.corp_info(conn, d.get("corp_name") or "")
+        sm = summaries.get(d.get("corp_code") or "")
+        d["company"] = {
+            "summary": sm.get("summary") if sm else None,
+            "excerpt": biz["biz_excerpt"] if biz else None,
+            "source_rcept_no": (sm or {}).get("source_rcept_no") or (biz["rcept_no"] if biz else None),
+            "industry": ci.get("industry") if ci else None, "products": ci.get("products") if ci else None,
+        } if (biz or ci or sm) else None
         km = _KIND_MARKET.get((rv or {}).get("market") or "")
         if km:   # KIND 예심 시장 구분이 있으면 원문 판정보다 우선
             d["market_src"] = "KIND" if d.get("market") in (None, km) else "KIND(원문 판정 " + str(d.get("market")) + "와 다름)"

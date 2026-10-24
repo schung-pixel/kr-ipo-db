@@ -41,7 +41,7 @@ ADDED_COLUMNS = {"doc_price": [("header_amount", "INTEGER"), ("header_shares", "
                  "doc_schedule": [("market", "TEXT"), ("market_evidence", "TEXT"),
                                   ("tech_track", "TEXT"), ("tech_evidence", "TEXT"),
                                   ("tech_hints", "TEXT"), ("tech_grades", "TEXT"), ("tech_agencies", "TEXT"),
-                                  ("alt_route", "TEXT")]}
+                                  ("alt_route", "TEXT"), ("biz_text", "TEXT"), ("biz_excerpt", "TEXT")]}
 
 
 def _ensure_columns(conn) -> None:
@@ -525,6 +525,7 @@ def save_doc_schedule(conn, rcept_no: str, corp_code: str, parsed: dict, now: st
         "tech_track": parsed.get("tech_track"), "tech_evidence": parsed.get("tech_evidence"),
         "tech_hints": parsed.get("tech_hints"), "tech_grades": parsed.get("tech_grades"),
         "tech_agencies": parsed.get("tech_agencies"), "alt_route": parsed.get("alt_route"),
+        "biz_text": parsed.get("biz_text"), "biz_excerpt": parsed.get("biz_excerpt"),
         "status": parsed["status"], "parser_version": SCHEDULE_VERSION, "fetched_at": now},
         volatile=("fetched_at",))
 

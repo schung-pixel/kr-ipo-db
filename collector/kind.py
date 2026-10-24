@@ -239,6 +239,57 @@ def fetch(session=None, today: date | None = None, lookback_days: int = 850, tim
     return parse_html(html), html
 
 
+CORP_LIST_URL = f"{BASE}/corpgeneral/corpList.do"
+
+
+def parse_corp_list(html: str) -> list:
+    """KIND 상장법인 목록(엑셀 내려받기, 실제로는 HTML 표): 회사명·시장구분·종목코드·업종·주요제품·상장일."""
+    p = _TableParser()
+    p.feed(html)
+    for t in p.tables:
+        if not t:
+            continue
+        head = [h.replace(" ", "") for h in t[0]]
+        if "회사명" not in head or "주요제품" not in head:
+            continue
+        col = {h: i for i, h in enumerate(head)}
+        get = lambda r, k: (r[col[k]].strip() if k in col and col[k] < len(r) else "")
+        out = []
+        for r in t[1:]:
+            name = get(r, "회사명")
+            if not name:
+                continue
+            code = get(r, "종목코드")
+            out.append({"name_key": name_key(name), "corp_name": name, "stock_code": code.zfill(6) if code.isdigit() else code,
+                        "market": get(r, "시장구분") or None, "industry": get(r, "업종") or None,
+                        "products": get(r, "주요제품") or None, "listed_dt": _iso(get(r, "상장일"))})
+        return out
+    return []
+
+
+def fetch_corp_list(session=None, timeout: int = 60) -> list:
+    import requests
+    s = session or requests.Session()
+    resp = s.get(CORP_LIST_URL, params={"method": "download", "searchType": "13"},
+                 headers={"User-Agent": USER_AGENT, "Referer": f"{BASE}/corpgeneral/corpList.do?method=loadInitPage"},
+                 timeout=timeout)
+    resp.raise_for_status()
+    return parse_corp_list(_decode(resp.content))
+
+
+def save_corp_list(conn, rows: list, now: str) -> int:
+    from . import store
+    for r in rows:
+        store.upsert(conn, "kind_corp", "name_key", {**r, "fetched_at": now}, volatile=("fetched_at",))
+    return len(rows)
+
+
+def corp_info(conn, corp_name: str) -> dict | None:
+    row = conn.execute("SELECT industry, products, market, listed_dt FROM kind_corp WHERE name_key=?",
+                       (name_key(corp_name),)).fetchone()
+    return dict(row) if row else None
+
+
 def is_approved(row: dict) -> bool:
     r = (row.get("result") or "")
     return "승인" in r and "미승인" not in r

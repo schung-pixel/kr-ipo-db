@@ -216,7 +216,7 @@ def extract_result(text: str) -> dict:
 # ---------------------------------------------------------------- 수요예측 기일
 # 증권신고서(정정 포함) '공모일정' 표: "수요예측 일시 | [국내 |] 2025년 04월 17일(목) ~ [2025년] 04월 23일(수)".
 # [발행조건확정] 신고서에는 이 표가 없으므로 확정 직전의 신고서에서 읽습니다.
-SCHEDULE_VERSION = 5   # 5: 원문 인코딩(cp949)·공시 뷰어 대체 / 2: 상장 시장·기술특례 구분 / 3: 기술평가 등급·평가기관 / 4: 이익미실현 경로
+SCHEDULE_VERSION = 6   # 6: 사업의 개요 / 5: 원문 인코딩(cp949)·공시 뷰어 대체 / 2: 상장 시장·기술특례 구분 / 3: 기술평가 등급·평가기관 / 4: 이익미실현 경로
 _DATE = r"(\d{4})\s*(?:년|[.\-/])\s*(\d{1,2})\s*(?:월|[.\-/])\s*(\d{1,2})\s*일?"
 _DEMAND = re.compile(
     r"수요\s*예측\s*(?:일시|일자|기간|기일|일정|일)\s*(?:\([^)]{0,10}\))?\s*\|(?:\s*국내\s*\|)?\s*" + _DATE +
@@ -359,6 +359,59 @@ def extract_profile(text: str) -> dict:
     return out
 
 
+# ---------------------------------------------------------------- 사업의 개요
+# '제2부 발행인에 관한 사항 - II. 사업의 내용 - 1. 사업의 개요'의 서술 문단을 읽습니다. 목차·참조 문구와
+# 용어 해설 표(셀 구분자 '|')는 건너뛰고, 요약용 원문(최대 1,500자)과 화면용 발췌(2~3문장)를 돌려줍니다.
+_BIZ_HEAD = re.compile(r"(?:\d\s*\.\s*)?사업의\s*개요")
+_SENT_END = re.compile(r"(?<=니다)\.\s*|(?<=[다음함됨])\.(?=\s|$)")
+_SUBJ = re.compile(r"(?:당\s?사|동사|본사|㈜\s?[^\s은는]{1,20}|\(주\)\s?[^\s은는]{1,20}|[가-힣A-Za-z0-9]{2,20}\s?주식회사)(?:는|은)\s")
+_INTRO = re.compile(r"설립|기업입니다|회사입니다|업체입니다|영위|전문|개발|생산|제조|공급|제공|판매")
+
+
+def _narrative(seg: str, limit: int) -> str:
+    """서술 문장만: 표 칸(|)·용어 해설(종결어미 없는 줄)·각주는 버립니다."""
+    out = []
+    for line in seg.split("\n"):
+        line = line.strip()
+        if not line or line.count("|") >= 2 or "니다" not in line:
+            continue
+        if re.match(r"^\(?\s*(?:주\s*\d|단위|출처|※)", line):
+            continue
+        out.append(line.replace(" |", "").strip())
+        if sum(len(x) for x in out) >= limit:
+            break
+    return " ".join(out)[:limit]
+
+
+def extract_business(text: str) -> dict:
+    """'사업의 개요' 서술에서 요약용 원문(최대 1,500자)과 화면용 발췌(2~3문장)."""
+    cands = []
+    for m in _BIZ_HEAD.finditer(text):
+        body = _narrative(text[m.end():m.end() + 8000], 1800)
+        if len(re.findall(r"[가-힣]{2,}", body)) < 12:
+            continue
+        sm = _SUBJ.search(body)
+        # 회사가 주어인 소개 문장('당사는 … 설립/영위/개발…')으로 시작하는 문단을 우선합니다.
+        good = sm is not None and sm.start() < 500 and _INTRO.search(body[sm.start():sm.start() + 200]) is not None
+        numbered = text[max(0, m.start() - 3):m.start() + 2].strip()[:1].isdigit() or bool(re.match(r"\d", m.group(0)))
+        cands.append(((0 if good else 1, 0 if numbered else 1, -len(body)), body, sm.start() if good else 0))
+    if not cands:
+        return {"biz_text": None, "biz_excerpt": None}
+    cands.sort(key=lambda c: c[0])
+    _, body, start = cands[0]
+    body = body[start:][:1500]
+    sents = [x.strip() for x in _SENT_END.split(body) if x and x.strip()]
+    excerpt = ""
+    for x in sents:
+        x = x.rstrip(".") + "."
+        if excerpt and len(excerpt) + len(x) > 330:
+            break
+        excerpt += x + " "
+        if excerpt.count(". ") >= 3:
+            break
+    return {"biz_text": body, "biz_excerpt": excerpt.strip() or None}
+
+
 def extract_listing_info(text: str) -> dict:
-    """확정 전 신고서 한 건에서 읽는 값: 수요예측 기일 + 상장 시장·기술특례."""
-    return {**extract_schedule(text), **extract_profile(text)}
+    """확정 전 신고서 한 건에서 읽는 값: 수요예측 기일 + 상장 시장·기술특례 + 사업의 개요."""
+    return {**extract_schedule(text), **extract_profile(text), **extract_business(text)}

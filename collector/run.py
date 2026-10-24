@@ -83,6 +83,13 @@ def cmd_kind(conn, args) -> None:
                 except Exception:
                     pass
             print(f"주의: KIND 조회 실패({type(exc).__name__}: {str(exc)[:200]}). 수동 파일과 기존 값으로 진행합니다.")
+    if not args.no_fetch:   # 상장법인 목록(업종·주요제품): 실패해도 계속
+        try:
+            status["corp_list"] = kind.save_corp_list(conn, kind.fetch_corp_list(), now)
+            print(f"KIND 상장법인 목록 {status['corp_list']}건 반영")
+        except Exception as exc:
+            status["corp_list_error"] = f"{type(exc).__name__}: {str(exc)[:200]}"
+            print(f"주의: KIND 상장법인 목록 조회 실패({type(exc).__name__})")
     if folder.exists():
         m = kind.load_manual(conn, folder, now)
         status["manual_rows"] = m

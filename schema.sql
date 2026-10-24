@@ -182,9 +182,23 @@ CREATE TABLE IF NOT EXISTS doc_schedule (
   tech_agencies    TEXT,         -- 같은 순서의 평가기관
   alt_route        TEXT,         -- 기술특례가 아닌 특례 경로: 이익미실현
   tech_hints       TEXT,         -- 검수용: 관련 단어 언급 횟수
+  biz_text         TEXT,         -- '사업의 개요' 서술(요약용, 최대 1,500자)
+  biz_excerpt      TEXT,         -- 화면용 발췌(2~3문장)
   status           TEXT,         -- ok / no_match (수요예측 기일 기준)
   parser_version   INTEGER,
   fetched_at       TEXT
+);
+
+-- KIND 상장법인 목록: 업종·주요제품 (회사명 정규화 키로 DART 회사와 연결)
+CREATE TABLE IF NOT EXISTS kind_corp (
+  name_key    TEXT PRIMARY KEY,
+  corp_name   TEXT,
+  stock_code  TEXT,
+  market      TEXT,
+  industry    TEXT,
+  products    TEXT,
+  listed_dt   TEXT,
+  fetched_at  TEXT
 );
 
 -- 증권발행실적보고서 원문에서 추출한 상장일·일반청약 결과
