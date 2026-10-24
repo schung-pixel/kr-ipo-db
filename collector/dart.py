@@ -117,9 +117,9 @@ class DartClient:
     # 목차가 나뉜 문서는 viewer.do가 목차 한 칸씩만 돌려주므로, 추출에 쓰는 목차만 골라 이어 붙입니다.
     VIEWER_SECTIONS = ("정정신고", "요약정보", "핵심투자위험", "모집또는매출에관한일반사항", "공모개요", "공모방법",
                        "공모가격결정방법", "모집또는매출절차", "인수등에관한사항", "사업위험", "회사위험", "기타위험",
-                       "인수인의의견", "증권신고서", "사업의개요")
+                       "인수인의의견", "증권신고서", "사업의개요", "사업의내용")
 
-    def viewer_html(self, rcept_no: str) -> str:
+    def viewer_html(self, rcept_no: str, sections=None) -> str:
         """DART 공시 뷰어에서 문서 HTML을 받습니다. OpenDART document.xml이 원문을 주지 않는
         2019년 이전 공시(status 014)에 씁니다. 인증키는 쓰지 않습니다."""
         import re
@@ -152,7 +152,7 @@ class DartClient:
         parts, seen = [], set()
         for title, ele, off, ln in nodes:
             key = re.sub(r"[\s\W_]+", "", title)
-            if ele in seen or not any(k in key for k in self.VIEWER_SECTIONS):
+            if ele in seen or not any(k in key for k in (sections or self.VIEWER_SECTIONS)):
                 continue
             seen.add(ele)
             parts.append(get(f"{VIEWER_URL}/report/viewer.do", rcpNo=rcept_no, dcmNo=dcm, eleId=ele,
