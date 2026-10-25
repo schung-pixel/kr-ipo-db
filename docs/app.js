@@ -81,11 +81,23 @@
     var r = "";
     if (d.board === "KOSDAQ_TECH") {
       var growth = d.tech_track === "성장성 추천";
-      r += '<span class="tag b-tech" title="코스닥 기술특례 · ' + esc(d.tech_track || "") + (d.tech_agencies ? " · " + esc(d.tech_agencies) : "") + '">' +
-        (growth ? "성장성 특례" : "기술특례") + (d.tech_grades && !growth ? " " + esc(d.tech_grades.replace(/\s*,\s*/g, "·")) : "") + "</span>";
+      var single = /^단수평가/.test(d.tech_mode || "");
+      var gtxt = d.tech_grades && !growth ? (single ? "단수 " + bestGrade(d.tech_grades) : d.tech_grades.replace(/\s*,\s*/g, "·")) : "";
+      r += '<span class="tag b-tech" title="코스닥 기술특례 · ' + esc(d.tech_track || "") + (d.tech_mode ? " · " + esc(d.tech_mode) : "") + (d.tech_agencies ? " · " + esc(d.tech_agencies) : "") + '">' +
+        (growth ? "성장성 특례" : "기술특례") + (gtxt ? " " + esc(gtxt) : "") + "</span>";
     }
     if (d.alt_route) r += '<span class="tag b-route" title="이익미실현(테슬라) 요건 상장">' + esc(d.alt_route) + "</span>";
     return m + r;
+  }
+  var GRADE_ORDER = ["AAA", "AA", "A", "BBB", "BB", "B"];
+  function bestGrade(gs) {
+    return gs.split(/\s*,\s*/).sort(function (a, b) { return GRADE_ORDER.indexOf(a) - GRADE_ORDER.indexOf(b); })[0];
+  }
+  function modeText(d) {
+    if (!d.tech_mode) return "";
+    if (d.tech_mode === "재평가") return "재평가 등급";
+    var basis = (d.tech_mode.match(/\((.+)\)/) || [])[1];
+    return "단수평가" + (basis ? "(" + basis + ")" : "") + ": 1개 기관 A 이상으로 요건 충족";
   }
   function boardText(d) {
     if (!d.board) return "-";
@@ -746,7 +758,8 @@
     html += section("일정·기타", '<dl class="kv">' +
       (d.prelim ? "<dt>예심 청구일</dt><dd>" + esc(d.prelim.filed_dt || "-") + "</dd><dt>예심 승인일</dt><dd>" + esc(d.prelim.decided_dt || "-") + (d.prelim.result ? ' <span class="dim">(' + esc(d.prelim.result) + ")</span>" : "") + "</dd>" : "") +
       "<dt>상장 시장</dt><dd>" + esc(boardText(d)) + (d.market_src ? ' <span class="dim">(시장: ' + esc(d.market_src) + ")</span>" : "") + "</dd>" +
-      (d.tech_grades ? "<dt>기술평가 등급</dt><dd>" + esc(d.tech_grades) + (d.tech_agencies ? ' <span class="dim">(' + esc(d.tech_agencies) + ")</span>" : "") + "</dd>" : "") +
+      (d.tech_grades ? "<dt>기술평가 등급</dt><dd>" + esc(d.tech_grades) + (d.tech_agencies ? ' <span class="dim">(' + esc(d.tech_agencies) + ")</span>" : "") +
+        (d.tech_mode ? '<br><span class="dim">' + esc(modeText(d)) + "</span>" : "") + "</dd>" : "") +
       "<dt>수요예측 기일</dt><dd>" + esc(demandText(d) || "-") + "</dd>" +
       "<dt>청약기일</dt><dd>" + esc(d.subscription_raw || "-") + "</dd>" +
       "<dt>납입기일</dt><dd>" + esc(d.payment_raw || "-") + "</dd>" +
@@ -1104,7 +1117,8 @@
     var grp = {};
     tech.forEach(function (d) {
       var GR = { AAA: 0, AA: 1, A: 2, BBB: 3, BB: 4, B: 5 };
-      var g = d.tech_grades ? d.tech_grades.split(/\s*,\s*/).sort(function (a, b) { return (GR[a] || 9) - (GR[b] || 9); }).join("·") : d.tech_track === "성장성 추천" ? "성장성 추천" : "등급 미확인";
+      var g = d.tech_grades ? (/^단수평가/.test(d.tech_mode || "") ? "단수 " + bestGrade(d.tech_grades)
+        : d.tech_grades.split(/\s*,\s*/).sort(function (a, b) { return (GR[a] || 9) - (GR[b] || 9); }).join("·")) : d.tech_track === "성장성 추천" ? "성장성 추천" : "등급 미확인";
       if (d.tech_grades && d.tech_grades.indexOf(",") < 0) g += " (단수)";
       (grp[g] = grp[g] || []).push(d);
     });

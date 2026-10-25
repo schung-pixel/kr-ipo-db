@@ -37,11 +37,12 @@ ADDED_COLUMNS = {"doc_price": [("header_amount", "INTEGER"), ("header_shares", "
                               ("retail_ratio", "REAL"), ("retail_count", "INTEGER"),
                               ("demand_start", "TEXT"), ("demand_end", "TEXT"),
                               ("tech_track", "TEXT"), ("tech_grades", "TEXT"), ("tech_agencies", "TEXT"),
-                              ("alt_route", "TEXT")],
+                              ("alt_route", "TEXT"), ("tech_mode", "TEXT")],
                  "doc_schedule": [("market", "TEXT"), ("market_evidence", "TEXT"),
                                   ("tech_track", "TEXT"), ("tech_evidence", "TEXT"),
                                   ("tech_hints", "TEXT"), ("tech_grades", "TEXT"), ("tech_agencies", "TEXT"),
-                                  ("alt_route", "TEXT"), ("biz_text", "TEXT"), ("biz_excerpt", "TEXT")]}
+                                  ("alt_route", "TEXT"), ("biz_text", "TEXT"), ("biz_excerpt", "TEXT"),
+                                  ("tech_mode", "TEXT")]}
 
 
 def _ensure_columns(conn) -> None:
@@ -299,7 +300,7 @@ def rebuild_deals(conn, now: str) -> int:
 
         # 수요예측 기일: 발행조건확정 이전 신고서 중 가장 최근에 읽힌 값
         demand_start = demand_end = ev_demand = None
-        market = tech_track = ev_market = ev_tech = tech_grades = tech_agencies = alt_route = None
+        market = tech_track = ev_market = ev_tech = tech_grades = tech_agencies = alt_route = tech_mode = None
         for f in reversed([f for f in fl if not f["is_price_fixed"]]):
             ds = conn.execute("SELECT * FROM doc_schedule WHERE rcept_no=?", (f["rcept_no"],)).fetchone()
             if not ds:
@@ -310,6 +311,7 @@ def rebuild_deals(conn, now: str) -> int:
             if market is None and ds["market"]:
                 market, tech_track = ds["market"], ds["tech_track"]
                 tech_grades, tech_agencies, alt_route = ds["tech_grades"], ds["tech_agencies"], ds["alt_route"]
+                tech_mode = ds["tech_mode"] if "tech_mode" in ds.keys() else None
                 ev_market = (f["rcept_no"], ds["market_evidence"])
                 ev_tech = (f["rcept_no"], ds["tech_evidence"])
 
@@ -412,7 +414,7 @@ def rebuild_deals(conn, now: str) -> int:
             "subscription_raw": subs, "payment_raw": pay, "listing_dt": listing_dt,
             "demand_start": demand_start, "demand_end": demand_end,
             "market": market, "tech_track": tech_track,
-            "tech_grades": tech_grades, "tech_agencies": tech_agencies, "alt_route": alt_route,
+            "tech_grades": tech_grades, "tech_agencies": tech_agencies, "alt_route": alt_route, "tech_mode": tech_mode,
             "result_rcept_no": result_no, "inst_demand_ratio": inst_ratio,
             "inst_demand_count": inst_count, "retail_ratio": retail_ratio,
             "retail_count": retail_count, "updated_at": now,
@@ -499,7 +501,8 @@ def schedule_plan(conn) -> list:
     """수요예측 기일 추출 계획: [(corp_code, [rcept_no, ...])]. 후보 딜마다 발행조건확정 이전 신고서를
     최근 것부터 최대 3건, 이미 값이 읽힌 딜이나 시도가 끝난 접수번호는 건너뜁니다."""
     from .doctext import SCHEDULE_VERSION
-    done = {r["rcept_no"]: r for r in conn.execute("SELECT rcept_no, status, parser_version FROM doc_schedule")}
+    done = {r["rcept_no"]: r for r in conn.execute(
+        "SELECT rcept_no, status, parser_version, tech_track, tech_grades FROM doc_schedule")}
     cands = {r["deal_id"]: r["first_filing_dt"] for r in conn.execute(
         "SELECT deal_id, first_filing_dt FROM ipo_deal WHERE is_ipo_candidate=1")}
     plan = []
@@ -507,7 +510,15 @@ def schedule_plan(conn) -> list:
         if deal_id not in cands:
             continue
         pre = [f["rcept_no"] for f in reversed(fl) if not f["is_price_fixed"]][:3]
-        fresh = lambda no: no in done and (done[no]["parser_version"] or 0) >= SCHEDULE_VERSION
+        def fresh(no):
+            if no not in done:
+                return False
+            r, pv = done[no], done[no]["parser_version"] or 0
+            if pv >= SCHEDULE_VERSION:
+                return True
+            # v7(단수평가·재평가)은 기술특례 관련 문서만 다시 읽습니다
+            techy = bool(r["tech_track"]) or bool(r["tech_grades"])
+            return pv >= 6 and not techy
         if any(fresh(no) and done[no]["status"] == "ok" for no in pre):
             continue
         todo = [no for no in pre if not fresh(no)]
@@ -525,6 +536,7 @@ def save_doc_schedule(conn, rcept_no: str, corp_code: str, parsed: dict, now: st
         "tech_track": parsed.get("tech_track"), "tech_evidence": parsed.get("tech_evidence"),
         "tech_hints": parsed.get("tech_hints"), "tech_grades": parsed.get("tech_grades"),
         "tech_agencies": parsed.get("tech_agencies"), "alt_route": parsed.get("alt_route"),
+        "tech_mode": parsed.get("tech_mode"),
         "biz_text": parsed.get("biz_text"), "biz_excerpt": parsed.get("biz_excerpt"),
         "status": parsed["status"], "parser_version": SCHEDULE_VERSION, "fetched_at": now},
         volatile=("fetched_at",))

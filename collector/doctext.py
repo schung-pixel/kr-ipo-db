@@ -216,7 +216,7 @@ def extract_result(text: str) -> dict:
 # ---------------------------------------------------------------- 수요예측 기일
 # 증권신고서(정정 포함) '공모일정' 표: "수요예측 일시 | [국내 |] 2025년 04월 17일(목) ~ [2025년] 04월 23일(수)".
 # [발행조건확정] 신고서에는 이 표가 없으므로 확정 직전의 신고서에서 읽습니다.
-SCHEDULE_VERSION = 6   # 6: 사업의 개요 / 5: 원문 인코딩(cp949)·공시 뷰어 대체 / 2: 상장 시장·기술특례 구분 / 3: 기술평가 등급·평가기관 / 4: 이익미실현 경로
+SCHEDULE_VERSION = 7   # 7: 단수평가·재평가 / 6: 사업의 개요 / 5: 원문 인코딩(cp949)·공시 뷰어 대체 / 2: 상장 시장·기술특례 구분 / 3: 기술평가 등급·평가기관 / 4: 이익미실현 경로
 _DATE = r"(\d{4})\s*(?:년|[.\-/])\s*(\d{1,2})\s*(?:월|[.\-/])\s*(\d{1,2})\s*일?"
 _DEMAND = re.compile(
     r"수요\s*예측\s*(?:일시|일자|기간|기일|일정|일)\s*(?:\([^)]{0,10}\))?\s*\|(?:\s*국내\s*\|)?\s*" + _DATE +
@@ -286,8 +286,56 @@ _AGENCIES = ("기술보증기금", "나이스디앤비", "NICE디앤비", "한�
              "NICE평가정보", "한국산업기술진흥원", "정보통신정책연구원", "한국인터넷진흥원", "한국과학기술연구원")
 
 
+# 단수평가(1개 기관 A 이상으로 요건 충족: 코넥스 상장법인·시장평가 우수기업·소부장 전문기업 등)와 재평가
+_SINGLE_EVAL = [
+    re.compile(r"(?:1\s*개|한\s*개|1\s*곳|한\s*곳)\s*(?:의)?\s*(?:전문\s*)?평가\s*기관[^.。|]{0,60}?" + _GRADE +
+               r"\s*등급\s*(?:을|를)?\s*(?:받|획득|통보)"),
+    re.compile(r"(?:전문\s*)?평가\s*기관\s*(?:1\s*곳|1\s*개(?:\s*기관)?|한\s*곳)[^.。|]{0,60}?" + _GRADE +
+               r"\s*등급\s*(?:을|를)?\s*(?:받|획득|통보)"),
+    re.compile(r"단수\s*(?:기술\s*)?평가[^.。|]{0,80}?" + _GRADE + r"\s*등급\s*(?:을|를)?\s*(?:받|획득|통보)"),
+]
+_REEVAL = re.compile(r"재\s*평가[^.。|]{0,150}?" + _GRADE + r"\s*(?:등급)?\s*(?:,|및|과|와|/)\s*" + _GRADE +
+                     r"\s*등급\s*(?:을|를)?\s*(?:획득|받|통보)")
+_SINGLE_BASIS = (("코넥스", r"코넥스"), ("시장평가 우수기업", r"시장\s*평가\s*우수"),
+                 ("소부장 전문기업", r"소재\s*[·ㆍ,]?\s*부품\s*[·ㆍ,]?\s*장비|소부장"))
+
+
+def _tech_mode(text: str):
+    """(방식, 등급, 위치): 단수평가면 ('단수평가(근거)', 'A', pos), 재평가면 ('재평가', 'A, A', pos)."""
+    m = _REEVAL.search(text)
+    if m:
+        return "재평가", f"{m.group(1)}, {m.group(2)}", m.start()
+    for p in _SINGLE_EVAL:
+        m = p.search(text)
+        if m:
+            win = text[max(0, m.start() - 400): m.end() + 200]
+            basis = next((k for k, pat in _SINGLE_BASIS if re.search(pat, win)), None)
+            return ("단수평가(" + basis + ")" if basis else "단수평가"), m.group(1), m.start()
+    return None, None, None
+
+
 def extract_rating(text: str) -> dict:
-    """기술평가 특례: 전문평가기관 등급(예: 'A, BBB', 단수평가는 'A')과 평가기관. 신용평가 등급은 제외합니다."""
+    """기술평가 특례: 전문평가기관 등급(예: 'A, BBB', 단수평가는 'A')과 평가기관. 신용평가 등급은 제외합니다.
+    재평가를 받은 경우 재평가 등급을, 단수평가로 요건을 채운 경우 그 방식(tech_mode)을 함께 돌려줍니다."""
+    mode, mgrades, mpos = _tech_mode(text)
+    base = _extract_rating(text)
+    if mode == "재평가":
+        out = _rating_out(text, mpos, mpos + 200, mgrades)
+        out["tech_mode"] = "재평가"
+        return out
+    if mode:
+        g = [x.strip() for x in (base["tech_grades"] or "").split(",") if x.strip()]
+        two_orgs = len([x for x in (base.get("tech_agencies") or "").split(",") if x.strip()]) >= 2
+        # 두 기관(기관명 둘)이 매긴 등급에 단수평가 등급이 들어 있을 때만 둘 다 둡니다(예: A·BB 중 A로 충족)
+        if mgrades not in g or len(g) < 2 or not two_orgs:
+            base = _rating_out(text, mpos, mpos + 200, mgrades)
+        base["tech_mode"] = mode
+        return base
+    base["tech_mode"] = None
+    return base
+
+
+def _extract_rating(text: str) -> dict:
     single = None
     for a in _ANCHOR.finditer(text):
         win = text[a.start():a.start() + 360]
@@ -299,6 +347,9 @@ def extract_rating(text: str) -> dict:
             if not m:
                 continue
             g = [x for x in m.groups() if x]
+            if re.match(r"\s*(?:이상|이상의|이상을)", win[m.end():m.end() + 6]) or (
+                    kind == "both" and "이상" in win[m.end():m.end() + 22]):
+                continue          # 'A등급 및 BBB등급 이상' 같은 요건 설명은 받은 등급이 아님
             if kind == "single":
                 if single is None:
                     single = (a.start() + m.start(), a.start() + m.end(), g[0], a.start())
@@ -332,13 +383,13 @@ def extract_profile(text: str) -> dict:
         ("전문평가기관", r"전문\s*평가\s*기관"), ("특례상장기업", r"특례\s*상장\s*기업"), ("일반상장법인", r"일반\s*상장\s*법인"),
         ("이익미실현", r"이익\s*미실현"))}
     out = {"market": market, "market_evidence": f"'코스닥시장' {kq}회, '유가증권시장' {ks}회" if market else None,
-           "tech_track": None, "tech_evidence": None, "tech_grades": None, "tech_agencies": None,
+           "tech_track": None, "tech_evidence": None, "tech_grades": None, "tech_agencies": None, "tech_mode": None,
            "alt_route": None,
            "tech_hints": ", ".join(f"{k} {v}" for k, v in hints.items() if v) or None}
     if market != "KOSDAQ" or re.search(r"기업\s*인수\s*목적", text[:3000]):
         return out
     rating = extract_rating(text)
-    out.update(tech_grades=rating["tech_grades"], tech_agencies=rating["tech_agencies"])
+    out.update(tech_grades=rating["tech_grades"], tech_agencies=rating["tech_agencies"], tech_mode=rating.get("tech_mode"))
     for track, pat in _TECH_RULES:
         m = pat.search(text)
         if m:
