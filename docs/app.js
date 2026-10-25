@@ -245,7 +245,7 @@
     closeSheet();
     if (tab === "stats") { if (view !== "stats") { renderStats(); window.scrollTo(0, 0); } }
     else if (view !== "list") { renderList(); window.scrollTo(0, 0); }
-    document.title = (tab === "stats" ? "통계" : "딜 목록") + " · IPO 공시 DB";
+    document.title = (tab === "stats" ? "통계" : "딜 목록") + " · IPO 데이터룸";
   }
   function baseView() { return view === "stats" ? "/stats" : "/"; }
 
@@ -417,50 +417,124 @@
     if (ddOpen && !ddOpen.mobile && !(e.target.closest && e.target.closest(".dd-panel"))) ddClose(false);
   }, true);
 
+  var ST_LABEL = { all: "전체", approved: "예심 승인", filed: "신고서 제출", price_fixed: "가격 확정", completed: "상장", withdrawn: "철회" };
+  function activeFilters() {
+    var a = [];
+    if (state.status !== DEFAULTS.status) a.push({ k: "status", t: ST_LABEL[state.status] || state.status });
+    if (state.board) a.push({ k: "board", t: BOARDS[state.board] });
+    if (state.year) a.push({ k: "year", t: state.year + "년 신고" });
+    if (state.spac !== DEFAULTS.spac) a.push({ k: "spac", t: state.spac ? "스팩 포함" : "스팩 제외" });
+    return a;
+  }
+  var FILTER_ICON = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14M5.5 10h9M8 15h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
   function renderList() {
     view = "list";
-    var ys = years();
-    var counts = { all: 0, approved: 0, filed: 0, price_fixed: 0, completed: 0, withdrawn: 0 };
-    baseRows(true).forEach(function (d) { counts.all++; counts[d.status] = (counts[d.status] || 0) + 1; });
-    var chipBtn = function (v, label) {
-      return '<button type="button" class="fchip" data-status="' + v + '" aria-pressed="' + (state.status === v) + '">' + label + '<span class="n">' + counts[v] + "</span></button>";
-    };
-    var changed = state.status !== DEFAULTS.status || state.spac !== DEFAULTS.spac || state.year || state.board || state.q;
+    var act = activeFilters();
     app.innerHTML = '<div class="content">' +
       '<div class="srow" role="search"><div class="sbox">' +
       '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13.5 13.5L17 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>' +
       '<input class="search" id="f-q" type="search" autocomplete="off" placeholder="기업명·주관사 검색 (초성 가능)" aria-label="기업명·주관사 검색" value="' + esc(state.q) + '">' +
       '<button type="button" class="sclear" id="f-clear" aria-label="검색어 지우기"' + (state.q ? "" : " hidden") + '><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>' +
-      "</div></div>" +
-      '<div class="crow"><div class="chips" id="chips" role="group" aria-label="진행 상태"><span class="ind" aria-hidden="true"></span>' +
-      chipBtn("all", "전체") + (counts.approved ? chipBtn("approved", "예심 승인") : "") + chipBtn("filed", "신고서 제출") + chipBtn("price_fixed", "가격 확정") + chipBtn("completed", "상장") + chipBtn("withdrawn", "철회") + "</div>" +
-      '<div class="fopts"><label class="switch"><input type="checkbox" id="f-spac"' + (state.spac ? " checked" : "") + '>스팩 포함</label>' +
-      boardSelect("f-board") +
-      '<select class="sel" id="f-year" aria-label="신고 연도" data-def="">' + opt("", "전체 연도", state.year) + '<optgroup label="" data-grid="1">' + ys.map(function (y) { return opt(y, y + "년 신고", state.year); }).join("") + "</optgroup></select>" +
-      (changed ? '<button type="button" class="linkbtn" id="f-reset">초기화</button>' : "") + "</div></div>" +
+      "</div>" +
+      '<button type="button" class="fbtn' + (act.length ? " on" : "") + '" id="f-menu" aria-haspopup="dialog" aria-expanded="false" aria-label="필터' + (act.length ? " " + act.length + "개 적용" : "") + '">' + FILTER_ICON +
+      (act.length ? '<span class="fb-n">' + act.length + "</span>" : "") + "</button></div>" +
+      (act.length ? '<div class="afilters" aria-label="적용된 필터">' + act.map(function (f) {
+        return '<button type="button" class="af" data-k="' + f.k + '" aria-label="' + esc(f.t) + ' 필터 해제">' + esc(f.t) + '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>';
+      }).join("") + '<button type="button" class="linkbtn" id="f-reset">모두 지우기</button></div>' : "") +
       '<section class="ledger" aria-label="IPO 딜 목록"><div class="ledger-top" id="ledger-top"></div><div id="result"></div></section>' +
-      '<p class="note">희망 밴드·확정가·경쟁률·상장일은 공시 원문에서 규칙으로 추출한 값입니다. 스팩 등 단일 희망가는 밴드에 한 값으로 표시하고, 밴드가 없는 건의 * 값은 신고서 기재 기준가입니다. 공모액은 확정 건은 확정 금액, 그 외는 신고서 기재 금액입니다. 상장사 유상증자 등은 제외했습니다.</p>' +
+      '<p class="note">희망 밴드·확정가·경쟁률·상장일은 공시 원문에서 규칙으로 추출한 값입니다. 스팩 등 단일 희망가는 밴드에 한 값으로 표시하고, 밴드가 없는 건의 * 값은 신고서 기재 기준가입니다. 공모액은 확정 건은 확정 금액, 그 외는 신고서 기재 금액입니다. 상장사 유상증자 등은 제외했습니다.' +
+      (data.last_list_date ? " 자료 기준: DART " + esc(data.last_list_date) + (data.kind_as_of ? " · KIND " + esc(data.kind_as_of) : "") + "." : "") + "</p>" +
       "</div>";
-    var chips = document.getElementById("chips");
-    chips.querySelectorAll(".fchip").forEach(function (b) {
-      b.addEventListener("click", function () {
-        state.status = b.dataset.status; persist();
-        chips.querySelectorAll(".fchip").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
-        placeInd(chips); renderRows(); syncReset();
-      });
-    });
-    document.getElementById("f-spac").addEventListener("change", function (e) { state.spac = e.target.checked; persist(); renderList(); });
-    document.getElementById("f-year").addEventListener("change", function (e) { state.year = e.target.value; persist(); renderList(); });
-    document.getElementById("f-board").addEventListener("change", function (e) { state.board = e.target.value; persist(); renderList(); });
     var qi = document.getElementById("f-q"), qc = document.getElementById("f-clear");
-    qi.addEventListener("input", function (e) { state.q = e.target.value; qc.hidden = !state.q; renderRows(); syncReset(); });
-    qc.addEventListener("click", function () { state.q = ""; qi.value = ""; qc.hidden = true; renderRows(); syncReset(); qi.focus(); });
+    qi.addEventListener("input", function (e) { state.q = e.target.value; qc.hidden = !state.q; renderRows(); });
+    qc.addEventListener("click", function () { state.q = ""; qi.value = ""; qc.hidden = true; renderRows(); qi.focus(); });
+    document.getElementById("f-menu").addEventListener("click", function () { if (fpOpen) fpClose(true); else fpShow(); });
+    app.querySelectorAll(".af").forEach(function (b) {
+      b.addEventListener("click", function () { state[b.dataset.k] = DEFAULTS[b.dataset.k]; persist(); renderList(); });
+    });
     var rb = document.getElementById("f-reset");
     if (rb) rb.addEventListener("click", resetFilters);
     renderRows();
-    enhanceSelects(app);
-    requestAnimationFrame(function () { placeInd(chips); });
   }
+  // ---- 필터 패널: PC는 버튼 아래 팝오버, 휴대폰은 아래에서 올라오는 시트
+  var fpOpen = null;
+  function fpBody() {
+    var counts = { all: 0, approved: 0, filed: 0, price_fixed: 0, completed: 0, withdrawn: 0 };
+    baseRows(true).forEach(function (d) { counts.all++; counts[d.status] = (counts[d.status] || 0) + 1; });
+    var opt2 = function (k, v, label, n) {
+      return '<button type="button" class="fo" data-k="' + k + '" data-v="' + esc(v) + '" aria-pressed="' + (String(state[k]) === String(v)) + '">' + esc(label) +
+        (n != null ? '<span class="n">' + n + "</span>" : "") + "</button>";
+    };
+    var st = ["all", "approved", "filed", "price_fixed", "completed", "withdrawn"].filter(function (k) { return k !== "approved" || counts.approved; });
+    return '<div class="fp-sec"><div class="fp-h">진행 상태</div><div class="fp-opts">' + st.map(function (k) { return opt2("status", k, ST_LABEL[k], counts[k]); }).join("") + "</div></div>" +
+      '<div class="fp-sec"><div class="fp-h">상장 시장</div><div class="fp-opts">' + opt2("board", "", "전체") +
+      Object.keys(BOARDS).map(function (k) { return opt2("board", k, BOARDS[k]); }).join("") + "</div></div>" +
+      '<div class="fp-sec"><div class="fp-h">신고 연도</div><div class="fp-opts grid">' + opt2("year", "", "전체") +
+      years().map(function (y) { return opt2("year", y, y + "년"); }).join("") + "</div></div>" +
+      '<div class="fp-sec fp-row"><label class="switch"><input type="checkbox" id="fp-spac"' + (state.spac ? " checked" : "") + ">스팩 포함</label></div>" +
+      '<div class="fp-foot"><button type="button" class="linkbtn" id="fp-reset">초기화</button>' +
+      '<button type="button" class="fp-done" id="fp-done">' + filtered().length.toLocaleString("ko-KR") + "건 보기</button></div>";
+  }
+  function fpBind() {
+    var o = fpOpen; if (!o) return;
+    o.body.querySelectorAll(".fo").forEach(function (b) {
+      b.addEventListener("click", function () {
+        state[b.dataset.k] = b.dataset.v; persist(); fpRefresh();
+      });
+    });
+    o.body.querySelector("#fp-spac").addEventListener("change", function (e) { state.spac = e.target.checked; persist(); fpRefresh(); });
+    o.body.querySelector("#fp-reset").addEventListener("click", function () {
+      ["status", "spac", "year", "board"].forEach(function (k) { state[k] = DEFAULTS[k]; }); persist(); fpRefresh();
+    });
+    o.body.querySelector("#fp-done").addEventListener("click", function () { fpClose(true); });
+  }
+  function fpRefresh() {
+    var o = fpOpen; if (!o) return;
+    var sc = o.body.scrollTop;
+    renderList();
+    var nb = document.getElementById("f-menu");
+    if (nb) { nb.setAttribute("aria-expanded", "true"); nb.classList.add("open"); o.btn = nb; }
+    o.body.innerHTML = fpBody(); o.body.scrollTop = sc; fpBind();
+  }
+  function fpShow() {
+    if (ddOpen) ddClose(false);
+    var btn = document.getElementById("f-menu");
+    var mobile = window.matchMedia("(max-width: 760px)").matches;
+    var wrap = document.createElement("div");
+    wrap.className = "dd-layer fp-layer" + (mobile ? " sheet-mode" : "");
+    wrap.innerHTML = (mobile ? '<div class="dd-scrim"></div>' : "") +
+      '<div class="dd-panel fp-panel" role="dialog" aria-label="필터">' +
+      (mobile ? '<div class="dd-top"><span class="grab" aria-hidden="true"></span><b>필터</b></div>' : "") +
+      '<div class="dd-body fp-body"></div></div>';
+    document.body.appendChild(wrap);
+    var panel = wrap.querySelector(".dd-panel");
+    fpOpen = { btn: btn, wrap: wrap, panel: panel, body: wrap.querySelector(".fp-body"), mobile: mobile };
+    fpOpen.body.innerHTML = fpBody(); fpBind();
+    btn.setAttribute("aria-expanded", "true"); btn.classList.add("open");
+    if (!mobile) {
+      var r = btn.getBoundingClientRect();
+      panel.style.width = Math.min(380, window.innerWidth - 16) + "px";
+      panel.style.top = (r.bottom + 6) + "px";
+      panel.style.left = Math.max(8, Math.min(r.right - panel.offsetWidth, window.innerWidth - panel.offsetWidth - 8)) + "px";
+      panel.style.maxHeight = Math.max(240, window.innerHeight - r.bottom - 20) + "px";
+    }
+    var first = panel.querySelector('.fo[aria-pressed="true"]') || panel.querySelector(".fo");
+    if (first) first.focus({ preventScroll: true });
+    panel.addEventListener("keydown", function (e) { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); fpClose(true); } });
+    var scrim = wrap.querySelector(".dd-scrim");
+    if (scrim) scrim.addEventListener("click", function () { fpClose(true); });
+  }
+  function fpClose(refocus) {
+    var o = fpOpen; if (!o) return;
+    fpOpen = null;
+    var btn = document.getElementById("f-menu");
+    if (btn) { btn.setAttribute("aria-expanded", "false"); btn.classList.remove("open"); }
+    if (o.mobile) { o.wrap.classList.add("closing"); setTimeout(function () { o.wrap.remove(); }, 180); } else o.wrap.remove();
+    if (refocus && btn) btn.focus({ preventScroll: true });
+  }
+  document.addEventListener("pointerdown", function (e) {
+    if (fpOpen && !fpOpen.mobile && !e.target.closest(".fp-panel") && !e.target.closest("#f-menu")) { fpClose(false); ddSwallow = Date.now(); }
+  }, true);
   function boardSelect(id) {
     return '<select class="sel" id="' + id + '" aria-label="상장 시장" data-def="">' + opt("", "전체 시장", state.board) + '<optgroup label="">' +
       Object.keys(BOARDS).map(function (k) { return opt(k, BOARDS[k], state.board).replace("<option ", '<option data-s="' + BOARD_SHORT[k] + '" '); }).join("") + "</optgroup></select>";
@@ -700,7 +774,7 @@
       sbody.innerHTML = '<p class="err">목록으로 돌아가 다시 선택해 주십시오.</p>';
       return;
     }
-    document.title = name(d) + " · IPO 공시 DB";
+    document.title = name(d) + " · IPO 데이터룸";
     var list = view === "list" ? filtered() : [], idx = -1;
     for (var i = 0; i < list.length; i++) if (list[i].deal_id === id) { idx = i; break; }
     var prev = idx > 0 ? list[idx - 1] : null, next = idx >= 0 && idx < list.length - 1 ? list[idx + 1] : null;
@@ -952,7 +1026,7 @@
   }
 
   function renderStats() {
-    document.title = "통계 · IPO 공시 DB";
+    document.title = "통계 · IPO 데이터룸";
     view = "stats";
     var all = listedDeals();
     var ys = Array.from(new Set(data.deals.map(listDate).filter(Boolean).map(function (s) { return s.slice(0, 4); }))).sort().reverse();
@@ -1421,7 +1495,7 @@
     var nIpo = (j.deals || []).length, nAp = (j.approvals || []).length;
     data.deals = (j.deals || []).concat(j.approvals || []);
     indexCorps();
-    document.getElementById("asof").textContent = "DART 기준 " + (j.last_list_date || "-") + (j.kind_as_of ? " · KIND " + j.kind_as_of : "") + " · IPO " + nIpo + "건" + (nAp ? " · 예심 승인 " + nAp + "건" : "");
+    if (document.getElementById("asof")) document.getElementById("asof").textContent = "DART 기준 " + (j.last_list_date || "-") + (j.kind_as_of ? " · KIND " + j.kind_as_of : "") + " · IPO " + nIpo + "건" + (nAp ? " · 예심 승인 " + nAp + "건" : "");
     route();
   }).catch(function () {
     app.innerHTML = '<p class="err">데이터를 불러오지 못했습니다. 네트워크 연결을 확인한 뒤 새로 고침해 주십시오. 처음 접속한 기기에서는 오프라인 상태로 열 수 없습니다.</p>';
@@ -1449,7 +1523,7 @@
         if (view === "stats") { renderStats(); window.scrollTo(0, y0); }
         if (sheetId) openSheet(sheetId);
       }
-      placeInd(document.querySelector(".tabs")); placeInd(document.getElementById("chips"));
+      placeInd(document.querySelector(".tabs"));
       lastW = window.innerWidth;
     }, 150);
   });

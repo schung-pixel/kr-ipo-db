@@ -20,7 +20,7 @@ data = json.dumps(json.loads((docs / "data" / "deals.json").read_text(encoding="
                   ensure_ascii=False, separators=(",", ":"))
 data = data.replace("</", "<\\/")  # script 태그 종료로 오인되지 않도록
 
-page = f"""<title>IPO 공시 DB</title>
+page = f"""<title>IPO 데이터룸</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

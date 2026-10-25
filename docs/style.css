@@ -3,7 +3,7 @@
    유리 재질은 탐색 계층(상단바, 탭바, 검색창, 시트 버튼)에만 씁니다. */
 :root {
   color-scheme: light;
-  --bg: #F4F6F9; --surface: #FFFFFF; --surface2: #EDF1F6; --ink: #15202B; --muted: #5A6776; --faint: #8592A1;
+  --bg: #F3F5F8; --surface: #FFFFFF; --surface2: #EDF1F6; --ink: #15202B; --muted: #5A6776; --faint: #8592A1;
   --line: #D9E0E8; --line2: #E5EAF0;
   --accent: #33408F; --accent-ink: #FFFFFF; --accent-soft: #E6E9F7; --eosin: #B83A6B; --eosin-soft: #F8E4EC;
   --good: #1D7448; --good-soft: #E1F2E8; --info: #385C86; --info-soft: #E4ECF6; --bad: #B0301D; --bad-soft: #FBE6E1;
@@ -35,7 +35,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --bg: #0F151C; --surface: #161E27; --surface2: #1D2733; --ink: #E6ECF2; --muted: #9AA8B8; --faint: #6E7C8C;
+    --bg: #11151B; --surface: #161E27; --surface2: #1D2733; --ink: #E6ECF2; --muted: #9AA8B8; --faint: #6E7C8C;
     --line: #2A3644; --line2: #24303D;
     --accent: #9AA7F0; --accent-ink: #0F151C; --accent-soft: #242C52; --eosin: #EE86AC; --eosin-soft: #3A1F2C;
     --good: #6FD39C; --good-soft: #17352A; --info: #8FB4E3; --info-soft: #1B2A3D; --bad: #F28A78; --bad-soft: #3A1D1A;
@@ -56,7 +56,7 @@
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0F151C; --surface: #161E27; --surface2: #1D2733; --ink: #E6ECF2; --muted: #9AA8B8; --faint: #6E7C8C;
+  --bg: #11151B; --surface: #161E27; --surface2: #1D2733; --ink: #E6ECF2; --muted: #9AA8B8; --faint: #6E7C8C;
   --line: #2A3644; --line2: #24303D;
   --accent: #9AA7F0; --accent-ink: #0F151C; --accent-soft: #242C52; --eosin: #EE86AC; --eosin-soft: #3A1F2C;
   --good: #6FD39C; --good-soft: #17352A; --info: #8FB4E3; --info-soft: #1B2A3D; --bad: #F28A78; --bad-soft: #3A1D1A;
@@ -81,10 +81,6 @@ html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 14px; line-height: 1.55;
   -webkit-font-smoothing: antialiased;
-}
-body::before {
-  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background: radial-gradient(52vw 46vh at 6% -4%, var(--g1), transparent 70%), radial-gradient(44vw 42vh at 100% 18%, var(--g2), transparent 70%), radial-gradient(56vw 50vh at 38% 104%, var(--g3), transparent 70%);
 }
 .safeband { position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); background: var(--bg); z-index: 60; }
 html.lock, html.lock body { overflow: hidden; }
@@ -152,6 +148,36 @@ mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1
 .search:focus { border-color: var(--accent); box-shadow: inset 0 1px 0 var(--spec), 0 0 0 3px var(--accent-soft), 0 10px 30px -12px rgba(10, 20, 45, .35); }
 .sclear { position: absolute; right: 7px; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); display: grid; place-items: center; padding: 0; }
 .sclear svg { width: 16px; height: 16px; }
+/* 검색창 오른쪽 필터 버튼과 적용된 필터 */
+.fbtn { position: relative; flex: 0 0 auto; width: 46px; height: 46px; border-radius: 999px; border: 1px solid var(--edge); background: var(--surface); color: var(--ink);
+  display: grid; place-items: center; padding: 0; box-shadow: var(--sh1); }
+.fbtn svg { width: 20px; height: 20px; }
+.fbtn.on { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: var(--accent-soft); }
+.fbtn.open { border-color: var(--accent); }
+.fbtn .fb-n { position: absolute; top: -3px; right: -3px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--accent); color: var(--accent-ink);
+  font: 600 11px/18px var(--f-mono); text-align: center; }
+.afilters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.af { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 8px 0 11px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  background: var(--accent-soft); color: var(--accent); font-size: 12.5px; font-weight: 600; }
+.af svg { width: 13px; height: 13px; opacity: .8; }
+.afilters .linkbtn { height: 28px; }
+.fp-panel { padding: 4px 14px 12px; }
+.fp-sec { padding: 10px 0 4px; }
+.fp-h { font-size: 11.5px; font-weight: 600; color: var(--muted); letter-spacing: .02em; margin-bottom: 8px; }
+.fp-opts { display: flex; flex-wrap: wrap; gap: 6px; }
+.fp-opts.grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.fo { height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 13px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+.fo .n { font: 11px var(--f-mono); color: var(--muted); }
+.fo[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.fo[aria-pressed="true"] .n { color: inherit; opacity: .85; }
+.fo:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fp-row { display: flex; }
+.fp-foot { position: sticky; bottom: 0; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 0 2px; margin-top: 8px;
+  border-top: 1px solid var(--line2); background: var(--surface); }
+.fp-done { height: 40px; padding: 0 18px; border-radius: 999px; border: 0; background: var(--accent); color: var(--accent-ink); font-size: 14px; font-weight: 600; }
+.sheet-mode .fp-panel { padding: 0 16px calc(12px + env(safe-area-inset-bottom, 0px)); }
+.sheet-mode .fo { height: 40px; font-size: 14px; }
 .crow { display: flex; gap: 8px 10px; align-items: center; flex-wrap: wrap; min-width: 0; }
 .chips { position: relative; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 1px 1px 2px; min-width: 0; flex: 1 1 auto; }
 .chips::-webkit-scrollbar { display: none; }
