@@ -147,15 +147,15 @@
   }
 
   // 확정가가 희망 밴드의 어디에 놓였는지 (밴드가 없거나 단일 희망가면 판단하지 않음)
-  var POS = ["상단 초과", "상단", "밴드 내", "하단", "하단 미달"];
-  var POS_KEY = { "상단 초과": "over", "상단": "top", "밴드 내": "in", "하단": "low", "하단 미달": "under" };
-  var POS_MARK = { "상단 초과": "▲▲", "상단": "▲", "밴드 내": "●", "하단": "▼", "하단 미달": "▼▼" };
+  var POS = ["초과", "상단", "밴드 내", "하단", "미달"];
+  var POS_KEY = { "초과": "over", "상단": "top", "밴드 내": "in", "하단": "low", "미달": "under" };
+  var POS_MARK = { "초과": "▲▲", "상단": "▲", "밴드 내": "●", "하단": "▼", "미달": "▼▼" };
   function position(d) {
     var lo = d.offer_price_low, hi = d.offer_price_high, f = d.final_price;
     if (!f || !lo || lo === hi) return null;
-    if (f > hi) return "상단 초과";
+    if (f > hi) return "초과";
     if (f === hi) return "상단";
-    if (f < lo) return "하단 미달";
+    if (f < lo) return "미달";
     if (f === lo) return "하단";
     return "밴드 내";
   }
@@ -965,7 +965,7 @@
     // ---- KPI
     var totalAmt = deals.reduce(function (s, d) { return s + (d.offer_amount || 0); }, 0) / 1e8;
     var posD = deals.filter(function (d) { return position(d); });
-    var upper = posD.filter(function (d) { var p = position(d); return p === "상단" || p === "상단 초과"; }).length;
+    var upper = posD.filter(function (d) { var p = position(d); return p === "상단" || p === "초과"; }).length;
     var kq = deals.filter(function (d) { return !isSpac(d) && (d.board === "KOSDAQ" || d.board === "KOSDAQ_TECH"); });
     var techN = kq.filter(function (d) { return d.board === "KOSDAQ_TECH"; }).length;
     var instMed = median(deals.filter(function (d) { return !isSpac(d); }).map(function (d) { return d.inst_demand_ratio; }));
@@ -1023,7 +1023,7 @@
         var ds = byK[i], c = {};
         STAT_SERIES.forEach(function (s) { c[s.key] = 0; });
         ds.forEach(function (d) { c[seriesOf(d)]++; });
-        var pd = ds.filter(function (d) { return position(d); }), up = pd.filter(function (d) { var p = position(d); return p === "상단" || p === "상단 초과"; }).length;
+        var pd = ds.filter(function (d) { return position(d); }), up = pd.filter(function (d) { var p = position(d); return p === "상단" || p === "초과"; }).length;
         var ns = ds.filter(function (d) { return !isSpac(d); });
         var im = median(ns.map(function (d) { return d.inst_demand_ratio; })), rm = median(ns.map(function (d) { return d.retail_ratio; }));
         return [unitTitle(k, unit), String(ds.length), String(c.KOSPI), String(c.KOSDAQ), String(c.KOSDAQ_TECH)].concat(state.spac ? [String(c.SPAC)] : [])
@@ -1108,7 +1108,7 @@
     var gmax = Math.max.apply(null, gkeys.map(function (g) { return grp[g].length; }).concat([1]));
     var gradeRows = gkeys.map(function (g) {
       var ds = grp[g], im = median(ds.map(function (d) { return d.inst_demand_ratio; })), rm = median(ds.map(function (d) { return d.retail_ratio; }));
-      var pd = ds.filter(function (d) { return position(d); }), up = pd.filter(function (d) { var p = position(d); return p === "상단" || p === "상단 초과"; }).length;
+      var pd = ds.filter(function (d) { return position(d); }), up = pd.filter(function (d) { var p = position(d); return p === "상단" || p === "초과"; }).length;
       return '<tr><td><span class="gtag">' + esc(g) + '</span></td><td class="num">' + ds.length + '</td><td class="bar-cell"><div class="hbar t" style="width:' + (ds.length / gmax * 100).toFixed(1) + '%"></div></td><td class="num">' +
         (im != null ? ratio(im, 0) : "-") + '</td><td class="num">' + (rm != null ? ratio(rm, 0) : "-") + '</td><td class="num">' + (pd.length ? Math.round(up / pd.length * 100) + "%" : "-") + "</td></tr>";
     }).join("");
@@ -1116,7 +1116,7 @@
     tech.forEach(function (d) { var r = d.tech_track || "기타"; routes[r] = (routes[r] || 0) + 1; });
     var nonTechKq = deals.filter(function (d) { return d.board === "KOSDAQ" && !isSpac(d); });
     var cmp = [["기술특례", tech], ["코스닥 일반", nonTechKq]].map(function (r) {
-      var ds = r[1], pd = ds.filter(function (d) { return position(d); }), up = pd.filter(function (d) { var p = position(d); return p === "상단" || p === "상단 초과"; }).length;
+      var ds = r[1], pd = ds.filter(function (d) { return position(d); }), up = pd.filter(function (d) { var p = position(d); return p === "상단" || p === "초과"; }).length;
       return '<div><span class="k">' + r[0] + '</span><span class="v">' + (median(ds.map(function (d) { return d.inst_demand_ratio; })) != null ? int(Math.round(median(ds.map(function (d) { return d.inst_demand_ratio; })))) + "<small>:1</small>" : "-") +
         '</span><span class="s">상단 이상 ' + (pd.length ? Math.round(up / pd.length * 100) + "%" : "-") + " · 공모액 중앙값 " + (median(ds.map(function (d) { return d.offer_amount; })) != null ? jo(median(ds.map(function (d) { return d.offer_amount; })) / 1e8) : "-") + "</span></div>";
     }).join("");
