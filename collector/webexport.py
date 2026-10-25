@@ -97,6 +97,29 @@ def _lockup_view(x: dict) -> dict | None:
             "src_float": x.get("src_float"), "src_commit": x.get("src_commit")}
 
 
+FIN_ITEMS = ("revenue", "op_income", "net_income", "assets", "liabilities", "equity")
+
+
+def _fin_view(x: dict) -> dict | None:
+    """앱에 내보낼 요약재무: 금액은 백만원 정수, 같은 기간 중복 열은 하나만. 자산=부채+자본이 맞지 않으면 내보내지 않음."""
+    if not x or not x.get("periods") or x.get("check") is False:
+        return None
+    seen, idx = set(), []
+    for i, p in enumerate(x["periods"]):
+        if p not in seen and p != "?":
+            seen.add(p)
+            idx.append(i)
+    out = {"basis": x.get("basis"), "periods": [x["periods"][i] for i in idx],
+           "q": [x.get("q", [None] * len(x["periods"]))[i] for i in idx], "src": x.get("src")}
+    n = 0
+    for k in FIN_ITEMS:
+        vs = x.get(k)
+        if vs:
+            out[k] = [None if vs[i] is None else round(vs[i] / 1e6) for i in idx]
+            n += 1
+    return out if n >= 3 else None
+
+
 def build_payload(conn) -> dict:
     deals = _rows(conn, f"SELECT {','.join('d.' + f for f in DEAL_FIELDS)}, "
                         "COALESCE(c.corp_name, f.corp_name) AS corp_name, c.corp_cls, c.stock_code, "
@@ -157,6 +180,8 @@ def build_payload(conn) -> dict:
         d["correction_order"] = bool(rv and rv["correction_order"])
         lk = conn.execute("SELECT data FROM deal_lockup WHERE deal_id=?", (d["deal_id"],)).fetchone()
         d["lockup"] = _lockup_view(json.loads(lk["data"])) if lk and lk["data"] else None
+        fn = conn.execute("SELECT data FROM deal_fin WHERE deal_id=?", (d["deal_id"],)).fetchone()
+        d["fin"] = _fin_view(json.loads(fn["data"])) if fn and fn["data"] else None
 
     # KIND 예비심사: DART 딜에 예심 청구·승인일을 붙이고, 승인 후 아직 신고서가 없는 회사를 따로 담습니다.
     from datetime import date as _date

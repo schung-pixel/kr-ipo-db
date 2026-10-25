@@ -201,6 +201,17 @@ CREATE TABLE IF NOT EXISTS deal_lockup (
     fetched_at     TEXT
 );
 
+-- 증권신고서·투자설명서 '요약재무정보'의 핵심 재무 수치(매출액·영업이익·당기순이익·자산·부채·자본)
+CREATE TABLE IF NOT EXISTS deal_fin (
+    deal_id        TEXT PRIMARY KEY,
+    corp_code      TEXT,
+    data           TEXT,       -- JSON: basis, unit, periods, years, q, revenue.. equity(원), check, src
+    tried          TEXT,       -- 시도한 접수번호(JSON 배열)
+    status         TEXT,
+    parser_version INTEGER,
+    fetched_at     TEXT
+);
+
 CREATE TABLE IF NOT EXISTS kind_corp (
   name_key    TEXT PRIMARY KEY,
   corp_name   TEXT,

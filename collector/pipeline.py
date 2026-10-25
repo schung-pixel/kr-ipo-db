@@ -5,7 +5,7 @@ import os
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from . import doctext, lockup, store
+from . import doctext, financials, lockup, store
 from .dart import FATAL_STATUS, DartError, DartQuotaExceeded
 from .parse import windows
 
@@ -121,6 +121,78 @@ def _collect_lockups(client, conn, now, stats, log, workers, budget):
         store.save_deal_lockup(conn, deal_id, corp, data or {"status": "not_found"}, list(tried), now)
         conn.commit()
         stats["lockups"] += 1
+    pf.close()
+    return budget
+
+
+def fin_rows(client, rcept_no: str) -> str:
+    """요약재무정보용 행 보존 텍스트. 2019년 이전 원문(014)은 공시 뷰어에서 '요약재무정보' 목차만 받습니다."""
+    try:
+        return lockup.rows_text_from_zip(client.document(rcept_no))
+    except DartError as exc:
+        if exc.status != "014" or not hasattr(client, "viewer_html") or os.environ.get("DART_VIEWER") == "0":
+            raise
+    return lockup.rows_text(client.viewer_html(rcept_no, sections=financials.VIEWER_SECTIONS))
+
+
+def _collect_financials(client, conn, now, stats, log, workers, budget):
+    import json as _json
+    plan = store.fin_plan(conn, min_year=os.environ.get("FIN_MIN_YEAR", os.environ.get("LOCKUP_MIN_YEAR", "2020")),
+                          max_year=os.environ.get("FIN_MAX_YEAR") or None)
+    existing = {r["deal_id"]: r for r in conn.execute(
+        "SELECT deal_id, data, tried FROM deal_fin WHERE parser_version >= ?", (financials.FIN_VERSION,))}
+    first = []
+    for deal_id, _, order in plan:
+        tried = set(_json.loads(existing[deal_id]["tried"] or "[]")) if deal_id in existing else set()
+        first += [no for no in order if no not in tried][:1]
+    pf = _Prefetch(client, first[: budget if budget is not None else None], workers, ahead=workers * 3, fetch=fin_rows)
+    for deal_id, corp, order in plan:
+        if stats["quota_hit"] or (budget is not None and budget <= 0):
+            break
+        row = existing.get(deal_id)
+        data = _json.loads(row["data"]) if row and row["data"] else {}
+        tried = set(_json.loads(row["tried"] or "[]")) if row else set()
+        for no in order:
+            if no in tried:
+                continue
+            if budget is not None and budget <= 0:
+                break
+            try:
+                text = pf.document(no)
+            except DartQuotaExceeded:
+                stats["quota_hit"] = True
+                log("DART 일일 요청 한도 도달: 남은 원문은 다음 실행에서 이어서 처리합니다.")
+                break
+            except DartError as exc:
+                if exc.status in FATAL_STATUS:
+                    raise
+                tried.add(no)
+                if exc.status != "014":
+                    stats["errors"] += 1
+                    log(f"원문 조회 오류({no}): {exc}")
+                _kind(stats, "조회:" + str(getattr(exc, "status", "") or type(exc).__name__))
+                continue
+            except Exception as exc:
+                stats["errors"] += 1
+                tried.add(no)
+                log(f"원문 처리 오류({no}): {type(exc).__name__}")
+                _kind(stats, "처리:" + type(exc).__name__)
+                continue
+            tried.add(no)
+            if budget is not None:
+                budget -= 1
+            try:
+                got = financials.extract_financials(text)
+            except Exception as exc:
+                got = None
+                _kind(stats, "재무추출:" + type(exc).__name__)
+            if got:
+                got["src"] = no
+                data = got
+                break
+        store.save_deal_fin(conn, deal_id, corp, data, list(tried), now)
+        conn.commit()
+        stats["financials"] += 1
     pf.close()
     return budget
 
@@ -333,6 +405,11 @@ def collect(client, conn, bgn: date, end: date, max_corps: int | None = None,
     stats["lockups"] = 0
     if lockups and not stats["quota_hit"] and (budget is None or budget > 0):
         budget = _collect_lockups(client, conn, now, stats, log, workers, budget)
+
+    # 3-5) 증권신고서·투자설명서 '요약재무정보'의 핵심 재무 수치
+    stats["financials"] = 0
+    if lockups and not stats["quota_hit"] and (budget is None or budget > 0):
+        budget = _collect_financials(client, conn, now, stats, log, workers, budget)
 
     # 4) IPO 후보 기업 개황 (신규 또는 비상장 상태로 오래된 건만 갱신)
     candidates = [r["corp_code"] for r in conn.execute(
