@@ -66,11 +66,13 @@
   }
   function isSpac(d) { return !!d.is_spac || /기업인수목적|스팩/.test(d.corp_name || ""); }
   // 상장 구분: KOSPI / KOSDAQ / KOSDAQ_TECH (원문의 상장 경로 서술, 시장은 KIND 예심 값 우선)
-  var BOARDS = { KOSPI: "유가증권", KOSDAQ: "코스닥 일반", KOSDAQ_TECH: "코스닥 기술특례" };
+  var BOARDS = { KOSPI: "유가증권", KOSDAQ: "코스닥", KOSDAQ_TECH: "코스닥 기술특례" };
   var BOARD_SHORT = { KOSPI: "유가증권", KOSDAQ: "코스닥", KOSDAQ_TECH: "기술특례" };
+  // 시장 필터: '코스닥'은 기술특례를 포함한 코스닥 전체, '코스닥 기술특례'는 그중 기술특례만
   function boardOk(d, b) {
     if (!b) return true;
-    if (d.tech_unknown && d.board === "KOSDAQ") return b === "KOSDAQ" || b === "KOSDAQ_TECH";
+    if (b === "KOSDAQ") return d.board === "KOSDAQ" || d.board === "KOSDAQ_TECH";
+    if (d.tech_unknown && d.board === "KOSDAQ") return b === "KOSDAQ_TECH";
     return d.board === b;
   }
   // 배지: 시장(유가·코스닥)과 상장 경로(기술특례·성장성 특례·이익미실현)를 따로 붙입니다.
@@ -469,10 +471,10 @@
     return '<div class="fp-sec"><div class="fp-h">진행 상태</div><div class="fp-opts">' + st.map(function (k) { return opt2("status", k, ST_LABEL[k], counts[k]); }).join("") + "</div></div>" +
       '<div class="fp-sec"><div class="fp-h">상장 시장</div><div class="fp-opts">' + opt2("board", "", "전체") +
       Object.keys(BOARDS).map(function (k) { return opt2("board", k, BOARDS[k]); }).join("") + "</div></div>" +
-      '<div class="fp-sec"><div class="fp-h">신고 연도</div><div class="fp-opts grid">' + opt2("year", "", "전체") +
-      years().map(function (y) { return opt2("year", y, y + "년"); }).join("") + "</div></div>" +
-      '<div class="fp-sec fp-row"><label class="switch"><input type="checkbox" id="fp-spac"' + (state.spac ? " checked" : "") + ">스팩 포함</label></div>" +
-      '<div class="fp-foot"><button type="button" class="linkbtn" id="fp-reset">초기화</button>' +
+      '<div class="fp-sec"><div class="fp-h">신고 연도</div><div class="fp-opts scroll" id="fp-years">' + opt2("year", "", "전체") +
+      years().map(function (y) { return opt2("year", y, y); }).join("") + "</div></div>" +
+      '<div class="fp-foot"><label class="switch"><input type="checkbox" id="fp-spac"' + (state.spac ? " checked" : "") + ">스팩 포함</label>" +
+      '<span class="sp"></span><button type="button" class="linkbtn" id="fp-reset">초기화</button>' +
       '<button type="button" class="fp-done" id="fp-done">' + filtered().length.toLocaleString("ko-KR") + "건 보기</button></div>";
   }
   function fpBind() {
@@ -487,6 +489,8 @@
       ["status", "spac", "year", "board"].forEach(function (k) { state[k] = DEFAULTS[k]; }); persist(); fpRefresh();
     });
     o.body.querySelector("#fp-done").addEventListener("click", function () { fpClose(true); });
+    var yr = o.body.querySelector("#fp-years"), on = yr && yr.querySelector('[aria-pressed="true"]');
+    if (yr && on) yr.scrollLeft = Math.max(0, on.offsetLeft - yr.clientWidth / 2 + on.offsetWidth / 2);
   }
   function fpRefresh() {
     var o = fpOpen; if (!o) return;
@@ -513,7 +517,7 @@
     btn.setAttribute("aria-expanded", "true"); btn.classList.add("open");
     if (!mobile) {
       var r = btn.getBoundingClientRect();
-      panel.style.width = Math.min(380, window.innerWidth - 16) + "px";
+      panel.style.width = Math.min(372, window.innerWidth - 16) + "px";
       panel.style.top = (r.bottom + 6) + "px";
       panel.style.left = Math.max(8, Math.min(r.right - panel.offsetWidth, window.innerWidth - panel.offsetWidth - 8)) + "px";
       panel.style.maxHeight = Math.max(240, window.innerHeight - r.bottom - 20) + "px";
