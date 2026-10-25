@@ -60,8 +60,8 @@
     return xs.length ? xs[xs.length - 1] : null;
   }
   function refileTag(d) {
-    if (d.status === "withdrawn" && laterDeal(d)) return '<span class="tag" title="철회 후 다시 신고한 공모가 있습니다">재신고함</span>';
-    if (earlierWithdrawn(d)) return '<span class="tag" title="이전 공모를 철회한 뒤 다시 신고한 공모입니다">재신고</span>';
+    if (d.status === "withdrawn" && laterDeal(d)) return '<span class="tag b-etc" title="철회 후 다시 신고한 공모가 있습니다">재신고함</span>';
+    if (earlierWithdrawn(d)) return '<span class="tag b-etc" title="이전 공모를 철회한 뒤 다시 신고한 공모입니다">재신고</span>';
     return "";
   }
   function isSpac(d) { return !!d.is_spac || /기업인수목적|스팩/.test(d.corp_name || ""); }
@@ -506,7 +506,7 @@
     var cards = '<div class="cards">';
     rows.forEach(function (d) {
       var p = position(d);
-      var tags = boardTag(d) + (isSpac(d) ? '<span class="tag">스팩</span>' : "") + refileTag(d);
+      var tags = boardTag(d) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + refileTag(d);
       var bandCell = d.offer_price_low ? bandText(d) : (d.filed_price ? '<span class="dim" title="신고서 기재 기준가">' + int(d.filed_price) + "*</span>" : "-");
       var href = "#/deal/" + encodeURIComponent(d.deal_id);
       html += '<tr data-id="' + esc(d.deal_id) + '">' +
@@ -702,7 +702,7 @@
     for (var i = 0; i < list.length; i++) if (list[i].deal_id === id) { idx = i; break; }
     var prev = idx > 0 ? list[idx - 1] : null, next = idx >= 0 && idx < list.length - 1 ? list[idx + 1] : null;
     titleEl.textContent = name(d);
-    chipEl.innerHTML = chip(d) + boardTag(d) + (isSpac(d) ? '<span class="tag">스팩</span>' : "") + refileTag(d);
+    chipEl.innerHTML = chip(d) + boardTag(d) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + refileTag(d);
     subEl.textContent = d.status === "approved" ? "예심 승인 " + (d.first_filing_dt || "-") + (d.prelim && d.prelim.market ? " · " + d.prelim.market : "") + (d.lead_underwriters ? " · " + d.lead_underwriters : "") : (d.listing_dt ? "상장" + (d.listing_dt > asOf() ? " 예정" : "") + " " + d.listing_dt + " · " : "") + "최초 신고 " + d.first_filing_dt +
       (d.demand_start ? " · 수요예측 " + demandText(d) : "") +
       (pricingDate(d) ? " · 확정 " + pricingDate(d) : "") + " · 정정 " + (d.amendment_count || 0) + "회";
