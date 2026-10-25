@@ -646,3 +646,7 @@ details.tv summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 }
 .sheet:focus { outline: none; }
 @media (min-width: 761px) { .tl4 { max-width: 620px; } }
+/* 공모액: 확정가와 같은 무게로 */
+.card .amt { display: inline-flex; align-items: baseline; gap: 1px; color: var(--ink); font-size: 12px; font-family: var(--f-body); }
+.card .amt b { font-family: var(--f-mono); font-weight: 500; font-size: 15px; color: var(--ink); }
+.card .amt .lbl { font-size: 11px; color: var(--faint); margin-right: 5px; letter-spacing: .02em; }

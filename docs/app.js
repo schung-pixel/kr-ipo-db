@@ -606,7 +606,7 @@
       cards += '<a class="card" href="' + href + '" data-id="' + esc(d.deal_id) + '">' +
         '<div class="r1"><span class="nmw"><span class="nm">' + highlight(name(d), q) + '</span>' + (tags ? '<span class="tags">' + tags + "</span>" : "") + "</span>" + chip(d) + "</div>" +
         '<div class="r2">' + (d.listing_dt ? '상장 <span class="mono">' + esc(d.listing_dt) + "</span>" : d.demand_start && d.status !== "withdrawn" ? '수요예측 <span class="mono">' + esc(demandText(d, true)) + "</span>" : (d.status === "approved" ? "예심 승인 " : "신고 ") + '<span class="mono">' + esc(d.first_filing_dt) + "</span>") + " · " + (d.lead_underwriters ? highlight(d.lead_underwriters, q) : "주관사 미확인") + "</div>" +
-        '<div class="r3"><span class="price">' + price + '</span><span class="amt">' + (d.offer_amount != null ? eok(d.offer_amount) + "억" : "") + "</span></div>" +
+        '<div class="r3"><span class="price">' + price + '</span><span class="amt">' + (d.offer_amount != null ? '<span class="lbl">공모액</span><b>' + eok(d.offer_amount) + "</b>억" : "") + "</span></div>" +
         (d.inst_demand_ratio != null || d.retail_ratio != null
           ? '<div class="r4">' + (d.inst_demand_ratio != null ? "<span>수요예측<b>" + ratio(d.inst_demand_ratio) + "</b></span>" : "") +
             (d.retail_ratio != null ? "<span>일반청약<b>" + ratio(d.retail_ratio) + "</b></span>" : "") + "</div>" : "") + "</a>";
