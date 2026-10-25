@@ -221,7 +221,7 @@ mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1
 .lk-sched .bar .add { background: var(--accent); }
 .lk-sched .p { text-align: right; font: 600 13px var(--f-mono); display: flex; flex-direction: column; line-height: 1.25; }
 .lk-sched .p small { font-weight: 400; font-size: 11px; color: var(--muted); }
-.linkbtn { border: 0; background: none; color: var(--muted); font-size: 12.5px; text-decoration: underline; text-underline-offset: 2px; padding: 0 4px; height: 32px; }
+.linkbtn { white-space: nowrap; flex: 0 0 auto; border: 0; background: none; color: var(--muted); font-size: 12.5px; text-decoration: underline; text-underline-offset: 2px; padding: 0 4px; height: 32px; }
 
 /* 딜 원장(표·카드) */
 .ledger { background: var(--surface); border: 1px solid var(--line2); border-radius: 14px; box-shadow: var(--sh1); min-width: 0; overflow: hidden; }
@@ -255,7 +255,10 @@ table.deals { width: 100%; border-collapse: collapse; min-width: 980px; }
 .card:last-child { border-bottom: 0; }
 .card:active { background: var(--surface2); }
 .card .r1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.card .nm { font-weight: 600; font-size: 15px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card .nmw { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 6px; min-width: 0; flex: 1 1 auto; }
+.card .nm { font-weight: 600; font-size: 15px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; }
+.card .tags { display: inline-flex; flex: 0 0 auto; white-space: nowrap; }
+.card .tags .tag:first-child { margin-left: 0; }
 .card .r2 { font-size: 12px; color: var(--muted); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card .r2 .mono { font-size: 11.5px; }
 .card .r3 { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 6px; }
@@ -476,6 +479,7 @@ details.tv summary { cursor: pointer; color: var(--muted); font-size: 12px; }
   .srow { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 25; margin: 0 calc(-1 * max(16px, env(safe-area-inset-left, 0px))); padding: 6px max(16px, env(safe-area-inset-right, 0px)) 6px max(16px, env(safe-area-inset-left, 0px)); }
   .crow { flex-wrap: nowrap; flex-direction: column; align-items: stretch; }
   .chips { margin: 0 calc(-1 * max(16px, env(safe-area-inset-left, 0px))); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: 16px; }
+  .fopts { flex-wrap: wrap; row-gap: 8px; }
   .fopts .sel { flex: 1 1 auto; }
   .cards { display: flex; flex-direction: column; gap: 8px; }
   .ledger-top { padding: 2px 4px 8px; }
