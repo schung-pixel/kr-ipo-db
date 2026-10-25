@@ -156,6 +156,8 @@
     return (STATUS[d.status] || STATUS.filed).label;
   }
   function upcoming(d) { return d.status === "completed" && d.listing_dt && d.listing_dt > asOf(); }
+  // 필터용 진행 상태: 상장 완료(completed) 중 상장일이 아직 오지 않은 건은 "상장 예정"(upcoming)으로 따로 셉니다
+  function stKey(d) { return upcoming(d) ? "upcoming" : d.status; }
   function chip(d) {
     var st = typeof d === "string" ? d : d.status;
     var s = STATUS[st] || STATUS.filed;
@@ -257,7 +259,7 @@
     return data.deals.filter(function (d) {
       if (!candOk(d, state.cand)) return false;
       if (!state.spac && isSpac(d)) return false;
-      if (!ignoreStatus && state.status !== "all" && d.status !== state.status) return false;
+      if (!ignoreStatus && state.status !== "all" && stKey(d) !== state.status) return false;
       if (state.year && d.first_filing_dt.slice(0, 4) !== state.year) return false;
       if (!boardOk(d, state.board)) return false;
       if (q && findMatch(name(d), q) === -1 && findMatch((d.lead_underwriters || "") + "," + uwSet(d).join(","), q) === -1) return false;
@@ -419,7 +421,7 @@
     if (ddOpen && !ddOpen.mobile && !(e.target.closest && e.target.closest(".dd-panel"))) ddClose(false);
   }, true);
 
-  var ST_LABEL = { all: "전체", approved: "예심 승인", filed: "신고서 제출", price_fixed: "가격 확정", completed: "상장", withdrawn: "철회" };
+  var ST_LABEL = { all: "전체", approved: "예심 승인", filed: "신고서 제출", price_fixed: "가격 확정", upcoming: "상장 예정", completed: "상장 완료", withdrawn: "철회" };
   function activeFilters() {
     var a = [];
     if (state.status !== DEFAULTS.status) a.push({ k: "status", t: ST_LABEL[state.status] || state.status });
@@ -461,13 +463,13 @@
   // ---- 필터 패널: PC는 버튼 아래 팝오버, 휴대폰은 아래에서 올라오는 시트
   var fpOpen = null;
   function fpBody() {
-    var counts = { all: 0, approved: 0, filed: 0, price_fixed: 0, completed: 0, withdrawn: 0 };
-    baseRows(true).forEach(function (d) { counts.all++; counts[d.status] = (counts[d.status] || 0) + 1; });
+    var counts = { all: 0, approved: 0, filed: 0, price_fixed: 0, upcoming: 0, completed: 0, withdrawn: 0 };
+    baseRows(true).forEach(function (d) { var k = stKey(d); counts.all++; counts[k] = (counts[k] || 0) + 1; });
     var opt2 = function (k, v, label, n) {
       return '<button type="button" class="fo" data-k="' + k + '" data-v="' + esc(v) + '" aria-pressed="' + (String(state[k]) === String(v)) + '">' + esc(label) +
         (n != null ? '<span class="n">' + n + "</span>" : "") + "</button>";
     };
-    var st = ["all", "approved", "filed", "price_fixed", "completed", "withdrawn"].filter(function (k) { return k !== "approved" || counts.approved; });
+    var st = ["all", "approved", "filed", "price_fixed", "upcoming", "completed", "withdrawn"].filter(function (k) { return (k !== "approved" && k !== "upcoming") || counts[k] || state.status === k; });
     return '<div class="fp-sec"><div class="fp-h">진행 상태</div><div class="fp-opts">' + st.map(function (k) { return opt2("status", k, ST_LABEL[k], counts[k]); }).join("") + "</div></div>" +
       '<div class="fp-sec"><div class="fp-h">상장 시장</div><div class="fp-opts">' + opt2("board", "", "전체") +
       Object.keys(BOARDS).map(function (k) { return opt2("board", k, BOARDS[k]); }).join("") + "</div></div>" +
