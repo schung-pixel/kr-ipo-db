@@ -573,3 +573,25 @@ details.tv summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 }
 @media (prefers-reduced-transparency: reduce) { :root { --gk: 97% !important; --gb: 0px !important; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+
+/* ---- 크기 체계: 표시용 배지(읽기 전용)와 조작용 칩(누르는 것) 두 단계로 통일 ---- */
+:root { --badge-h: 20px; --badge-fs: 11.5px; --ctl-h: 32px; --ctl-fs: 13px; }
+@media (max-width: 760px) { :root { --ctl-h: 36px; } }
+/* 표시용: 상태 칩·가격 칩·시장/경로 배지 */
+.chip, .tag, .pill { box-sizing: border-box; height: var(--badge-h); line-height: calc(var(--badge-h) - 2px); font-size: var(--badge-fs); border: 1px solid transparent; vertical-align: middle; }
+.chip, .pill { font-weight: 600; }
+.tag { font-weight: 500; display: inline-flex; align-items: center; }
+.chip.approved, .tag.b-etc { line-height: calc(var(--badge-h) - 2px); }
+/* 조작용: 필터 선택지·결과 버튼·적용 필터 칩·드롭다운·스위치·단위 버튼·확대 칩 */
+.fo, .sheet-mode .fo, .fp-done, .af, .sel, .switch, .wchip, .linkbtn, .afilters .linkbtn, .fp-foot .switch, .fp-foot .linkbtn { box-sizing: border-box; height: var(--ctl-h); font-size: var(--ctl-fs); }
+.fp-opts.years .fo, .sheet-mode .fp-opts.years .fo { font-size: 12.5px; }
+.seg { padding: 3px; }
+.seg button { height: calc(var(--ctl-h) - 6px); font-size: var(--ctl-fs); }
+.tgl button { height: calc(var(--ctl-h) - 6px); }
+@media (max-width: 760px) {
+  .tgl button { height: calc(var(--ctl-h) - 6px); }
+  .sfilters .seg button { font-size: var(--ctl-fs); }
+}
+@media (max-width: 370px) {
+  .sfilters .sel.dd, .sfilters .seg button { font-size: 12.5px; }
+}
