@@ -84,7 +84,7 @@
       var single = /^단수평가/.test(d.tech_mode || "");
       var gtxt = d.tech_grades && !growth ? (single ? "단수 " + bestGrade(d.tech_grades) : d.tech_grades.replace(/\s*,\s*/g, "·")) : "";
       r += '<span class="tag b-tech" title="코스닥 기술특례 · ' + esc(d.tech_track || "") + (d.tech_mode ? " · " + esc(d.tech_mode) : "") + (d.tech_agencies ? " · " + esc(d.tech_agencies) : "") + '">' +
-        (growth ? "성장성 특례" : "기술특례") + (gtxt ? " " + esc(gtxt) : "") + "</span>";
+        (growth ? "성장성 특례" : "기술") + (gtxt ? " " + esc(gtxt) : "") + "</span>";
     }
     if (d.alt_route) r += '<span class="tag b-route" title="이익미실현(테슬라) 요건 상장">' + esc(d.alt_route) + "</span>";
     return m + r;
@@ -142,22 +142,25 @@
   }
 
   var STATUS = {
-    approved: { label: "예심 승인", icon: '<path d="M7 1.6l1.5 1.2 1.9-.2.6 1.8 1.6 1-.6 1.8.6 1.8-1.6 1-.6 1.8-1.9-.2L7 12.4l-1.5-1.2-1.9.2-.6-1.8-1.6-1 .6-1.8-.6-1.8 1.6-1 .6-1.8 1.9.2z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M4.8 7.1l1.5 1.5 2.9-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>' },
-    filed: { label: "진행 중", icon: '<circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.8"/>' },
-    price_fixed: { label: "확정", icon: '<path d="M2.5 7.4l3 3 6-6.4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>' },
-    completed: { label: "상장", icon: '<path d="M3.5 12V2.5M3.5 3h7l-1.8 2.5L10.5 8h-7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/>' },
-    withdrawn: { label: "철회", icon: '<path d="M3 3l8 8M11 3l-8 8" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>' }
+    approved: { label: "예심 승인", tip: "상장예비심사 승인을 받았고 증권신고서는 아직 내지 않은 단계", icon: '<path d="M7 1.6l1.5 1.2 1.9-.2.6 1.8 1.6 1-.6 1.8.6 1.8-1.6 1-.6 1.8-1.9-.2L7 12.4l-1.5-1.2-1.9.2-.6-1.8-1.6-1 .6-1.8-.6-1.8 1.6-1 .6-1.8 1.9.2z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M4.8 7.1l1.5 1.5 2.9-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>' },
+    filed: { label: "신고서 제출", tip: "증권신고서를 냈고 공모가는 아직 정해지지 않은 단계(수요예측 전·중)", icon: '<circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.8"/>' },
+    price_fixed: { label: "공모가 확정", tip: "발행조건확정 신고서로 공모가가 정해졌고 증권발행실적보고서는 아직인 단계(청약·납입)", icon: '<path d="M2.5 7.4l3 3 6-6.4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>' },
+    completed: { label: "상장 완료", tip: "증권발행실적보고서 제출 후 상장일이 지난 공모", icon: '<path d="M3.5 12V2.5M3.5 3h7l-1.8 2.5L10.5 8h-7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/>' },
+    withdrawn: { label: "철회", tip: "철회신고서를 낸 공모", icon: '<path d="M3 3l8 8M11 3l-8 8" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>' }
   };
   function asOf() { return (data && data.last_list_date) || new Date().toISOString().slice(0, 10); }
   function statusLabel(d) {
-    if (d.status === "completed") return d.listing_dt && d.listing_dt > asOf() ? "상장 예정" : "상장";
+    if (d.status === "completed") return upcoming(d) ? "상장 예정" : "상장 완료";
     return (STATUS[d.status] || STATUS.filed).label;
   }
+  function upcoming(d) { return d.status === "completed" && d.listing_dt && d.listing_dt > asOf(); }
   function chip(d) {
     var st = typeof d === "string" ? d : d.status;
     var s = STATUS[st] || STATUS.filed;
     var label = typeof d === "string" ? s.label : statusLabel(d);
-    return '<span class="chip ' + esc(st) + '"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">' + s.icon + "</svg>" + label + "</span>";
+    var up = typeof d !== "string" && upcoming(d);
+    var tip = up ? "증권발행실적보고서를 냈고 상장일(" + d.listing_dt + ")이 아직 오지 않은 공모" : s.tip;
+    return '<span class="chip ' + esc(st) + (up ? " upcoming" : "") + '" title="' + esc(tip || "") + '"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">' + s.icon + "</svg>" + label + "</span>";
   }
   function ratio(v, digits) {
     if (v == null) return null;
@@ -430,7 +433,7 @@
       '<button type="button" class="sclear" id="f-clear" aria-label="검색어 지우기"' + (state.q ? "" : " hidden") + '><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>' +
       "</div></div>" +
       '<div class="crow"><div class="chips" id="chips" role="group" aria-label="진행 상태"><span class="ind" aria-hidden="true"></span>' +
-      chipBtn("all", "전체") + (counts.approved ? chipBtn("approved", "예심 승인") : "") + chipBtn("filed", "진행 중") + chipBtn("price_fixed", "확정") + chipBtn("completed", "상장") + chipBtn("withdrawn", "철회") + "</div>" +
+      chipBtn("all", "전체") + (counts.approved ? chipBtn("approved", "예심 승인") : "") + chipBtn("filed", "신고서 제출") + chipBtn("price_fixed", "공모가 확정") + chipBtn("completed", "상장") + chipBtn("withdrawn", "철회") + "</div>" +
       '<div class="fopts"><label class="switch"><input type="checkbox" id="f-spac"' + (state.spac ? " checked" : "") + '>스팩 포함</label>' +
       boardSelect("f-board") +
       '<select class="sel" id="f-year" aria-label="신고 연도" data-def="">' + opt("", "전체 연도", state.year) + '<optgroup label="" data-grid="1">' + ys.map(function (y) { return opt(y, y + "년 신고", state.year); }).join("") + "</optgroup></select>" +
