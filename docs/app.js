@@ -102,7 +102,7 @@
   function boardText(d) {
     if (!d.board) return "-";
     var t = BOARDS[d.board];
-    if (d.board === "KOSDAQ_TECH" && d.tech_track) t += " (" + d.tech_track + (d.tech_grades ? " " + d.tech_grades.replace(/\s*,\s*/g, "·") : "") + ")";
+    if (d.board === "KOSDAQ_TECH" && d.tech_track) t += " (" + d.tech_track + (d.tech_grades ? " " + (/^단수평가/.test(d.tech_mode || "") ? "단수 " + bestGrade(d.tech_grades) : d.tech_grades.replace(/\s*,\s*/g, "·")) : "") + ")";
     if (d.board === "KOSDAQ" && d.alt_route) t += " (" + d.alt_route + " 요건)";
     if (d.tech_unknown && d.board === "KOSDAQ") t = "코스닥 (기술특례 여부 미확인)";
     return t;
