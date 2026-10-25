@@ -655,3 +655,12 @@ details.tv summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 .card .r1 { align-items: flex-start; }
 .card .r1 > .chip { margin-top: 1px; flex: none; }
 .fp-h small { font-size: 11px; font-weight: 400; color: var(--faint); margin-left: 6px; letter-spacing: 0; }
+/* 재무 요약 표 */
+.mini.fin { table-layout: fixed; }
+.mini.fin th:first-child, .mini.fin td:first-child { width: 74px; white-space: nowrap; color: var(--muted); font-size: 12.5px; }
+.mini.fin th.num, .mini.fin td.num { padding-left: 6px; }
+.mini.fin td.num { font-size: 13px; }
+.mini.fin tr:nth-child(3) td { border-bottom-color: var(--line); }
+.mini.fin .neg { color: var(--ink); }
+.mini.fin .neg::before { content: ""; }
+@media (max-width: 370px) { .mini.fin td.num { font-size: 12px; } .mini.fin th:first-child, .mini.fin td:first-child { width: 64px; } }

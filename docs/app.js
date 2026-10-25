@@ -746,6 +746,34 @@
       (src.length ? " 출처: " + src.join(" · ") : "") + "</p>";
     return section("유통물량·보호예수", h, true);
   }
+  // 재무 요약: 증권신고서·투자설명서 '요약재무정보'(백만원 → 억원). 가장 최근 분·반기 1개 + 연간 최대 3개
+  var FIN_ROWS = [["revenue", "매출액"], ["op_income", "영업이익"], ["net_income", "당기순이익"],
+    ["assets", "자산총계"], ["liabilities", "부채총계"], ["equity", "자본총계"]];
+  function finNum(v) {
+    if (v == null) return '<span class="dim">-</span>';
+    var e = v / 100, a = Math.abs(e);
+    var t = a >= 100 || a === 0 ? Math.round(e).toLocaleString("ko-KR") : e.toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    return e < 0 ? '<span class="neg">' + t + "</span>" : t;
+  }
+  function finBlock(d) {
+    var F = d.fin;
+    if (!F || !F.periods || !F.periods.length) return "";
+    var idx = [], annual = 0;
+    F.periods.forEach(function (p, i) {
+      var part = F.q && F.q[i];
+      if (part ? i === 0 : annual < 3) { idx.push(i); if (!part) annual++; }
+    });
+    var rows = FIN_ROWS.filter(function (r) { return F[r[0]]; }).map(function (r) {
+      return [r[1]].concat(idx.map(function (i) { return finNum(F[r[0]][i]); }));
+    });
+    var head = ["억원"].concat(idx.map(function (i) { return esc(F.periods[i]); }));
+    var nums = idx.map(function (_, j) { return j + 1; });
+    var h = table(head, rows, nums, "fin") +
+      '<p class="snote">' + esc(F.basis || "별도") + " 기준 · 증권신고서 요약재무정보" +
+      (F.q && F.q[idx[0]] ? " · 분·반기는 해당 연도 누적" : "") +
+      (F.src ? " · 출처 " + dartLink(F.src) : "") + "</p>";
+    return section("재무 요약", h, true);
+  }
   function dartLink(no, text) {
     return '<a href="' + DART_VIEW + esc(no) + '" target="_blank" rel="noopener noreferrer">' + esc(text || no) + "</a>";
   }
@@ -887,6 +915,7 @@
       term("대표주관", '<span style="font-family:var(--f-body);font-size:14.5px;font-weight:600">' + esc(d.lead_underwriters || "-") + "</span>", d.co_underwriters ? "공동 " + esc(d.co_underwriters) : "") +
       "</div>";
     html += '<div id="bandviz-slot"></div>';
+    html += finBlock(d);
     html += lockupBlock(d);
 
     html += section("일정·기타", '<dl class="kv">' +

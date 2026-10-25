@@ -205,6 +205,8 @@ def build_payload(conn) -> dict:
             # 합병 뒤 사명이 바뀐 스팩: 공모가가 밴드 없이 2,000원(일부 10,000원) 단일가
             d.get("offer_price_low") in (2000, 10000) and d.get("offer_price_low") == d.get("offer_price_high"))
         if d["is_spac"]:
+            d["fin"] = None     # 스팩의 설립일·제출 전일 재무는 의미가 없어 싣지 않습니다
+        if d["is_spac"]:
             biz = None
         ci = kind.corp_info(conn, d.get("corp_name") or "")
         sm = None if d["is_spac"] else summaries.get(d.get("corp_code") or "")
