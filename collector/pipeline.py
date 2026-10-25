@@ -140,7 +140,7 @@ def _collect_financials(client, conn, now, stats, log, workers, budget):
     plan = store.fin_plan(conn, min_year=os.environ.get("FIN_MIN_YEAR", os.environ.get("LOCKUP_MIN_YEAR", "2020")),
                           max_year=os.environ.get("FIN_MAX_YEAR") or None)
     existing = {r["deal_id"]: r for r in conn.execute(
-        "SELECT deal_id, data, tried FROM deal_fin WHERE parser_version >= ?", (financials.FIN_VERSION,))}
+        "SELECT deal_id, data, tried FROM deal_fin WHERE parser_version >= ? OR status = 'ok'", (financials.FIN_VERSION,))}
     first = []
     for deal_id, _, order in plan:
         tried = set(_json.loads(existing[deal_id]["tried"] or "[]")) if deal_id in existing else set()

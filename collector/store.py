@@ -633,9 +633,10 @@ def fin_plan(conn, min_year: str = "2020", max_year: str | None = None) -> list:
         if not order:
             continue
         d = done.get(deal_id)
-        if d and (d["parser_version"] or 0) >= FIN_VERSION:
+        data = _json.loads(d["data"] or "{}") if d else {}
+        # 이미 읽은 딜은 규칙 버전이 올라도 다시 받지 않고(새 원문이 나올 때만), 못 읽은 딜만 새 규칙으로 다시 봅니다
+        if d and ((d["parser_version"] or 0) >= FIN_VERSION or data.get("periods")):
             tried = set(_json.loads(d["tried"] or "[]"))
-            data = _json.loads(d["data"] or "{}")
             if data.get("periods"):
                 if data.get("src") == order[0] or order[0] in tried:
                     continue

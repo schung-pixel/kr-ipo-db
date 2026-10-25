@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 
-FIN_VERSION = 1
+FIN_VERSION = 2
 VIEWER_SECTIONS = ("요약재무정보",)
 ITEMS = ("revenue", "op_income", "net_income", "assets", "liabilities", "equity")
 
@@ -87,8 +87,12 @@ def _data_row(cells: list[str], n: int | None):
         vals = vals[-n:]
     elif len(vals) < 2:
         return None
-    label = " ".join(c for c in cells[: len(cells) - len(vals)] if c)
+    lab_cells = [c for c in cells[: len(cells) - len(vals)] if c]
+    label = " ".join(lab_cells)
     if not label:
+        return None
+    # '감사의견 | 적정 | - | -' 처럼 글자 칸 뒤에 '-'만 이어지는 행은 데이터가 아님
+    if len(lab_cells) > 1 and all(_DASH.match(c.strip()) for c in cells[len(cells) - len(vals):]):
         return None
     return label, vals
 
@@ -245,12 +249,19 @@ def extract_financials(text: str) -> dict | None:
     lines = text.split("\n")
     start = None
     for i, l in enumerate(lines):
-        if _SECTION.search(l) and re.search(r"요약\s*(?:연결\s*)?재무", l):
+        if re.search(r"(?:Ⅲ|III)\s*\.?\s*재무에\s*관한\s*사항\s*1\s*\.\s*요약\s*(?:연결\s*)?재무", l):
             start = i
             break
     if start is None:
         for i, l in enumerate(lines):
             if re.match(r"^\s*1\s*\.\s*요약\s*(?:연결\s*)?재무\s*정보", l) and len(l) < 60:
+                start = i
+                break
+    if start is None:
+        # '요약재무정보' 제목 없이 'III. 재무에 관한 사항' 아래에 바로 표가 오는 서식
+        for i, l in enumerate(lines):
+            if len(l) < 30 and _SECTION.search(l) and any(
+                    "|" in x and re.search(r"자\s*산\s*총\s*계", x) for x in lines[i + 1:i + 60]):
                 start = i
                 break
     if start is None:
