@@ -471,7 +471,7 @@
     return '<div class="fp-sec"><div class="fp-h">진행 상태</div><div class="fp-opts">' + st.map(function (k) { return opt2("status", k, ST_LABEL[k], counts[k]); }).join("") + "</div></div>" +
       '<div class="fp-sec"><div class="fp-h">상장 시장</div><div class="fp-opts">' + opt2("board", "", "전체") +
       Object.keys(BOARDS).map(function (k) { return opt2("board", k, BOARDS[k]); }).join("") + "</div></div>" +
-      '<div class="fp-sec"><div class="fp-h">신고 연도</div><div class="fp-opts scroll" id="fp-years">' + opt2("year", "", "전체") +
+      '<div class="fp-sec"><div class="fp-h">신고 연도</div><div class="fp-opts years" id="fp-years">' + opt2("year", "", "전체") +
       years().map(function (y) { return opt2("year", y, y); }).join("") + "</div></div>" +
       '<div class="fp-foot"><label class="switch"><input type="checkbox" id="fp-spac"' + (state.spac ? " checked" : "") + ">스팩 포함</label>" +
       '<span class="sp"></span><button type="button" class="linkbtn" id="fp-reset">초기화</button>' +
@@ -489,8 +489,6 @@
       ["status", "spac", "year", "board"].forEach(function (k) { state[k] = DEFAULTS[k]; }); persist(); fpRefresh();
     });
     o.body.querySelector("#fp-done").addEventListener("click", function () { fpClose(true); });
-    var yr = o.body.querySelector("#fp-years"), on = yr && yr.querySelector('[aria-pressed="true"]');
-    if (yr && on) yr.scrollLeft = Math.max(0, on.offsetLeft - yr.clientWidth / 2 + on.offsetWidth / 2);
   }
   function fpRefresh() {
     var o = fpOpen; if (!o) return;

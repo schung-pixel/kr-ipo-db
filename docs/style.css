@@ -165,8 +165,9 @@ mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1
 .fp-sec { padding: 8px 0 2px; }
 .fp-h { font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: .02em; margin-bottom: 6px; }
 .fp-opts { display: flex; flex-wrap: wrap; gap: 5px; }
-.fp-opts.scroll { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -12px; padding: 0 12px 2px; scroll-padding-inline: 12px; }
-.fp-opts.scroll::-webkit-scrollbar { display: none; }
+/* 신고 연도: 가로 스크롤 없이 한 번에(7칸 격자) */
+.fp-opts.years { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }
+.fp-opts.years .fo { padding: 0 2px; min-width: 0; font-size: 12px; }
 .fo { flex: 0 0 auto; height: 30px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 12.5px;
   display: inline-flex; align-items: center; justify-content: center; gap: 4px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .fo .n { font: 10.5px var(--f-mono); color: var(--muted); }
@@ -183,7 +184,7 @@ mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1
 .sheet-mode .fp-panel .dd-top .grab { margin-bottom: 6px; }
 .sheet-mode .fp-panel .dd-top b { font-size: 14px; }
 .sheet-mode .fo { height: 34px; font-size: 13.5px; padding: 0 12px; }
-.sheet-mode .fp-opts.scroll { margin: 0 -16px; padding: 0 16px 2px; }
+.sheet-mode .fp-opts.years .fo { font-size: 12.5px; padding: 0 2px; }
 .crow { display: flex; gap: 8px 10px; align-items: center; flex-wrap: wrap; min-width: 0; }
 .chips { position: relative; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 1px 1px 2px; min-width: 0; flex: 1 1 auto; }
 .chips::-webkit-scrollbar { display: none; }
