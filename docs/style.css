@@ -283,6 +283,7 @@ table.deals { width: 100%; border-collapse: collapse; min-width: 980px; }
 .tag.b-ks { background: var(--accent-soft); color: var(--accent); }
 .tag.b-tech { background: var(--warn-soft); color: var(--warn); }
 .tag.b-kq { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); }
+.tag.b-route { background: var(--eosin-soft); color: var(--eosin); }
 .pill { display: inline-flex; align-items: center; gap: 3px; padding: 0 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; line-height: 20px; white-space: nowrap; font-family: var(--f-body); }
 .pill .m { font-size: 8.5px; letter-spacing: -1px; }
 .pill.p-over { background: var(--pill-over-bg); color: var(--pill-over-fg); }

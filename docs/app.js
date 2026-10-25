@@ -73,13 +73,19 @@
     if (d.tech_unknown && d.board === "KOSDAQ") return b === "KOSDAQ" || b === "KOSDAQ_TECH";
     return d.board === b;
   }
+  // 배지: 시장(유가·코스닥)과 상장 경로(기술특례·성장성 특례·이익미실현)를 따로 붙입니다.
   function boardTag(d) {
-    if (isSpac(d)) return "";
-    if (d.board === "KOSPI") return '<span class="tag b-ks">유가</span>';
-    if (d.board === "KOSDAQ_TECH") return '<span class="tag b-tech" title="코스닥 기술특례 · ' + esc(d.tech_track || "") + (d.tech_agencies ? " · " + esc(d.tech_agencies) : "") + '">기술특례' +
-      (d.tech_grades ? " " + esc(d.tech_grades.replace(/\s*,\s*/g, "·")) : d.tech_track === "성장성 추천" ? " 성장성" : "") + "</span>";
-    if (d.board === "KOSDAQ") return '<span class="tag b-kq"' + (d.alt_route ? ' title="이익미실현(테슬라) 요건 상장"' : "") + ">코스닥" + (d.alt_route ? " · " + esc(d.alt_route) : "") + "</span>";
-    return "";
+    var m = d.board === "KOSPI" ? '<span class="tag b-ks">유가</span>'
+      : (d.board === "KOSDAQ" || d.board === "KOSDAQ_TECH") ? '<span class="tag b-kq">코스닥</span>' : "";
+    if (isSpac(d)) return m;
+    var r = "";
+    if (d.board === "KOSDAQ_TECH") {
+      var growth = d.tech_track === "성장성 추천";
+      r += '<span class="tag b-tech" title="코스닥 기술특례 · ' + esc(d.tech_track || "") + (d.tech_agencies ? " · " + esc(d.tech_agencies) : "") + '">' +
+        (growth ? "성장성 특례" : "기술특례") + (d.tech_grades && !growth ? " " + esc(d.tech_grades.replace(/\s*,\s*/g, "·")) : "") + "</span>";
+    }
+    if (d.alt_route) r += '<span class="tag b-route" title="이익미실현(테슬라) 요건 상장">' + esc(d.alt_route) + "</span>";
+    return m + r;
   }
   function boardText(d) {
     if (!d.board) return "-";
