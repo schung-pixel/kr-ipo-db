@@ -595,3 +595,54 @@ details.tv summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 @media (max-width: 370px) {
   .sfilters .sel.dd, .sfilters .seg button { font-size: 12.5px; }
 }
+
+/* ---- UI 정돈 (v43): 헤더 한 줄, 강조색 남색 단일화, 상세 일정 막대, 휴대폰 묶음 목록 ---- */
+/* 강조색: 남색 하나로. 빨강·파랑은 가격 칩(상단·하단)에만 */
+.tag.b-ks, .tag.b-kq { background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
+.tag.b-ks { color: var(--ink); }
+.tag.b-kq { color: var(--muted); }
+.tag.b-tech { color: var(--accent); background: var(--accent-soft); }
+.tag.b-route, .tag.b-spac { color: var(--muted); background: var(--neutral-soft); box-shadow: none; }
+.terms .v.hl, .summary .v.hl { color: var(--ink); font-weight: 600; }
+.xbtn:focus:not(:focus-visible) { outline: 0; box-shadow: none; }
+/* 상세 일정: 신고 → 수요예측 → 가격 확정 → 상장 */
+.sheet-head { flex-wrap: wrap; }
+.sheet-head > div:first-child { flex: 1 1 0; }
+.tl4 { flex: 1 0 100%; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); list-style: none; margin: 4px 0 0; padding: 0; }
+.tl4 li { position: relative; text-align: center; font-size: 11px; color: var(--muted); padding-top: 15px; min-width: 0; }
+.tl4 li::before { content: ""; position: absolute; top: 3px; left: 50%; width: 9px; height: 9px; margin-left: -4.5px; border-radius: 50%; background: var(--accent); z-index: 1; }
+.tl4 li.up::before { background: var(--surface); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.tl4 li.wd::before { background: var(--muted); box-shadow: none; }
+.tl4 li::after { content: ""; position: absolute; top: 7px; left: 50%; width: 100%; height: 1.5px; background: var(--accent); opacity: .3; }
+.tl4 li:last-child::after { display: none; }
+.tl4 b { display: block; font-family: var(--f-mono); font-weight: 500; font-size: 12px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl4 li.up b { color: var(--accent); }
+.tl4 li.wd b, .tl4 li.wd span { color: var(--muted); }
+.sheet .sub { font-family: var(--f-body); }
+@media (max-width: 760px) {
+  /* 헤더: 제목·탭·테마 버튼 한 줄 */
+  .top { margin-block: 4px 2px; padding: 8px 0; gap: 10px; }
+  .brand h1 { font-size: 18px; letter-spacing: -.01em; }
+  .top .tabs { display: flex; flex: none; }
+  .top .tabs .tab { font-size: 13px; padding: 0 12px; height: 30px; }
+  .pager { display: none; }
+  .tgl { background: none; padding: 0; grid-template-columns: 1fr; }
+  .tgl::before { display: none; }
+  .tgl button[aria-pressed="true"] { display: none; }
+  .tgl button { width: 34px; height: 34px; padding: 0; border-radius: 10px; color: var(--muted); background: var(--surface); border: 1px solid var(--line2); }
+  .srow { padding-top: 4px; padding-bottom: 4px; }
+  .search { box-shadow: none; height: 42px; }
+  .fbtn { box-shadow: none; width: 42px; height: 42px; }
+  .ledger-top { padding: 6px 2px 8px; }
+  .ledger-top h2 { font-size: 13px; font-weight: 500; color: var(--muted); }
+  .ledger-top .cnt { background: none; color: var(--ink); padding: 0; font-size: 13px; }
+  .ledger-top .hint { font-size: 12px; }
+  /* 목록: 낱장 카드 대신 한 판에 구분선 */
+  .cards { gap: 0; background: var(--surface); border: 1px solid var(--line2); border-radius: 16px; overflow: hidden; box-shadow: var(--sh1); }
+  .cards .card, .cards .card:last-child { border: 0; border-bottom: 1px solid var(--line2); border-radius: 0; box-shadow: none; padding: 12px 16px; background: transparent; }
+  .cards .card:last-child { border-bottom: 0; }
+  .sheet-head { padding-bottom: 14px; }
+  .tl4 { margin-top: 10px; }
+}
+.sheet:focus { outline: none; }
+@media (min-width: 761px) { .tl4 { max-width: 620px; } }

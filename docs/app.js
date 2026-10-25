@@ -628,6 +628,14 @@
       if (tr) openDeal(tr.dataset.id);
     });
   }
+  // 시트를 열면 키보드로 연 경우에만 닫기 버튼에 초점(터치·마우스로 열면 시트 자체에 두어 초점 테두리를 띄우지 않음)
+  var kbNav = false;
+  document.addEventListener("keydown", function () { kbNav = true; }, true);
+  document.addEventListener("pointerdown", function () { kbNav = false; }, true);
+  function focusSheet() {
+    if (kbNav) document.getElementById("s-close").focus({ preventScroll: true });
+    else { sheet.setAttribute("tabindex", "-1"); sheet.focus({ preventScroll: true }); }
+  }
   function openDeal(id) { goPath("/deal/" + encodeURIComponent(id)); }
 
   // ---------------------------------------------------------------- 상세
@@ -772,7 +780,7 @@
     if (!wasOpen) { sheet.style.animation = "none"; void sheet.offsetWidth; sheet.style.animation = ""; }
     var titleEl = document.getElementById("sheet-title"), chipEl = document.getElementById("sheet-chip"), subEl = document.getElementById("sheet-sub");
     if (!d) {
-      titleEl.textContent = "공모 건을 찾을 수 없습니다"; chipEl.innerHTML = ""; subEl.textContent = "";
+      titleEl.textContent = "공모 건을 찾을 수 없습니다"; chipEl.innerHTML = ""; subEl.textContent = ""; document.getElementById("sheet-tl").hidden = true;
       sbody.innerHTML = '<p class="err">목록으로 돌아가 다시 선택해 주십시오.</p>';
       return;
     }
@@ -782,9 +790,27 @@
     var prev = idx > 0 ? list[idx - 1] : null, next = idx >= 0 && idx < list.length - 1 ? list[idx + 1] : null;
     titleEl.textContent = name(d);
     chipEl.innerHTML = chip(d) + boardTag(d) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + refileTag(d);
-    subEl.textContent = d.status === "approved" ? "예심 승인 " + (d.first_filing_dt || "-") + (d.prelim && d.prelim.market ? " · " + d.prelim.market : "") + (d.lead_underwriters ? " · " + d.lead_underwriters : "") : (d.listing_dt ? "상장" + (d.listing_dt > asOf() ? " 예정" : "") + " " + d.listing_dt + " · " : "") + "최초 신고 " + d.first_filing_dt +
-      (d.demand_start ? " · 수요예측 " + demandText(d) : "") +
-      (pricingDate(d) ? " · 확정 " + pricingDate(d) : "") + " · 정정 " + (d.amendment_count || 0) + "회";
+    var tlEl = document.getElementById("sheet-tl");
+    if (d.status === "approved") {
+      subEl.textContent = "예심 승인 " + (d.first_filing_dt || "-") + (d.prelim && d.prelim.market ? " · " + d.prelim.market : "") + (d.lead_underwriters ? " · " + d.lead_underwriters : "");
+      tlEl.hidden = true; tlEl.innerHTML = "";
+    } else {
+      // 신고 → 수요예측 → 가격 확정 → 상장(또는 철회) 4단계. 지난 단계는 채운 점, 남은 단계는 빈 점
+      var md = function (x) { return x ? x.slice(5).replace("-", ".") : "-"; };
+      var today = asOf(), wd = d.status === "withdrawn";
+      var steps = [
+        ["신고", d.first_filing_dt, md(d.first_filing_dt), d.first_filing_dt],
+        ["수요예측", d.demand_start, d.demand_start ? demandText(d, true) : "-", demandText(d)],
+        ["가격 확정", pricingDate(d), md(pricingDate(d)), pricingDate(d)],
+        wd ? ["철회", "0000", "-", "철회신고서 제출"] : ["상장", d.listing_dt, md(d.listing_dt), d.listing_dt]
+      ];
+      tlEl.innerHTML = steps.map(function (t) {
+        var done = !!t[1] && t[1].slice(0, 10) <= today;
+        return '<li class="' + (done ? "done" : "up") + (wd && t[0] === "철회" ? " wd" : "") + '"' + (t[3] ? ' title="' + esc(t[0] + " " + t[3]) + '"' : "") + "><b>" + esc(t[2]) + "</b><span>" + t[0] + "</span></li>";
+      }).join("");
+      tlEl.hidden = false;
+      subEl.textContent = (d.first_filing_dt || "").slice(0, 4) + "년 신고 · 정정 " + (d.amendment_count || 0) + "회" + (d.lead_underwriters ? " · " + d.lead_underwriters : "");
+    }
     document.getElementById("sheet-pos").textContent = idx >= 0 ? (idx + 1) + " / " + list.length : "";
     var pb = document.getElementById("s-prev"), nb = document.getElementById("s-next");
     pb.disabled = !prev; nb.disabled = !next;
@@ -804,7 +830,7 @@
         tm("승인 효력 만료(추정)", esc(exp || "-"), "승인 후 약 6개월") + "</div>" +
         '<p class="snote">출처: 한국거래소 KIND 상장예비심사 현황' + (data.kind_as_of ? " (" + esc(data.kind_as_of) + " 기준)" : "") + ". KRX의 사전 허락 없이 외부에 배포하지 마십시오.</p>";
       sbody.scrollTop = 0;
-      if (!wasOpen) document.getElementById("s-close").focus({ preventScroll: true });
+      if (!wasOpen) focusSheet();
       return;
     }
     if (d.status === "price_fixed" && !d.final_price) html += '<p class="notice warn">발행조건확정 신고서는 제출되었으나 확정가를 원문에서 자동으로 읽지 못했습니다. 공시 이력의 접수번호로 원문을 확인해 주십시오.</p>';
@@ -868,7 +894,7 @@
     var slot = document.getElementById("bandviz-slot");
     var viz = bandViz(d, slot.clientWidth - 32);
     slot.outerHTML = viz || "";
-    if (!wasOpen) document.getElementById("s-close").focus({ preventScroll: true });
+    if (!wasOpen) focusSheet();
   }
   document.getElementById("s-close").addEventListener("click", function () { goPath(baseView()); });
   shade.addEventListener("click", function () { goPath(baseView()); });
