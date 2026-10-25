@@ -259,8 +259,9 @@
     return data.deals.filter(function (d) {
       if (!candOk(d, state.cand)) return false;
       if (!state.spac && isSpac(d)) return false;
-      if (!ignoreStatus && state.status !== "all" && stKey(d) !== state.status) return false;
-      if (state.year && d.first_filing_dt.slice(0, 4) !== state.year) return false;
+      var ss = multi("status"), ys = multi("year");
+      if (!ignoreStatus && ss.length && ss.indexOf(stKey(d)) < 0) return false;
+      if (ys.length && ys.indexOf(d.first_filing_dt.slice(0, 4)) < 0) return false;
       if (!boardOk(d, state.board)) return false;
       if (q && findMatch(name(d), q) === -1 && findMatch((d.lead_underwriters || "") + "," + uwSet(d).join(","), q) === -1) return false;
       return true;
@@ -422,11 +423,32 @@
   }, true);
 
   var ST_LABEL = { all: "전체", approved: "예심 승인", filed: "신고서 제출", price_fixed: "가격 확정", upcoming: "상장 예정", completed: "상장 완료", withdrawn: "철회" };
+  // 진행 상태·신고 연도는 여러 개를 고를 수 있습니다. 값은 "filed,price_fixed"처럼 쉼표로 이은 문자열("all"·""는 전체)
+  var MULTI = { status: ["approved", "filed", "price_fixed", "upcoming", "completed", "withdrawn"] };
+  function multi(k) {
+    var v = state[k];
+    return !v || v === "all" ? [] : String(v).split(",").filter(Boolean);
+  }
+  function toggleMulti(k, v) {
+    if (!v || v === "all") { state[k] = DEFAULTS[k]; return; }
+    var cur = multi(k), i = cur.indexOf(v);
+    if (i >= 0) cur.splice(i, 1); else cur.push(v);
+    var order = MULTI[k];
+    cur.sort(order ? function (a, b) { return order.indexOf(a) - order.indexOf(b); } : function (a, b) { return b.localeCompare(a); });
+    state[k] = cur.length ? cur.join(",") : DEFAULTS[k];
+  }
+  function yearText(ys) {
+    var n = ys.map(Number).sort(function (a, b) { return a - b; });
+    if (n.length === 1) return n[0] + "년 신고";
+    var run = n.every(function (y, i) { return !i || y === n[i - 1] + 1; });
+    if (run) return n[0] + "~" + n[n.length - 1] + "년 신고";
+    return n.length <= 3 ? n.join("·") + "년 신고" : n[0] + "년 외 " + (n.length - 1) + "개 연도 신고";
+  }
   function activeFilters() {
-    var a = [];
-    if (state.status !== DEFAULTS.status) a.push({ k: "status", t: ST_LABEL[state.status] || state.status });
+    var a = [], ss = multi("status"), ys = multi("year");
+    if (ss.length) a.push({ k: "status", t: ST_LABEL[ss[0]] + (ss.length > 1 ? " 외 " + (ss.length - 1) : "") });
     if (state.board) a.push({ k: "board", t: BOARDS[state.board] });
-    if (state.year) a.push({ k: "year", t: state.year + "년 신고" });
+    if (ys.length) a.push({ k: "year", t: yearText(ys) });
     if (state.spac !== DEFAULTS.spac) a.push({ k: "spac", t: state.spac ? "스팩 포함" : "스팩 제외" });
     return a;
   }
@@ -466,14 +488,15 @@
     var counts = { all: 0, approved: 0, filed: 0, price_fixed: 0, upcoming: 0, completed: 0, withdrawn: 0 };
     baseRows(true).forEach(function (d) { var k = stKey(d); counts.all++; counts[k] = (counts[k] || 0) + 1; });
     var opt2 = function (k, v, label, n) {
-      return '<button type="button" class="fo" data-k="' + k + '" data-v="' + esc(v) + '" aria-pressed="' + (String(state[k]) === String(v)) + '">' + esc(label) +
+      var on = k === "status" || k === "year" ? (multi(k).length ? multi(k).indexOf(String(v)) >= 0 : v === "all" || v === "") : String(state[k]) === String(v);
+      return '<button type="button" class="fo" data-k="' + k + '" data-v="' + esc(v) + '" aria-pressed="' + on + '">' + esc(label) +
         (n != null ? '<span class="n">' + n + "</span>" : "") + "</button>";
     };
-    var st = ["all", "approved", "filed", "price_fixed", "upcoming", "completed", "withdrawn"].filter(function (k) { return (k !== "approved" && k !== "upcoming") || counts[k] || state.status === k; });
-    return '<div class="fp-sec"><div class="fp-h">진행 상태</div><div class="fp-opts">' + st.map(function (k) { return opt2("status", k, ST_LABEL[k], counts[k]); }).join("") + "</div></div>" +
+    var st = ["all", "approved", "filed", "price_fixed", "upcoming", "completed", "withdrawn"].filter(function (k) { return (k !== "approved" && k !== "upcoming") || counts[k] || multi("status").indexOf(k) >= 0; });
+    return '<div class="fp-sec"><div class="fp-h">진행 상태<small>여러 개 선택</small></div><div class="fp-opts">' + st.map(function (k) { return opt2("status", k, ST_LABEL[k], counts[k]); }).join("") + "</div></div>" +
       '<div class="fp-sec"><div class="fp-h">상장 시장</div><div class="fp-opts">' + opt2("board", "", "전체") +
       Object.keys(BOARDS).map(function (k) { return opt2("board", k, BOARDS[k]); }).join("") + "</div></div>" +
-      '<div class="fp-sec"><div class="fp-h">신고 연도</div><div class="fp-opts years" id="fp-years">' + opt2("year", "", "전체") +
+      '<div class="fp-sec"><div class="fp-h">신고 연도<small>여러 개 선택</small></div><div class="fp-opts years" id="fp-years">' + opt2("year", "", "전체") +
       years().map(function (y) { return opt2("year", y, y); }).join("") + "</div></div>" +
       '<div class="fp-foot"><label class="switch"><input type="checkbox" id="fp-spac"' + (state.spac ? " checked" : "") + ">스팩 포함</label>" +
       '<span class="sp"></span><button type="button" class="linkbtn" id="fp-reset">초기화</button>' +
@@ -483,7 +506,9 @@
     var o = fpOpen; if (!o) return;
     o.body.querySelectorAll(".fo").forEach(function (b) {
       b.addEventListener("click", function () {
-        state[b.dataset.k] = b.dataset.v; persist(); fpRefresh();
+        var k = b.dataset.k;
+        if (k === "status" || k === "year") toggleMulti(k, b.dataset.v); else state[k] = b.dataset.v;
+        persist(); fpRefresh();
       });
     });
     o.body.querySelector("#fp-spac").addEventListener("change", function (e) { state.spac = e.target.checked; persist(); fpRefresh(); });
