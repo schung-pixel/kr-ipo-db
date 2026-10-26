@@ -49916,6 +49916,7 @@ INSERT INTO "kind_corp" VALUES('경방','경방','000050','유가','종합 소�
 INSERT INTO "kind_corp" VALUES('유수홀딩스','유수홀딩스','000700','유가','회사 본부 및 경영 컨설팅 서비스업','지주사업','1956-03-03','2026-10-24T18:32:57+09:00');
 INSERT INTO "kind_corp" VALUES('한진중공업홀딩스','한진중공업홀딩스','003480','유가','연료용 가스 제조 및 배관공급업','지주회사','1956-03-03','2026-10-24T18:32:57+09:00');
 INSERT INTO "kind_corp" VALUES('이스트엔드','이스트엔드','0230E0','코넥스','섬유, 의복, 신발 및 가죽제품 소매업','패션잡화 및 화장품','2026-10-26','2026-10-26T03:21:37+09:00');
+INSERT INTO "kind_corp" VALUES('에스케이증권제14호기업인수목적','에스케이증권제14호기업인수목적','0205H0','코스닥','금융 지원 서비스업','기업인수목적','2026-10-27','2026-10-27T01:14:12+09:00');
 CREATE TABLE kind_review (
   review_key    TEXT PRIMARY KEY,   -- {name_key}_{청구일}
   name_key      TEXT NOT NULL,
@@ -50269,9 +50270,9 @@ CREATE TABLE meta (
   key   TEXT PRIMARY KEY,
   value TEXT
 );
-INSERT INTO "meta" VALUES('last_list_date','2026-10-26');
+INSERT INTO "meta" VALUES('last_list_date','2026-10-27');
 INSERT INTO "meta" VALUES('schema_stage','2');
-INSERT INTO "meta" VALUES('kind_as_of','2026-10-26');
+INSERT INTO "meta" VALUES('kind_as_of','2026-10-27');
 CREATE TABLE review (
   deal_id               TEXT PRIMARY KEY,
   prelim_filed_dt       TEXT,

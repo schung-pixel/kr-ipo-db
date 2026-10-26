@@ -1,11 +1,11 @@
 {
- "run_at": "2026-10-26T17:47:28+09:00",
+ "run_at": "2026-10-27T01:14:12+09:00",
  "fetch": "ok",
  "http_status": 200,
- "response_bytes": 197246,
- "rows": 334,
- "saved": 334,
- "approved": 219,
- "corp_list": 2757,
+ "response_bytes": 195419,
+ "rows": 331,
+ "saved": 331,
+ "approved": 217,
+ "corp_list": 2758,
  "manual_rows": 0
 }
