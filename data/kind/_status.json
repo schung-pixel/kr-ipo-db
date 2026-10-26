@@ -1,8 +1,8 @@
 {
- "run_at": "2026-10-26T09:17:45+09:00",
+ "run_at": "2026-10-26T17:47:28+09:00",
  "fetch": "ok",
  "http_status": 200,
- "response_bytes": 197249,
+ "response_bytes": 197246,
  "rows": 334,
  "saved": 334,
  "approved": 219,
