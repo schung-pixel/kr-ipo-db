@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 
-FIN_VERSION = 2
+FIN_VERSION = 3
 VIEWER_SECTIONS = ("요약재무정보",)
 ITEMS = ("revenue", "op_income", "net_income", "assets", "liabilities", "equity")
 
@@ -173,8 +173,11 @@ def _tables(lines: list[str]):
     unit = None
     head: list[list[str]] = []
     boundary = True
+    gi: dict[str, str] = {}     # '제 24 기 반기말 2019년 06월 30일 현재' 같은 줄에서 기수 → 날짜
     for raw in lines:
         line = raw.strip()
+        for mg in re.finditer(r"제\s*(\d+)\s*(?:\(.{0,3}\))?\s*기[^|]{0,12}?((?:19|20)\d\d\s*[.년]\s*\d{1,2}\s*[.월]?\s*(?:\d{1,2}\s*일?)?)", line):
+            gi.setdefault(mg.group(1), mg.group(2))
         mu = _UNIT.search(line)
         if mu and not ("|" in line and _data_row(_cells(line), None)):
             unit = re.sub(r"\s", "", mu.group(1))     # 'EPS (단위: 원) | 1,445' 같은 데이터 행의 단위는 무시
@@ -206,6 +209,11 @@ def _tables(lines: list[str]):
                     tail = h[-n:] if len(h) >= n else [""] * (n - len(h)) + h
                     for j in range(n):
                         cols[j] += " " + tail[j]
+                if gi:
+                    for j, c in enumerate(cols):
+                        mg = re.search(r"제\s*(\d+)\s*(?:\(.{0,3}\))?\s*기", c)
+                        if mg and not _YEAR.search(c) and mg.group(1) in gi:
+                            cols[j] = c + " " + gi[mg.group(1)]
                 periods = [_period(c, j == 0) for j, c in enumerate(cols)]
             elif cur is not None and n == cur["n"]:
                 periods = cur["periods"]
