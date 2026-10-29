@@ -664,3 +664,34 @@ details.tv summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 .mini.fin .neg { color: var(--ink); }
 .mini.fin .neg::before { content: ""; }
 @media (max-width: 370px) { .mini.fin td.num { font-size: 12px; } .mini.fin th:first-child, .mini.fin td:first-child { width: 64px; } }
+
+/* ---- 기술특례 바이오 (케이스 스터디) ---- */
+.tip:has(.tnames) { max-width: 340px; }
+.tip .tnames { font-family: var(--f-body); font-size: 11.5px; line-height: 1.45; color: var(--muted); margin: 1px 0 5px 13px; }
+.bio-pair { gap: 16px; }
+.bio-pair .lk-sub { margin: 4px 0 2px; }
+.bio-q { max-width: 420px; }
+.bio-q .search { height: 40px; font-size: 14px; box-shadow: none; }
+.mini.bio-t td { vertical-align: middle; }
+.mini.bio-t .nm { font-weight: 600; }
+.mini.bio-t .c-date { font-family: var(--f-mono); font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.mini.bio-t .c-lead { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.mini.bio-t .tag { margin-left: 5px; }
+.mini.bio-cond td, .mini.bio-cond th { white-space: nowrap; }
+.mini.bio-fail td:nth-child(1) { white-space: nowrap; font-family: var(--f-mono); font-size: 12.5px; }
+.mini.bio-fail td:nth-child(2) { white-space: nowrap; font-weight: 500; }
+.mini.bio-fail td:last-child { min-width: 260px; color: var(--muted); font-size: 12.5px; }
+.mini.bio-deals td:nth-child(1) { white-space: nowrap; font-family: var(--f-mono); font-size: 12.5px; }
+.mini.bio-proj td.num { font-size: 12.5px; }
+.bio-cav { margin: 0; padding-left: 18px; font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
+@media (max-width: 760px) {
+  .mini.bio-t .hide-m { display: none; }
+  .bio-pair { gap: 4px; }
+  .mini.bio-fail td:last-child { min-width: 200px; }
+}
+/* 막대·점·값 표시 위에서도 툴팁이 뜨도록 칸 전체(.hit)가 포인터를 받습니다 */
+.chart .col > :not(.hit) { pointer-events: none; }
+.bio-box, .bio-boxw > .scroll { max-height: 560px; overflow: auto; overscroll-behavior: contain; }
+.bio-box th, .bio-boxw th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
+/* 상세 머리: 제목 칸이 좁아지지 않도록 일정 막대를 다음 줄로 */
+.sheet-head > div:first-child { flex: 1 1 calc(100% - 220px); }

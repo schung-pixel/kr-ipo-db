@@ -19,6 +19,10 @@ js = (docs / "app.js").read_text(encoding="utf-8")
 data = json.dumps(json.loads((docs / "data" / "deals.json").read_text(encoding="utf-8")),
                   ensure_ascii=False, separators=(",", ":"))
 data = data.replace("</", "<\\/")  # script 태그 종료로 오인되지 않도록
+bio_path = docs / "data" / "biotech.json"
+bio = ""
+if bio_path.exists():
+    bio = json.dumps(json.loads(bio_path.read_text(encoding="utf-8")), ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
 
 page = f"""<title>IPO 데이터룸</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -30,6 +34,7 @@ page = f"""<title>IPO 데이터룸</title>
 </style>
 {body}
 <script type="application/json" id="embedded-data">{data}</script>
+{'<script type="application/json" id="embedded-bio">' + bio + '</script>' if bio else ''}
 <script>
 {js}
 </script>

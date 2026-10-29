@@ -1,6 +1,6 @@
 "use strict";
 // 앱 파일을 바꾸면 VERSION을 올려 이전 캐시를 비웁니다.
-var VERSION = "v50";
+var VERSION = "v51";
 var SHELL = "ipo-shell-" + VERSION;
 var DATA = "ipo-data";
 var FILES = ["./", "index.html", "style.css", "app.js", "manifest.webmanifest",
@@ -10,7 +10,7 @@ self.addEventListener("install", function (e) {
   e.waitUntil(Promise.all([
     caches.open(SHELL).then(function (c) { return c.addAll(FILES); }),
     // 첫 방문 직후 오프라인이 되어도 열리도록 데이터도 미리 받아 둡니다.
-    caches.open(DATA).then(function (c) { return c.add("data/deals.json"); })
+    caches.open(DATA).then(function (c) { return c.addAll(["data/deals.json", "data/biotech.json"]); })
   ]).then(function () { return self.skipWaiting(); }));
 });
 
@@ -27,7 +27,7 @@ self.addEventListener("fetch", function (e) {
   if (url.origin !== location.origin) return;
 
   // 데이터는 최신 우선, 오프라인이면 마지막으로 받은 본을 사용
-  if (url.pathname.endsWith("/data/deals.json")) {
+  if (url.pathname.endsWith("/data/deals.json") || url.pathname.endsWith("/data/biotech.json")) {
     e.respondWith(fetch(req).then(function (res) {
       var copy = res.clone();
       caches.open(DATA).then(function (c) { c.put(req, copy); });
