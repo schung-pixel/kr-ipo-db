@@ -695,3 +695,54 @@ details.tv summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 .bio-box th, .bio-boxw th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
 /* 상세 머리: 제목 칸이 좁아지지 않도록 일정 막대를 다음 줄로 */
 .sheet-head > div:first-child { flex: 1 1 calc(100% - 220px); }
+/* 바이오 명단·탈락 건: 휴대폰은 표 대신 카드 */
+.bcards { display: none; }
+.bcard { display: block; color: inherit; text-decoration: none; padding: 12px 2px; border-bottom: 1px solid var(--line2); min-width: 0; }
+.bcard:last-child { border-bottom: 0; }
+a.bcard:active { background: var(--surface2); }
+.bcard .b1 { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; }
+.bcard .nm { font-weight: 600; font-size: 15px; }
+.bcard .b1 .tag { margin-left: 0; }
+.bcard .stg { margin-left: auto; font-size: 12px; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 0 9px; line-height: 22px; white-space: nowrap; }
+.bcard .stg.mono { color: var(--muted); background: none; padding: 0; font-size: 12px; }
+.bcard .b2 { font-size: 12.5px; color: var(--muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bcard .b2 .mono { font-size: 12px; }
+.bcard .b3 { display: flex; flex-wrap: wrap; gap: 2px 14px; margin-top: 6px; font-size: 11.5px; color: var(--faint); }
+.bcard .b3 b { font-family: var(--f-mono); font-weight: 500; color: var(--ink); font-size: 12.5px; margin-left: 4px; }
+.bcard .b3 b.z { color: var(--faint); }
+.bcard .b4 { margin-top: 6px; font-size: 12.5px; line-height: 1.5; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.tag.b-rej { color: var(--pos-over); background: transparent; box-shadow: inset 0 0 0 1px currentColor; }
+@media (max-width: 760px) {
+  .bio-list .bio-box, .bio-boxw > .scroll { display: none; }
+  .bcards { display: block; }
+  .bio-q { max-width: none; }
+}
+.bio-list .pbody > *, .bio-boxw > * { min-width: 0; }
+.bcard .b3 b.t { font-family: var(--f-body); font-size: 12.5px; }
+/* 조건별 통과율: 위 통과율, 아래 건수 */
+.mini.bio-cond th { white-space: normal; line-height: 1.35; vertical-align: bottom; }
+.mini.bio-cond th .sw { width: 8px; height: 8px; margin-right: 4px; vertical-align: 0; }
+.mini.bio-cond td.num { line-height: 1.25; }
+.mini.bio-cond .pr { display: block; font-size: 14px; color: var(--ink); }
+.mini.bio-cond .fr { display: block; font-size: 11px; color: var(--faint); }
+/* 상세의 계약·파이프라인·예심 이력: 표 대신 항목 목록 */
+.bitems { list-style: none; margin: 0; padding: 0; }
+.bitems li { position: relative; padding: 10px 0; border-bottom: 1px solid var(--line2); min-width: 0; }
+.bitems li:last-child { border-bottom: 0; }
+.bitems .i1 { display: flex; align-items: baseline; gap: 6px 8px; flex-wrap: wrap; }
+.bitems .i1 b { font-weight: 600; font-size: 14px; flex: 1 1 auto; min-width: 0; }
+.bitems .i1 b.mono { font-weight: 500; font-size: 13px; }
+.bitems .dt { font-family: var(--f-mono); font-size: 12px; color: var(--muted); white-space: nowrap; margin-left: auto; }
+.bitems .stg { margin-left: auto; font-size: 12px; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 0 9px; line-height: 22px; white-space: nowrap; }
+.bitems .ty { flex: none; font-size: 11px; font-weight: 600; line-height: 19px; padding: 0 7px; border-radius: 999px; background: var(--neutral-soft); color: var(--neutral); white-space: nowrap; }
+.bitems .ty.lo { background: var(--accent-soft); color: var(--accent); }
+.bitems .ty.li { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); }
+.bitems .ty.rej { background: transparent; color: var(--pos-over); box-shadow: inset 0 0 0 1px currentColor; }
+.bitems .i2 { font-size: 13px; color: var(--ink); margin-top: 3px; }
+.bitems .i3 { font-size: 12.5px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
+.bitems .ln { position: absolute; right: 0; bottom: 10px; font: 11px var(--f-mono); color: var(--faint); }
+.bitems li:has(.ln) .i3, .bitems li:has(.ln) .i2:last-of-type { padding-right: 56px; }
+.mini.bio-proj td:first-child { white-space: nowrap; color: var(--muted); }
+.mini.bio-proj td.num { white-space: nowrap; }
+.mini.bio-cond th { word-break: keep-all; }
+.mini.bio-cond th .sw { display: inline-block; border-radius: 2px; }

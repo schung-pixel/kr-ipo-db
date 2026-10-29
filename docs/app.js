@@ -1573,7 +1573,7 @@
   function bioPassText(xs) {
     if (!xs.length) return '<span class="dim">-</span>';
     var ok = xs.filter(function (a) { return a.outcome === "승인"; }).length;
-    return ok + "/" + xs.length + ' <span class="dim">(' + Math.round(ok / xs.length * 100) + "%)</span>";
+    return '<span class="pr">' + Math.round(ok / xs.length * 100) + '%</span><span class="fr">' + ok + "/" + xs.length + "</span>";
   }
   function nameList(xs, fmt) {
     if (!xs.length) return "";
@@ -1659,7 +1659,10 @@
       var xs = A.filter(function (a) { return a.y >= e[1] && a.y <= e[2]; });
       return [esc(e[0])].concat([bioPassText(xs)]).concat(BIO_GRP.slice(0, 4).map(function (g) { return bioPassText(xs.filter(function (a) { return a.group === g.key; })); }));
     });
-    var condTbl = table(["청구 연도", "전체", "L/O 있음·2상↑", "L/O 있음·2상↓", "L/O 없음·2상↑", "L/O 없음·2상↓"], condRows, [1, 2, 3, 4, 5], "bio-cond");
+    var condTbl = '<div class="scroll"><table class="mini bio-cond"><thead><tr><th>청구 연도</th><th class="num">전체</th>' +
+      BIO_GRP.slice(0, 4).map(function (g) { var k = g.key.split(" · "); return '<th class="num"><i class="sw" style="background:' + g.css + '"></i>' + esc(k[0]) + "<br>" + esc(k[1].replace(" 이상", "↑").replace(" 미만", "↓")) + "</th>"; }).join("") +
+      "</tr></thead><tbody>" + condRows.map(function (r) { return "<tr>" + r.map(function (c, i) { return "<td" + (i ? ' class="num"' : "") + ">" + c + "</td>"; }).join("") + "</tr>"; }).join("") + "</tbody></table></div>" +
+      '<p class="snote">위는 통과율, 아래는 승인 건/청구 건입니다.</p>';
     // 3) 심사 소요일 (연도별 중앙값)
     var W4 = halfW, H4 = H - 10, L = 44, R = 10, T = 22, B = 30, ih4 = H4 - T - B, band4 = (W4 - L - R) / years.length;
     var dser = [{ key: "승인", css: "var(--bar)", f: function (a) { return a.outcome === "승인"; } }, { key: "철회·미승인", css: "var(--mk-tech)", f: function (a) { return a.outcome !== "승인"; } }];
@@ -1695,17 +1698,27 @@
     // 5) 명단
     var q = bioState.q.trim();
     var list = bioList();
+    var gradeTxt = function (c) { return c.grade && c.grade !== "기재 없음" && c.grade !== "해당 없음" ? c.grade.replace("+", "·").replace(" (1개만 기재)", " 단일") : ""; };
     var rowsH = list.map(function (c) {
       return '<tr class="go" tabindex="0" data-bio="' + esc(c.n) + '"><td class="c-date">' + esc(c.list_date) + '</td><td><span class="nm">' + highlight(c.n, q) + "</span>" +
         (c.cat === "B" ? '<span class="tag b-etc" title="경계 분류: 세포치료·플랫폼·소재 등">경계</span>' : "") + "</td>" +
         '<td class="hide-m">' + esc(c.desc || "") + '</td><td>' + esc(c.top || "-") + '</td><td class="num">' + c.nd + '</td><td class="num">' + (c.nlo ? "<b>" + c.nlo + "</b>" : '<span class="dim">0</span>') + (c.glo ? ' <span class="tag b-tech" title="해외 상대방 L/O 포함">해외</span>' : "") +
-        '</td><td class="num hide-m">' + c.np + '</td><td class="hide-m">' + esc(c.grade && c.grade !== "기재 없음" ? c.grade.replace("+", "·") : "-") + '</td><td class="hide-m c-lead" title="' + esc(c.lead || "") + '">' + esc((c.lead || "-").replace(/\s*\(.*$/, "")) + "</td></tr>";
+        '</td><td class="num hide-m">' + c.np + '</td><td class="hide-m">' + esc(gradeTxt(c) || "-") + '</td><td class="hide-m c-lead" title="' + esc(c.lead || "") + '">' + esc((c.lead || "-").replace(/\s*\(.*$/, "")) + "</td></tr>";
+    }).join("");
+    var cardsH = list.map(function (c) {
+      var g = gradeTxt(c);
+      return '<a class="bcard" href="#/bio/' + encodeURIComponent(c.n) + '">' +
+        '<div class="b1"><span class="nm">' + highlight(c.n, q) + "</span>" + (c.cat === "B" ? '<span class="tag b-etc">경계</span>' : "") +
+        (c.glo ? '<span class="tag b-tech">해외 L/O</span>' : "") + '<span class="stg">' + esc(c.top || "-") + "</span></div>" +
+        '<div class="b2"><span class="mono">' + esc(c.list_date) + "</span>" + (c.desc ? " · " + esc(c.desc) : "") + "</div>" +
+        '<div class="b3"><span>계약<b>' + c.nd + "</b></span><span>L/O<b" + (c.nlo ? "" : ' class="z"') + ">" + c.nlo + "</b></span><span>파이프라인<b>" + c.np + "</b></span>" +
+        (g ? '<span>기술평가<b class="t">' + esc(g) + "</b></span>" : "") + "</div></a>";
     }).join("");
     var listPanel = '<section class="panel bio-list"><header><div><h2>기술특례 신약개발사 명단</h2><p>상장일 순 ' + list.length + "곳. 행을 누르면 상장 당시 증권신고서 정리(기술이전·파이프라인·추정 손익)가 열립니다. 선두 단계는 신고서 문구를 규칙으로 분류한 근사치입니다.</p></div>" +
       segBtns("data-bcat", [["", "전체"], ["A", "신약"], ["B", "경계"]], bioState.cat) + "</header>" +
       '<div class="pbody"><div class="sbox bio-q"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13 13l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>' +
       '<input class="search" id="bio-q" type="search" placeholder="회사·사업·주관사 검색" value="' + esc(bioState.q) + '" aria-label="회사 검색"></div>' +
-      '<div class="scroll bio-box"><table class="mini bio-t"><thead><tr><th>상장일</th><th>회사</th><th class="hide-m">사업</th><th>선두 단계</th><th class="num">계약</th><th class="num">L/O</th><th class="num hide-m">파이프라인</th><th class="hide-m">기술평가</th><th class="hide-m">대표주관</th></tr></thead><tbody id="bio-rows">' + rowsH + "</tbody></table></div></div></section>";
+      '<div class="scroll bio-box"><table class="mini bio-t"><thead><tr><th>상장일</th><th>회사</th><th class="hide-m">사업</th><th>선두 단계</th><th class="num">계약</th><th class="num">L/O</th><th class="num hide-m">파이프라인</th><th class="hide-m">기술평가</th><th class="hide-m">대표주관</th></tr></thead><tbody id="bio-rows">' + rowsH + "</tbody></table></div>" + '<div class="bcards">' + (cardsH || '<div class="empty">조건에 맞는 회사가 없습니다.</div>') + "</div></div></section>";
     // 6) 탈락 청구 건
     var fails = A.filter(function (a) { return a.outcome !== "승인"; }).sort(function (a, b) { return a.req < b.req ? 1 : -1; });
     var failPanel = '<section class="panel"><header><div><h2>철회·미승인 청구 건 ' + fails.length + "건</h2><p>사유는 거래소 공식 사유가 아니라 보도·회사 설명입니다. 2017년 이전 건은 기사가 적어 확인 못한 항목이 많습니다.</p></div></header>" +
@@ -1713,7 +1726,13 @@
         var inList = bioByName[a.name];
         return [esc(a.req), inList ? '<a href="#/bio/' + encodeURIComponent(a.name) + '">' + esc(a.name) + "</a>" : esc(a.name), esc(a.outcome), esc(a.stage),
           a.lo == null ? '<span class="dim">확인 못함</span>' : a.lo ? "있음" : "없음", a.days ? int(a.days) + "일" : "-", esc(a.reason || "-")];
-      }), [5], "bio-fail") + "</div></section>";
+      }), [5], "bio-fail") + '<div class="bcards fails">' + fails.map(function (a) {
+        var inList = bioByName[a.name];
+        var head = '<div class="b1"><span class="nm">' + esc(a.name) + '</span><span class="tag ' + (a.outcome === "미승인" ? "b-rej" : "b-etc") + '">' + esc(a.outcome) + '</span><span class="stg mono">' + esc(a.req) + "</span></div>" +
+          '<div class="b3"><span>선두 단계<b class="t">' + esc(a.stage) + '</b></span><span>L/O<b class="t">' + (a.lo == null ? "확인 못함" : a.lo ? "있음" : "없음") + "</b></span>" + (a.days ? "<span>소요<b>" + int(a.days) + "일</b></span>" : "") + "</div>" +
+          (a.reason ? '<div class="b4">' + esc(a.reason) + "</div>" : "");
+        return inList ? '<a class="bcard" href="#/bio/' + encodeURIComponent(a.name) + '">' + head + "</a>" : '<div class="bcard">' + head + "</div>";
+      }).join("") + "</div></div></section>";
 
     app.innerHTML = '<div class="content">' +
       '<p class="notice">상장예비심사를 청구한 코스닥 신약개발사(2005~2026년, 경계 바이오 포함)의 결과와 청구 당시 프로필입니다. 승인 건은 상장 당시 증권신고서, 철회·미승인 건은 언론·공시로 조사했습니다. 기술성평가에서 이미 떨어져 청구하지 못한 회사는 포함되지 않습니다.</p>' + kpi +
@@ -1765,11 +1784,19 @@
         '<a href="#/bio/' + encodeURIComponent(c.n) + '">케이스 스터디 상세 보기</a></p>';
     }
     if (c.lic_sum) h += section("기술이전·계약 요약", "<p>" + esc(c.lic_sum) + "</p>", !inDeal);
-    if (c.deals.length) h += section("기술이전·계약 목록", table(["계약일", "유형", "대상 자산", "상대방", "국가", "총 계약 규모", "줄"],
-      c.deals.map(function (x) { return [esc(x.date || "-"), esc(x.dir || "-"), esc(x.asset || "-"), esc(x.partner || "-"), esc(x.country || "-"), esc(x.total || x.upfront || "-"), esc(x.src || "")]; }), [6], "bio-deals") +
-      '<p class="snote">' + srcNote + "</p>", !inDeal, c.deals.length);
-    if (c.pipes.length) h += section("파이프라인 (신고서 시점)", table(["자산", "모달리티", "적응증", "신고서 기재 단계", "단계 구간"],
-      c.pipes.map(function (p) { return [esc(p.asset || "-"), esc(p.modality || "-"), esc(p.ind || "-"), esc(p.stage || "-"), esc(p.s || "-")]; }), [], "bio-pipes"), !inDeal, c.pipes.length);
+    var day = function (x) { return String(x || "").replace(/\s*[(（].*$/, "").replace(/\s*;.*$/, "") || "-"; };
+    var dirCls = function (d) { return /L\/O|플랫폼|옵션/.test(d || "") ? "lo" : /L\/I/.test(d || "") ? "li" : "etc"; };
+    if (c.deals.length) h += section("기술이전·계약 목록", '<ul class="bitems">' + c.deals.map(function (x) {
+      var amt = x.total && !/^기재 ?없음/.test(x.total) ? x.total : x.upfront && !/^기재 ?없음/.test(x.upfront) ? "선급금 " + x.upfront : "";
+      return '<li><div class="i1"><span class="ty ' + dirCls(x.dir) + '">' + esc(x.dir || "-") + '</span><b>' + esc(x.asset || "-") + '</b><span class="dt">' + esc(day(x.date)) + "</span></div>" +
+        '<div class="i2">' + esc(x.partner || "-") + (x.country && !/^기재 ?없음/.test(x.country) ? ' <span class="dim">· ' + esc(x.country) + "</span>" : "") + "</div>" +
+        (amt ? '<div class="i3">' + esc(amt) + "</div>" : "") + (x.src ? '<span class="ln">줄 ' + esc(x.src) + "</span>" : "") + "</li>";
+    }).join("") + "</ul>" + '<p class="snote">' + srcNote + "</p>", !inDeal, c.deals.length);
+    if (c.pipes.length) h += section("파이프라인 (신고서 시점)", '<ul class="bitems">' + c.pipes.map(function (p) {
+      return '<li><div class="i1"><b>' + esc(p.asset || "-") + '</b><span class="stg">' + esc(p.s || "-") + "</span></div>" +
+        '<div class="i2">' + esc([p.modality, p.ind].filter(Boolean).join(" · ") || "-") + "</div>" +
+        (p.stage ? '<div class="i3">' + esc(p.stage) + "</div>" : "") + "</li>";
+    }).join("") + "</ul>", !inDeal, c.pipes.length);
     if (c.proj) {
       var P = c.proj;
       h += section("추정 손익 (공모가 산정용)", table([P.unit || "단위"].concat(P.years.map(function (y, i) { return esc(y) + (P.ae[i] && /실적|A/.test(P.ae[i]) ? " 실적" : ""); })),
@@ -1781,8 +1808,12 @@
       h += section("공모가 산정", '<dl class="kv">' + Object.keys(VL).filter(function (k) { return c.val[k]; }).map(function (k) { return "<dt>" + VL[k] + "</dt><dd>" + esc(c.val[k]) + "</dd>"; }).join("") + "</dl>", false);
     }
     var att = bio.attempts.filter(function (a) { return a.name === c.n; });
-    if (att.length) h += section("상장예비심사 이력", table(["청구일", "결과일", "결과", "선두 단계", "L/O", "보도된 사유"],
-      att.map(function (a) { return [esc(a.req), esc(a.res || "-"), esc(a.outcome), esc(a.stage), a.lo == null ? "-" : a.lo ? "있음" : "없음", esc(a.outcome === "승인" ? "-" : a.reason || "-")]; })) +
+    if (att.length) h += section("상장예비심사 이력", '<ul class="bitems">' + att.map(function (a) {
+      return '<li><div class="i1"><span class="ty ' + (a.outcome === "승인" ? "lo" : a.outcome === "미승인" ? "rej" : "etc") + '">' + esc(a.outcome) + '</span><b class="mono">' + esc(a.req) + (a.res ? " → " + esc(a.res) : "") + "</b>" +
+        (a.days ? '<span class="dt">' + int(a.days) + "일</span>" : "") + "</div>" +
+        '<div class="i2">선두 ' + esc(a.stage) + " · L/O " + (a.lo == null ? "확인 못함" : a.lo ? "있음" : "없음") + "</div>" +
+        (a.outcome !== "승인" && a.reason ? '<div class="i3">' + esc(a.reason) + "</div>" : "") + "</li>";
+    }).join("") + "</ul>" +
       '<p class="snote">출처: KIND 상장예비심사 결과. 탈락 건 프로필은 언론·공시 조사.</p>', att.length > 1, att.length);
     if (c.caveats && c.caveats.length) h += section("확인이 필요한 점", "<ul class=\"bio-cav\">" + c.caveats.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>", false, c.caveats.length);
     return h;
