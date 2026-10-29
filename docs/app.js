@@ -1698,27 +1698,24 @@
     // 5) 명단
     var q = bioState.q.trim();
     var list = bioList();
-    var gradeTxt = function (c) { return c.grade && c.grade !== "기재 없음" && c.grade !== "해당 없음" ? c.grade.replace("+", "·").replace(" (1개만 기재)", " 단일") : ""; };
     var rowsH = list.map(function (c) {
       return '<tr class="go" tabindex="0" data-bio="' + esc(c.n) + '"><td class="c-date">' + esc(c.list_date) + '</td><td><span class="nm">' + highlight(c.n, q) + "</span>" +
         (c.cat === "B" ? '<span class="tag b-etc" title="경계 분류: 세포치료·플랫폼·소재 등">경계</span>' : "") + "</td>" +
         '<td class="hide-m">' + esc(c.desc || "") + '</td><td>' + esc(c.top || "-") + '</td><td class="num">' + c.nd + '</td><td class="num">' + (c.nlo ? "<b>" + c.nlo + "</b>" : '<span class="dim">0</span>') + (c.glo ? ' <span class="tag b-tech" title="해외 상대방 L/O 포함">해외</span>' : "") +
-        '</td><td class="num hide-m">' + c.np + '</td><td class="hide-m">' + esc(gradeTxt(c) || "-") + '</td><td class="hide-m c-lead" title="' + esc(c.lead || "") + '">' + esc((c.lead || "-").replace(/\s*\(.*$/, "")) + "</td></tr>";
+        '</td><td class="num hide-m">' + c.np + "</td></tr>";
     }).join("");
     var cardsH = list.map(function (c) {
-      var g = gradeTxt(c);
       return '<a class="bcard" href="#/bio/' + encodeURIComponent(c.n) + '">' +
         '<div class="b1"><span class="nm">' + highlight(c.n, q) + "</span>" + (c.cat === "B" ? '<span class="tag b-etc">경계</span>' : "") +
         (c.glo ? '<span class="tag b-tech">해외 L/O</span>' : "") + '<span class="stg">' + esc(c.top || "-") + "</span></div>" +
         '<div class="b2"><span class="mono">' + esc(c.list_date) + "</span>" + (c.desc ? " · " + esc(c.desc) : "") + "</div>" +
-        '<div class="b3"><span>계약<b>' + c.nd + "</b></span><span>L/O<b" + (c.nlo ? "" : ' class="z"') + ">" + c.nlo + "</b></span><span>파이프라인<b>" + c.np + "</b></span>" +
-        (g ? '<span>기술평가<b class="t">' + esc(g) + "</b></span>" : "") + "</div></a>";
+        '<div class="b3"><span>전체 계약<b>' + c.nd + "</b></span><span>L/O<b" + (c.nlo ? "" : ' class="z"') + ">" + c.nlo + "</b></span><span>파이프라인<b>" + c.np + "</b></span></div></a>";
     }).join("");
-    var listPanel = '<section class="panel bio-list"><header><div><h2>기술특례 신약개발사 명단</h2><p>' + list.length + "곳. 행을 누르면 상장 당시 증권신고서 정리(기술이전·파이프라인·추정 손익)가 열립니다. 선두 단계는 신고서 문구를 규칙으로 분류한 근사치입니다.</p></div>" +
+    var listPanel = '<section class="panel bio-list"><header><div><h2>기술특례 신약개발사 명단</h2><p>' + list.length + "곳. 행을 누르면 상장 당시 증권신고서 정리(기술이전·파이프라인·추정 손익)가 열립니다. 전체 계약은 신고서에 적힌 모든 계약(기술이전·도입·공동개발·기타), L/O는 그중 기술이전(플랫폼·옵션 포함)입니다. 선두 단계는 신고서 문구를 규칙으로 분류한 근사치입니다.</p></div>" +
       '<div class="bio-ctl">' + segBtns("data-bdir", [["-1", "최근순"], ["1", "오래된순"]], String(bioState.dir)) + segBtns("data-bcat", [["", "전체"], ["A", "신약"], ["B", "경계"]], bioState.cat) + "</div></header>" +
       '<div class="pbody"><div class="sbox bio-q"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13 13l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>' +
-      '<input class="search" id="bio-q" type="search" placeholder="회사·사업·주관사 검색" value="' + esc(bioState.q) + '" aria-label="회사 검색"></div>' +
-      '<div class="scroll bio-box"><table class="mini bio-t"><thead><tr><th>상장일</th><th>회사</th><th class="hide-m">사업</th><th>선두 단계</th><th class="num">계약</th><th class="num">L/O</th><th class="num hide-m">파이프라인</th><th class="hide-m">기술평가</th><th class="hide-m">대표주관</th></tr></thead><tbody id="bio-rows">' + rowsH + "</tbody></table></div>" + '<div class="bcards">' + (cardsH || '<div class="empty">조건에 맞는 회사가 없습니다.</div>') + "</div></div></section>";
+      '<input class="search" id="bio-q" type="search" placeholder="회사·사업 검색" value="' + esc(bioState.q) + '" aria-label="회사 검색"></div>' +
+      '<div class="scroll bio-box"><table class="mini bio-t"><thead><tr><th>상장일</th><th>회사</th><th class="hide-m">사업</th><th>선두 단계</th><th class="num" title="신고서에 기재된 모든 계약(L/O·L/I·공동개발·기타)">전체 계약</th><th class="num" title="기술이전(플랫폼·옵션 포함)">L/O</th><th class="num hide-m">파이프라인</th></tr></thead><tbody id="bio-rows">' + rowsH + "</tbody></table></div>" + '<div class="bcards">' + (cardsH || '<div class="empty">조건에 맞는 회사가 없습니다.</div>') + "</div></div></section>";
     // 6) 탈락 청구 건
     var fails = A.filter(function (a) { return a.outcome !== "승인"; }).sort(function (a, b) { return (a.req < b.req ? -1 : a.req > b.req ? 1 : 0) * bioState.fdir; });
     var failPanel = '<section class="panel"><header><div><h2>철회·미승인 청구 건 ' + fails.length + "건</h2><p>사유는 거래소 공식 사유가 아니라 보도·회사 설명입니다. 2017년 이전 건은 기사가 적어 확인 못한 항목이 많습니다.</p></div>" + segBtns("data-fdir", [["-1", "최근순"], ["1", "오래된순"]], String(bioState.fdir)) + "</header>" +
@@ -1754,7 +1751,7 @@
     var q = bioState.q.trim();
     return bio.companies.filter(function (c) {
       if (bioState.cat && c.cat !== bioState.cat) return false;
-      if (q && findMatch(c.n, q) === -1 && findMatch((c.kind_name || "") + " " + (c.desc || "") + " " + (c.lead || ""), q) === -1) return false;
+      if (q && findMatch(c.n, q) === -1 && findMatch((c.kind_name || "") + " " + (c.desc || ""), q) === -1) return false;
       return true;
     }).sort(function (a, b) { return (a.list_date < b.list_date ? -1 : a.list_date > b.list_date ? 1 : a.n < b.n ? -1 : 1) * bioState.dir; });
   }
