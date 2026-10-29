@@ -691,7 +691,7 @@ details.tv summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 }
 /* 막대·점·값 표시 위에서도 툴팁이 뜨도록 칸 전체(.hit)가 포인터를 받습니다 */
 .chart .col > :not(.hit) { pointer-events: none; }
-.bio-box, .bio-boxw > .scroll { max-height: 560px; overflow: auto; overscroll-behavior: contain; }
+.bio-box, .bio-boxw > .scroll { max-height: 560px; overflow: auto; overscroll-behavior: auto; }
 .bio-box th, .bio-boxw th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
 /* 상세 머리: 제목 칸이 좁아지지 않도록 일정 막대를 다음 줄로 */
 .sheet-head > div:first-child { flex: 1 1 calc(100% - 220px); }
