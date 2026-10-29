@@ -1530,12 +1530,14 @@
   // ---------------------------------------------------------------- 기술특례 바이오 (케이스 스터디)
   // data/biotech.json: 2005년 이후 기술특례 신약개발사 91개사의 상장 당시 증권신고서 정리와 상장예비심사 청구 건(승인·철회·미승인)
   var bio = null, bioByDeal = {}, bioByName = {};
-  var bioState = { q: "", cat: "", dir: -1, fdir: -1 };   // dir: 명단 상장일, fdir: 탈락 건 청구일 (-1 최근이 위)
+  var bioState = { q: "" };
   function bioIndex() {
     bioByDeal = {}; bioByName = {};
     if (!bio) return;
     bio.companies.forEach(function (c) {
       bioByName[c.n] = c;
+      c.cdeals = (c.deals || []).filter(function (x) { return /L\/O|플랫폼|옵션|공동/.test(x.dir || ""); });   // 계약 = L/O + 공동연구·공동개발
+      c.nco = c.cdeals.length;
       (c.deal_ids || []).forEach(function (id) { bioByDeal[id] = c; });
     });
   }
@@ -1698,32 +1700,35 @@
     // 5) 명단
     var q = bioState.q.trim();
     var list = bioList();
+    var coTxt = function (c) { return c.nco + '<span class="lo-n' + (c.nlo ? "" : " z") + '">(' + c.nlo + ")</span>"; };
     var rowsH = list.map(function (c) {
       return '<tr class="go" tabindex="0" data-bio="' + esc(c.n) + '"><td class="c-date">' + esc(c.list_date) + '</td><td><span class="nm">' + highlight(c.n, q) + "</span>" +
-        (c.cat === "B" ? '<span class="tag b-etc" title="경계 분류: 세포치료·플랫폼·소재 등">경계</span>' : "") + "</td>" +
-        '<td class="hide-m">' + esc(c.desc || "") + '</td><td>' + esc(c.top || "-") + '</td><td class="num">' + c.nd + '</td><td class="num">' + (c.nlo ? "<b>" + c.nlo + "</b>" : '<span class="dim">0</span>') + (c.glo ? ' <span class="tag b-tech" title="해외 상대방 L/O 포함">해외</span>' : "") +
-        '</td><td class="num hide-m">' + c.np + "</td></tr>";
+        (c.cat === "B" ? '<span class="tag b-etc" title="경계 분류: 세포치료·플랫폼·소재 등">경계</span>' : "") + (c.glo ? '<span class="tag b-tech" title="해외 상대방 L/O 포함">해외 L/O</span>' : "") + "</td>" +
+        '<td class="hide-m">' + esc(c.desc || "") + '</td><td>' + esc(c.top || "-") + '</td><td class="num">' + coTxt(c) + '</td><td class="num hide-m">' + c.np + "</td></tr>";
     }).join("");
     var cardsH = list.map(function (c) {
       return '<a class="bcard" href="#/bio/' + encodeURIComponent(c.n) + '">' +
         '<div class="b1"><span class="nm">' + highlight(c.n, q) + "</span>" + (c.cat === "B" ? '<span class="tag b-etc">경계</span>' : "") +
         (c.glo ? '<span class="tag b-tech">해외 L/O</span>' : "") + '<span class="stg">' + esc(c.top || "-") + "</span></div>" +
         '<div class="b2"><span class="mono">' + esc(c.list_date) + "</span>" + (c.desc ? " · " + esc(c.desc) : "") + "</div>" +
-        '<div class="b3"><span>전체 계약<b>' + c.nd + "</b></span><span>L/O<b" + (c.nlo ? "" : ' class="z"') + ">" + c.nlo + "</b></span><span>파이프라인<b>" + c.np + "</b></span></div></a>";
+        '<div class="b3"><span>계약(L/O)<b>' + coTxt(c) + "</b></span><span>파이프라인<b>" + c.np + "</b></span></div></a>";
     }).join("");
-    var listPanel = '<section class="panel bio-list"><header><div><h2>기술특례 신약개발사 명단</h2><p>' + list.length + "곳. 행을 누르면 상장 당시 증권신고서 정리(기술이전·파이프라인·추정 손익)가 열립니다. 전체 계약은 신고서에 적힌 모든 계약(기술이전·도입·공동개발·기타), L/O는 그중 기술이전(플랫폼·옵션 포함)입니다. 선두 단계는 신고서 문구를 규칙으로 분류한 근사치입니다.</p></div>" +
-      '<div class="bio-ctl">' + segBtns("data-bdir", [["-1", "최근순"], ["1", "오래된순"]], String(bioState.dir)) + segBtns("data-bcat", [["", "전체"], ["A", "신약"], ["B", "경계"]], bioState.cat) + "</div></header>" +
-      '<div class="pbody"><div class="sbox bio-q"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13 13l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>' +
-      '<input class="search" id="bio-q" type="search" placeholder="회사·사업 검색" value="' + esc(bioState.q) + '" aria-label="회사 검색"></div>' +
-      '<div class="scroll bio-box"><table class="mini bio-t"><thead><tr><th>상장일</th><th>회사</th><th class="hide-m">사업</th><th>선두 단계</th><th class="num" title="신고서에 기재된 모든 계약(L/O·L/I·공동개발·기타)">전체 계약</th><th class="num" title="기술이전(플랫폼·옵션 포함)">L/O</th><th class="num hide-m">파이프라인</th></tr></thead><tbody id="bio-rows">' + rowsH + "</tbody></table></div>" + '<div class="bcards">' + (cardsH || '<div class="empty">조건에 맞는 회사가 없습니다.</div>') + "</div></div></section>";
-    // 6) 탈락 청구 건
-    var fails = A.filter(function (a) { return a.outcome !== "승인"; }).sort(function (a, b) { return (a.req < b.req ? -1 : a.req > b.req ? 1 : 0) * bioState.fdir; });
-    var failPanel = '<section class="panel"><header><div><h2>철회·미승인 청구 건 ' + fails.length + "건</h2><p>사유는 거래소 공식 사유가 아니라 보도·회사 설명입니다. 2017년 이전 건은 기사가 적어 확인 못한 항목이 많습니다.</p></div>" + segBtns("data-fdir", [["-1", "최근순"], ["1", "오래된순"]], String(bioState.fdir)) + "</header>" +
-      '<div class="pbody bio-boxw">' + table(["청구일", "회사", "결과", "선두 단계", "L/O", "소요일", "보도된 사유"], fails.map(function (a) {
+    var listPanel = '<section class="panel bio-list"><header><div><h2>기술특례 신약개발사 명단 <span class="cnt">' + list.length + (list.length !== bio.companies.length ? " / " + bio.companies.length : "") + "</span></h2>" +
+      "<p>행을 누르면 상장 당시 증권신고서 정리(기술이전·파이프라인·추정 손익)가 열립니다. 계약은 기술이전(L/O, 플랫폼·옵션 포함)과 공동연구·공동개발이고, 괄호 안이 그중 L/O입니다. 선두 단계는 신고서 문구를 규칙으로 분류한 근사치입니다.</p></div></header>" +
+      '<div class="pbody">' + bioSearchRow("c") + bioChips("c") +
+      '<div class="scroll bio-box"><table class="mini bio-t"><thead><tr><th>상장일</th><th>회사</th><th class="hide-m">사업</th><th>선두 단계</th><th class="num" title="기술이전(L/O)과 공동연구·공동개발 계약 수, 괄호는 L/O 수">계약(L/O)</th><th class="num hide-m">파이프라인</th></tr></thead><tbody id="bio-rows">' +
+      (rowsH || '<tr><td colspan="6" class="muted">조건에 맞는 회사가 없습니다.</td></tr>') + "</tbody></table></div>" +
+      '<div class="bcards">' + (cardsH || '<div class="empty">조건에 맞는 회사가 없습니다.</div>') + "</div></div></section>";
+    // 6) 철회·미승인 명단
+    var fails = bioFails();
+    var nFailAll = A.filter(function (a) { return a.outcome !== "승인"; }).length;
+    var failPanel = '<section class="panel bio-failp"><header><div><h2>철회·미승인 명단 <span class="cnt">' + fails.length + (fails.length !== nFailAll ? " / " + nFailAll : "") + "</span></h2><p>사유는 거래소 공식 사유가 아니라 보도·회사 설명입니다. 2017년 이전 건은 기사가 적어 확인 못한 항목이 많습니다.</p></div>" +
+      bioFilterBtn("f") + "</header>" +
+      '<div class="pbody bio-boxw">' + bioChips("f") + (fails.length ? table(["청구일", "회사", "결과", "선두 단계", "L/O", "소요일", "보도된 사유"], fails.map(function (a) {
         var inList = bioByName[a.name];
         return [esc(a.req), inList ? '<a href="#/bio/' + encodeURIComponent(a.name) + '">' + esc(a.name) + "</a>" : esc(a.name), esc(a.outcome), esc(a.stage),
           a.lo == null ? '<span class="dim">확인 못함</span>' : a.lo ? "있음" : "없음", a.days ? int(a.days) + "일" : "-", esc(a.reason || "-")];
-      }), [5], "bio-fail") + '<div class="bcards fails">' + fails.map(function (a) {
+      }), [5], "bio-fail") : '<p class="muted">조건에 맞는 건이 없습니다.</p>') + '<div class="bcards fails">' + fails.map(function (a) {
         var inList = bioByName[a.name];
         var head = '<div class="b1"><span class="nm">' + esc(a.name) + '</span><span class="tag ' + (a.outcome === "미승인" ? "b-rej" : "b-etc") + '">' + esc(a.outcome) + '</span><span class="stg mono">' + esc(a.req) + "</span></div>" +
           '<div class="b3"><span>선두 단계<b class="t">' + esc(a.stage) + '</b></span><span>L/O<b class="t">' + (a.lo == null ? "확인 못함" : a.lo ? "있음" : "없음") + "</b></span>" + (a.days ? "<span>소요<b>" + int(a.days) + "일</b></span>" : "") + "</div>" +
@@ -1747,30 +1752,190 @@
     bindChart();
     bindBio();
   }
+  // ---- 바이오 명단·철회 명단 필터 (딜 목록과 같은 필터 버튼·패널)
+  var BIO_STAGES = ["탐색·연구", "전임상", "임상 1상", "임상 2상", "임상 3상·허가심사", "상용화", "기재 불명확"];
+  function bioEraOf(y) { for (var i = 0; i < BIO_ERAS.length; i++) if (y >= BIO_ERAS[i][1] && y <= BIO_ERAS[i][2]) return BIO_ERAS[i][0]; return ""; }
+  function bioLoKey(c) { return c.nlo ? (c.glo ? "해외 L/O" : "국내 L/O만") : "L/O 없음"; }
+  function bioFailStage(a) { return /확인/.test(a.stage || "") ? "확인 못함" : a.stage === "임상 3상" ? "임상 3상·허가심사" : a.stage; }
+  // 각 필터: 키, 제목, 선택지 [값, 표시], 한 행이 어떤 값인지
+  var BIO_FDEF = {
+    c: [
+      { k: "sort", t: "정렬", single: true, opts: [["-1", "상장일 최근순"], ["1", "상장일 오래된순"]] },
+      { k: "cat", t: "분류", opts: [["A", "신약개발"], ["B", "경계(세포치료·플랫폼·소재)"]], of: function (c) { return c.cat; } },
+      { k: "era", t: "상장 연도", opts: BIO_ERAS.map(function (e) { return [e[0], e[0]]; }), of: function (c) { return bioEraOf(+c.list_date.slice(0, 4)); } },
+      { k: "top", t: "선두 단계", opts: BIO_STAGES.map(function (s) { return [s, s]; }), of: function (c) { return c.top; } },
+      { k: "lo", t: "기술이전(L/O)", opts: [["해외 L/O", "해외 상대방 L/O"], ["국내 L/O만", "국내 L/O만"], ["L/O 없음", "L/O 없음"]], of: bioLoKey },
+      { k: "route", t: "상장 경로", opts: null, of: function (c) { return c.route || "기타"; } },
+      { k: "prior", t: "예심 이력", opts: [["재도전", "예심 탈락 후 재도전 상장"], ["첫 시도", "첫 청구에 상장"]], of: function (c) { return c.prior_fail ? "재도전" : "첫 시도"; } },
+      { k: "proj", t: "추정 손익표", opts: [["있음", "있음"], ["없음", "없음"]], of: function (c) { return c.proj_yes ? "있음" : "없음"; } }
+    ],
+    f: [
+      { k: "sort", t: "정렬", single: true, opts: [["-1", "청구일 최근순"], ["1", "청구일 오래된순"]] },
+      { k: "res", t: "결과", opts: [["철회", "철회"], ["미승인", "미승인"]], of: function (a) { return a.outcome; } },
+      { k: "era", t: "청구 연도", opts: BIO_ERAS.map(function (e) { return [e[0], e[0]]; }), of: function (a) { return bioEraOf(a.y); } },
+      { k: "stage", t: "선두 단계", opts: ["전임상", "임상 1상", "임상 2상", "임상 3상·허가심사", "상용화", "탐색·연구", "확인 못함"].map(function (s) { return [s, s]; }), of: bioFailStage },
+      { k: "lo", t: "청구 시점 L/O", opts: [["있음", "있음"], ["없음", "없음"], ["확인 못함", "확인 못함"]], of: function (a) { return a.lo == null ? "확인 못함" : a.lo ? "있음" : "없음"; } },
+      { k: "later", t: "이후 상장", opts: [["상장", "이후 상장함"], ["미상장", "아직 미상장"]], of: function (a) { return bioByName[a.name] ? "상장" : "미상장"; } }
+    ]
+  };
+  var bioF = { c: { sort: "-1" }, f: { sort: "-1" } };
+  function bioFdefs(sc) {
+    return BIO_FDEF[sc].map(function (d) {
+      if (d.opts) return d;
+      var seen = {};
+      bio.companies.forEach(function (c) { seen[d.of(c)] = (seen[d.of(c)] || 0) + 1; });
+      return Object.assign({}, d, { opts: Object.keys(seen).sort(function (a, b) { return seen[b] - seen[a]; }).map(function (v) { return [v, v]; }) });
+    });
+  }
+  function bioSel(sc, k) { var v = bioF[sc][k]; return Array.isArray(v) ? v : []; }
+  function bioPass(sc, x, skip) {
+    return BIO_FDEF[sc].every(function (d) {
+      if (d.single || d.k === skip) return true;
+      var s = bioSel(sc, d.k);
+      return !s.length || s.indexOf(d.of(x)) >= 0;
+    });
+  }
+  function bioActive(sc) {
+    var out = [];
+    bioFdefs(sc).forEach(function (d) {
+      if (d.single) { if (bioF[sc][d.k] !== "-1") out.push({ k: d.k, v: null, t: d.opts.filter(function (o) { return o[0] === bioF[sc][d.k]; })[0][1] }); return; }
+      bioSel(sc, d.k).forEach(function (v) { var o = d.opts.filter(function (x) { return x[0] === v; })[0]; out.push({ k: d.k, v: v, t: (o ? o[1] : v) }); });
+    });
+    return out;
+  }
+  var FILTER_SVG = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14M6 10h8M8.5 15h3" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>';
+  function bioFilterBtn(sc) {
+    var n = bioActive(sc).length;
+    return '<button type="button" class="fbtn bfbtn' + (n ? " on" : "") + '" data-bf="' + sc + '" aria-haspopup="dialog" aria-expanded="false" aria-label="필터' + (n ? " " + n + "개 적용" : "") + '">' + FILTER_SVG +
+      (n ? '<span class="fb-n">' + n + "</span>" : "") + "</button>";
+  }
+  function bioSearchRow(sc) {
+    return '<div class="srow bio-srow"><div class="sbox"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13.5 13.5L17 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>' +
+      '<input class="search" id="bio-q" type="search" autocomplete="off" placeholder="회사·사업 검색 (초성 가능)" value="' + esc(bioState.q) + '" aria-label="회사 검색"></div>' + bioFilterBtn(sc) + "</div>";
+  }
+  function bioChips(sc) {
+    var act = bioActive(sc);
+    if (!act.length) return "";
+    return '<div class="afilters" aria-label="적용된 필터">' + act.map(function (f) {
+      return '<button type="button" class="af" data-bsc="' + sc + '" data-bk="' + f.k + '" data-bv="' + esc(f.v == null ? "" : f.v) + '" aria-label="' + esc(f.t) + ' 필터 해제">' + esc(f.t) +
+        '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>';
+    }).join("") + '<button type="button" class="linkbtn" data-breset="' + sc + '">모두 지우기</button></div>';
+  }
   function bioList() {
-    var q = bioState.q.trim();
+    var q = bioState.q.trim(), dir = +bioF.c.sort;
     return bio.companies.filter(function (c) {
-      if (bioState.cat && c.cat !== bioState.cat) return false;
+      if (!bioPass("c", c)) return false;
       if (q && findMatch(c.n, q) === -1 && findMatch((c.kind_name || "") + " " + (c.desc || ""), q) === -1) return false;
       return true;
-    }).sort(function (a, b) { return (a.list_date < b.list_date ? -1 : a.list_date > b.list_date ? 1 : a.n < b.n ? -1 : 1) * bioState.dir; });
+    }).sort(function (a, b) { return (a.list_date < b.list_date ? -1 : a.list_date > b.list_date ? 1 : a.n < b.n ? -1 : 1) * dir; });
   }
+  function bioFails() {
+    var dir = +bioF.f.sort;
+    return bio.attempts.filter(function (a) { return a.outcome !== "승인" && bioPass("f", a); })
+      .sort(function (a, b) { return (a.req < b.req ? -1 : a.req > b.req ? 1 : 0) * dir; });
+  }
+  var bfOpen = null;
+  function bfBody(sc) {
+    var rows = sc === "c" ? bio.companies : bio.attempts.filter(function (a) { return a.outcome !== "승인"; });
+    var h = bioFdefs(sc).map(function (d) {
+      var cnt = {};
+      if (!d.single) rows.forEach(function (x) { if (bioPass(sc, x, d.k)) { var v = d.of(x); cnt[v] = (cnt[v] || 0) + 1; } });
+      var opts = d.opts.filter(function (o) { return d.single || cnt[o[0]] || bioSel(sc, d.k).indexOf(o[0]) >= 0; });
+      return '<div class="fp-sec"><div class="fp-h">' + esc(d.t) + (d.single ? "" : "<small>여러 개 선택</small>") + '</div><div class="fp-opts">' + opts.map(function (o) {
+        var on = d.single ? bioF[sc][d.k] === o[0] : bioSel(sc, d.k).indexOf(o[0]) >= 0;
+        return '<button type="button" class="fo" data-k="' + d.k + '" data-v="' + esc(o[0]) + '" aria-pressed="' + on + '">' + esc(o[1]) + (d.single ? "" : '<span class="n">' + (cnt[o[0]] || 0) + "</span>") + "</button>";
+      }).join("") + "</div></div>";
+    }).join("");
+    var n = sc === "c" ? bioList().length : bioFails().length;
+    return h + '<div class="fp-foot"><span class="sp"></span><button type="button" class="linkbtn" id="bf-reset">초기화</button>' +
+      '<button type="button" class="fp-done" id="bf-done">' + n + (sc === "c" ? "곳" : "건") + " 보기</button></div>";
+  }
+  function bfBind() {
+    var o = bfOpen; if (!o) return;
+    o.body.querySelectorAll(".fo").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var d = BIO_FDEF[o.sc].filter(function (x) { return x.k === b.dataset.k; })[0];
+        if (d.single) bioF[o.sc][d.k] = b.dataset.v;
+        else {
+          var s = bioSel(o.sc, d.k).slice(), i = s.indexOf(b.dataset.v);
+          if (i >= 0) s.splice(i, 1); else s.push(b.dataset.v);
+          bioF[o.sc][d.k] = s;
+        }
+        bfRefresh();
+      });
+    });
+    o.body.querySelector("#bf-reset").addEventListener("click", function () { bioF[o.sc] = { sort: "-1" }; bfRefresh(); });
+    o.body.querySelector("#bf-done").addEventListener("click", function () { bfClose(true); });
+  }
+  function bfRerender() { var y = window.scrollY; renderBio(); window.scrollTo(0, y); }
+  function bfRefresh() {
+    var o = bfOpen; if (!o) return;
+    var sc = o.body.scrollTop;
+    bfRerender();
+    var nb = app.querySelector('[data-bf="' + o.sc + '"]');
+    if (nb) { nb.setAttribute("aria-expanded", "true"); nb.classList.add("open"); o.btn = nb; }
+    o.body.innerHTML = bfBody(o.sc); o.body.scrollTop = sc; bfBind();
+  }
+  function bfShow(sc, btn) {
+    if (bfOpen) bfClose(false);
+    var mobile = window.matchMedia("(max-width: 760px)").matches;
+    var wrap = document.createElement("div");
+    wrap.className = "dd-layer fp-layer" + (mobile ? " sheet-mode" : "");
+    wrap.innerHTML = (mobile ? '<div class="dd-scrim"></div>' : "") +
+      '<div class="dd-panel fp-panel" role="dialog" aria-label="' + (sc === "c" ? "명단 필터" : "철회·미승인 명단 필터") + '">' +
+      (mobile ? '<div class="dd-top"><span class="grab" aria-hidden="true"></span><b>' + (sc === "c" ? "명단 필터" : "철회·미승인 명단 필터") + "</b></div>" : "") +
+      '<div class="dd-body fp-body"></div></div>';
+    document.body.appendChild(wrap);
+    var panel = wrap.querySelector(".dd-panel");
+    bfOpen = { sc: sc, btn: btn, wrap: wrap, panel: panel, body: wrap.querySelector(".fp-body"), mobile: mobile };
+    bfOpen.body.innerHTML = bfBody(sc); bfBind();
+    btn.setAttribute("aria-expanded", "true"); btn.classList.add("open");
+    if (!mobile) {
+      var r = btn.getBoundingClientRect();
+      panel.style.width = Math.min(400, window.innerWidth - 16) + "px";
+      panel.style.left = Math.max(8, Math.min(r.right - panel.offsetWidth, window.innerWidth - panel.offsetWidth - 8)) + "px";
+      var below = window.innerHeight - r.bottom - 20, above = r.top - 20;
+      if (below >= 320 || below >= above) { panel.style.top = (r.bottom + 6) + "px"; panel.style.maxHeight = Math.max(240, below) + "px"; }
+      else { panel.classList.add("up"); panel.style.maxHeight = above + "px"; panel.style.top = Math.max(8, r.top - 6 - Math.min(panel.scrollHeight, above)) + "px"; }
+    }
+    var first = panel.querySelector('.fo[aria-pressed="true"]') || panel.querySelector(".fo");
+    if (first) first.focus({ preventScroll: true });
+    panel.addEventListener("keydown", function (e) { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); bfClose(true); } });
+    var scrim = wrap.querySelector(".dd-scrim");
+    if (scrim) scrim.addEventListener("click", function () { bfClose(true); });
+  }
+  function bfClose(refocus) {
+    var o = bfOpen; if (!o) return;
+    bfOpen = null;
+    var btn = app.querySelector('[data-bf="' + o.sc + '"]');
+    if (btn) { btn.setAttribute("aria-expanded", "false"); btn.classList.remove("open"); }
+    if (o.mobile) { o.wrap.classList.add("closing"); setTimeout(function () { o.wrap.remove(); }, 180); } else o.wrap.remove();
+    if (refocus && btn) btn.focus({ preventScroll: true });
+  }
+  document.addEventListener("pointerdown", function (e) {
+    if (bfOpen && !bfOpen.mobile && !e.target.closest(".fp-panel") && !e.target.closest("[data-bf]")) bfClose(false);
+  }, true);
   function bindBio() {
     var qi = document.getElementById("bio-q");
     if (qi) qi.addEventListener("input", function () {
       bioState.q = qi.value;
       var keep = qi.selectionStart;
-      renderBio();
-      var n = document.getElementById("bio-q"); if (n) { n.focus(); try { n.setSelectionRange(keep, keep); } catch (e) { /* 무시 */ } }
+      bfRerender();
+      var n = document.getElementById("bio-q"); if (n) { n.focus({ preventScroll: true }); try { n.setSelectionRange(keep, keep); } catch (e) { /* 무시 */ } }
     });
-    app.querySelectorAll("[data-bdir], [data-fdir]").forEach(function (b) {
+    app.querySelectorAll("[data-bf]").forEach(function (b) {
+      b.addEventListener("click", function () { if (bfOpen && bfOpen.sc === b.dataset.bf) bfClose(true); else bfShow(b.dataset.bf, b); });
+    });
+    app.querySelectorAll(".af[data-bsc]").forEach(function (b) {
       b.addEventListener("click", function () {
-        if (b.dataset.bdir) bioState.dir = +b.dataset.bdir; else bioState.fdir = +b.dataset.fdir;
-        var y = window.scrollY; renderBio(); window.scrollTo(0, y);
+        var sc = b.dataset.bsc, k = b.dataset.bk;
+        if (k === "sort") bioF[sc].sort = "-1";
+        else bioF[sc][k] = bioSel(sc, k).filter(function (v) { return v !== b.dataset.bv; });
+        bfRerender();
       });
     });
-    app.querySelectorAll("[data-bcat]").forEach(function (b) {
-      b.addEventListener("click", function () { bioState.cat = b.dataset.bcat; var y = window.scrollY; renderBio(); window.scrollTo(0, y); });
+    app.querySelectorAll("[data-breset]").forEach(function (b) {
+      b.addEventListener("click", function () { bioF[b.dataset.breset] = { sort: "-1" }; bfRerender(); });
     });
     app.querySelectorAll("tr[data-bio]").forEach(function (tr) {
       var go = function () { goPath("/bio/" + encodeURIComponent(tr.dataset.bio)); };
@@ -1789,12 +1954,12 @@
     if (c.lic_sum) h += section("기술이전·계약 요약", "<p>" + esc(c.lic_sum) + "</p>", !inDeal);
     var day = function (x) { return String(x || "").replace(/\s*[(（].*$/, "").replace(/\s*;.*$/, "") || "-"; };
     var dirCls = function (d) { return /L\/O|플랫폼|옵션/.test(d || "") ? "lo" : /L\/I/.test(d || "") ? "li" : "etc"; };
-    if (c.deals.length) h += section("기술이전·계약 목록", '<ul class="bitems">' + c.deals.map(function (x) {
+    if (c.cdeals.length) h += section("기술이전·공동연구 계약", '<ul class="bitems">' + c.cdeals.map(function (x) {
       var amt = x.total && !/^기재 ?없음/.test(x.total) ? x.total : x.upfront && !/^기재 ?없음/.test(x.upfront) ? "선급금 " + x.upfront : "";
       return '<li><div class="i1"><span class="ty ' + dirCls(x.dir) + '">' + esc(x.dir || "-") + '</span><b>' + esc(x.asset || "-") + '</b><span class="dt">' + esc(day(x.date)) + "</span></div>" +
         '<div class="i2">' + esc(x.partner || "-") + (x.country && !/^기재 ?없음/.test(x.country) ? ' <span class="dim">· ' + esc(x.country) + "</span>" : "") + "</div>" +
         (amt ? '<div class="i3">' + esc(amt) + "</div>" : "") + (x.src ? '<span class="ln">줄 ' + esc(x.src) + "</span>" : "") + "</li>";
-    }).join("") + "</ul>" + '<p class="snote">' + srcNote + "</p>", !inDeal, c.deals.length);
+    }).join("") + "</ul>" + '<p class="snote">' + srcNote + " · 기술도입(L/I)·물질이전(MTA)·공급 계약 등은 뺐습니다.</p>", !inDeal, c.cdeals.length);
     if (c.pipes.length) h += section("파이프라인 (신고서 시점)", '<ul class="bitems">' + c.pipes.map(function (p) {
       return '<li><div class="i1"><b>' + esc(p.asset || "-") + '</b><span class="stg">' + esc(p.s || "-") + "</span></div>" +
         '<div class="i2">' + esc([p.modality, p.ind].filter(Boolean).join(" · ") || "-") + "</div>" +
@@ -1853,7 +2018,7 @@
     if (c.biz) h += '<section class="company" aria-label="회사 개요"><h3>회사 개요</h3><p>' + esc(c.biz) + '</p><div class="cmeta"><span><b>분류</b>' + esc(c.desc || "-") + "</span>" + (c.kind_name ? "<span><b>현재 사명</b>" + esc(c.kind_name) + "</span>" : "") + '</div><p class="csrc">증권신고서 사업의 개요를 바탕으로 요약' + (c.rcp ? " · " + dartLink(c.rcp) : "") + "</p></section>";
     h += '<div class="terms">' + tm("상장일", esc(c.list_date)) + tm("희망 밴드", txt(c.band)) + tm("기술평가", txt(c.grade && c.grade !== "기재 없음" ? c.grade.replace("+", "·") : "확인 못함"), esc(c.route || "")) +
       tm("심사 소요", c.rev_days ? int(c.rev_days) + "<small>일</small>" : "-", c.req ? "청구 " + esc(c.req) : "") +
-      tm("계약", int(c.nd) + "<small>건</small>", "L/O " + c.nlo + "건" + (c.glo ? " · 해외 포함" : "")) + tm("파이프라인", int(c.np) + "<small>개</small>") +
+      tm("계약(L/O)", int(c.nco) + "<small>(" + c.nlo + ")건</small>", "L/O·공동연구" + (c.glo ? " · 해외 L/O 포함" : "")) + tm("파이프라인", int(c.np) + "<small>개</small>") +
       tm("선두 단계", txt(c.top)) + tm("흑자전환 추정", c.be_year ? c.be_year + "<small>년</small>" : "-", c.disc ? "할인율 " + c.disc + "%" : "") + "</div>";
     if (c.deal_id) h += '<p class="notice">IPO 데이터룸 공모 건과 연결됩니다. <a href="#/deal/' + encodeURIComponent(c.deal_id) + '">공모 상세(경쟁률·확정가·보호예수) 보기</a></p>';
     h += bioSections(c, false);
