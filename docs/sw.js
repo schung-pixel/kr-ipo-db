@@ -1,6 +1,6 @@
 "use strict";
 // 앱 파일을 바꾸면 VERSION을 올려 이전 캐시를 비웁니다.
-var VERSION = "v53";
+var VERSION = "v54";
 var SHELL = "ipo-shell-" + VERSION;
 var DATA = "ipo-data";
 var FILES = ["./", "index.html", "style.css", "app.js", "manifest.webmanifest",

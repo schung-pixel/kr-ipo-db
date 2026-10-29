@@ -746,3 +746,4 @@ a.bcard:active { background: var(--surface2); }
 .mini.bio-proj td.num { white-space: nowrap; }
 .mini.bio-cond th { word-break: keep-all; }
 .mini.bio-cond th .sw { display: inline-block; border-radius: 2px; }
+.bio-ctl { display: flex; flex-wrap: wrap; gap: 8px; }

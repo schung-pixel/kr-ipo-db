@@ -1530,7 +1530,7 @@
   // ---------------------------------------------------------------- 기술특례 바이오 (케이스 스터디)
   // data/biotech.json: 2005년 이후 기술특례 신약개발사 91개사의 상장 당시 증권신고서 정리와 상장예비심사 청구 건(승인·철회·미승인)
   var bio = null, bioByDeal = {}, bioByName = {};
-  var bioState = { q: "", cat: "" };
+  var bioState = { q: "", cat: "", dir: -1, fdir: -1 };   // dir: 명단 상장일, fdir: 탈락 건 청구일 (-1 최근이 위)
   function bioIndex() {
     bioByDeal = {}; bioByName = {};
     if (!bio) return;
@@ -1714,14 +1714,14 @@
         '<div class="b3"><span>계약<b>' + c.nd + "</b></span><span>L/O<b" + (c.nlo ? "" : ' class="z"') + ">" + c.nlo + "</b></span><span>파이프라인<b>" + c.np + "</b></span>" +
         (g ? '<span>기술평가<b class="t">' + esc(g) + "</b></span>" : "") + "</div></a>";
     }).join("");
-    var listPanel = '<section class="panel bio-list"><header><div><h2>기술특례 신약개발사 명단</h2><p>상장일 순 ' + list.length + "곳. 행을 누르면 상장 당시 증권신고서 정리(기술이전·파이프라인·추정 손익)가 열립니다. 선두 단계는 신고서 문구를 규칙으로 분류한 근사치입니다.</p></div>" +
-      segBtns("data-bcat", [["", "전체"], ["A", "신약"], ["B", "경계"]], bioState.cat) + "</header>" +
+    var listPanel = '<section class="panel bio-list"><header><div><h2>기술특례 신약개발사 명단</h2><p>' + list.length + "곳. 행을 누르면 상장 당시 증권신고서 정리(기술이전·파이프라인·추정 손익)가 열립니다. 선두 단계는 신고서 문구를 규칙으로 분류한 근사치입니다.</p></div>" +
+      '<div class="bio-ctl">' + segBtns("data-bdir", [["-1", "최근순"], ["1", "오래된순"]], String(bioState.dir)) + segBtns("data-bcat", [["", "전체"], ["A", "신약"], ["B", "경계"]], bioState.cat) + "</div></header>" +
       '<div class="pbody"><div class="sbox bio-q"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13 13l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>' +
       '<input class="search" id="bio-q" type="search" placeholder="회사·사업·주관사 검색" value="' + esc(bioState.q) + '" aria-label="회사 검색"></div>' +
       '<div class="scroll bio-box"><table class="mini bio-t"><thead><tr><th>상장일</th><th>회사</th><th class="hide-m">사업</th><th>선두 단계</th><th class="num">계약</th><th class="num">L/O</th><th class="num hide-m">파이프라인</th><th class="hide-m">기술평가</th><th class="hide-m">대표주관</th></tr></thead><tbody id="bio-rows">' + rowsH + "</tbody></table></div>" + '<div class="bcards">' + (cardsH || '<div class="empty">조건에 맞는 회사가 없습니다.</div>') + "</div></div></section>";
     // 6) 탈락 청구 건
-    var fails = A.filter(function (a) { return a.outcome !== "승인"; }).sort(function (a, b) { return a.req < b.req ? 1 : -1; });
-    var failPanel = '<section class="panel"><header><div><h2>철회·미승인 청구 건 ' + fails.length + "건</h2><p>사유는 거래소 공식 사유가 아니라 보도·회사 설명입니다. 2017년 이전 건은 기사가 적어 확인 못한 항목이 많습니다.</p></div></header>" +
+    var fails = A.filter(function (a) { return a.outcome !== "승인"; }).sort(function (a, b) { return (a.req < b.req ? -1 : a.req > b.req ? 1 : 0) * bioState.fdir; });
+    var failPanel = '<section class="panel"><header><div><h2>철회·미승인 청구 건 ' + fails.length + "건</h2><p>사유는 거래소 공식 사유가 아니라 보도·회사 설명입니다. 2017년 이전 건은 기사가 적어 확인 못한 항목이 많습니다.</p></div>" + segBtns("data-fdir", [["-1", "최근순"], ["1", "오래된순"]], String(bioState.fdir)) + "</header>" +
       '<div class="pbody bio-boxw">' + table(["청구일", "회사", "결과", "선두 단계", "L/O", "소요일", "보도된 사유"], fails.map(function (a) {
         var inList = bioByName[a.name];
         return [esc(a.req), inList ? '<a href="#/bio/' + encodeURIComponent(a.name) + '">' + esc(a.name) + "</a>" : esc(a.name), esc(a.outcome), esc(a.stage),
@@ -1756,7 +1756,7 @@
       if (bioState.cat && c.cat !== bioState.cat) return false;
       if (q && findMatch(c.n, q) === -1 && findMatch((c.kind_name || "") + " " + (c.desc || "") + " " + (c.lead || ""), q) === -1) return false;
       return true;
-    });
+    }).sort(function (a, b) { return (a.list_date < b.list_date ? -1 : a.list_date > b.list_date ? 1 : a.n < b.n ? -1 : 1) * bioState.dir; });
   }
   function bindBio() {
     var qi = document.getElementById("bio-q");
@@ -1765,6 +1765,12 @@
       var keep = qi.selectionStart;
       renderBio();
       var n = document.getElementById("bio-q"); if (n) { n.focus(); try { n.setSelectionRange(keep, keep); } catch (e) { /* 무시 */ } }
+    });
+    app.querySelectorAll("[data-bdir], [data-fdir]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        if (b.dataset.bdir) bioState.dir = +b.dataset.bdir; else bioState.fdir = +b.dataset.fdir;
+        var y = window.scrollY; renderBio(); window.scrollTo(0, y);
+      });
     });
     app.querySelectorAll("[data-bcat]").forEach(function (b) {
       b.addEventListener("click", function () { bioState.cat = b.dataset.bcat; var y = window.scrollY; renderBio(); window.scrollTo(0, y); });
