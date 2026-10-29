@@ -784,3 +784,9 @@ a.bcard:active { background: var(--surface2); }
   .show-m { display: block !important; }
   .mini.btbl { font-size: 12.5px; }
 }
+
+/* 딜 카드 안 신약 개발 블록 구분 제목 */
+.bio-hd { margin: 22px 0 2px; padding: 12px 0 0; border-top: 2px solid var(--ink); font-size: 15px; font-weight: 700; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.bio-hd span { font-size: 12px; font-weight: 500; color: var(--muted); }
+.terms.t6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 760px) { .terms.t6 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
