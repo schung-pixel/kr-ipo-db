@@ -1528,7 +1528,7 @@
   })();
 
   // ---------------------------------------------------------------- 기술특례 바이오 (케이스 스터디)
-  // data/biotech.json: 2005년 이후 기술특례 신약개발사 91개사의 상장 당시 증권신고서 정리와 상장예비심사 청구 건(승인·철회·미승인)
+  // data/biotech.json: 2005년 이후 기술특례 신약개발사 84개사의 상장 당시 증권신고서 정리와 상장예비심사 청구 건(승인·철회·미승인)
   var bio = null, bioByDeal = {}, bioByName = {};
   var bioState = { q: "" };
   function bioIndex() {
@@ -1703,7 +1703,7 @@
     var coTxt = function (c) { return c.nco + '<span class="lo-n' + (c.nlo ? "" : " z") + '">(' + c.nlo + ")</span>"; };
     var rowsH = list.map(function (c) {
       return '<tr class="go" tabindex="0" data-bio="' + esc(c.n) + '"><td class="c-date">' + esc(c.list_date) + '</td><td><span class="nm">' + highlight(c.n, q) + "</span>" +
-        (c.cat === "B" ? '<span class="tag b-etc" title="경계 분류: 세포치료·플랫폼·소재 등">경계</span>' : "") + (c.glo ? '<span class="tag b-tech" title="해외 상대방 L/O 포함">해외 L/O</span>' : "") + "</td>" +
+        (c.cat === "B" ? '<span class="tag b-etc" title="경계 분류: 개량신약·약물전달·세포치료, 또는 진단·분석 사업을 함께 하는 신약 개발사">경계</span>' : "") + (c.glo ? '<span class="tag b-tech" title="해외 상대방 L/O 포함">해외 L/O</span>' : "") + "</td>" +
         '<td class="hide-m">' + esc(c.desc || "") + '</td><td>' + esc(c.top || "-") + '</td><td class="num">' + coTxt(c) + '</td><td class="num hide-m">' + c.np + "</td></tr>";
     }).join("");
     var cardsH = list.map(function (c) {
@@ -1737,7 +1737,7 @@
       }).join("") + "</div></div></section>";
 
     app.innerHTML = '<div class="content">' +
-      '<p class="notice">상장예비심사를 청구한 코스닥 신약개발사(2005~2026년, 경계 바이오 포함)의 결과와 청구 당시 프로필입니다. 승인 건은 상장 당시 증권신고서, 철회·미승인 건은 언론·공시로 조사했습니다. 기술성평가에서 이미 떨어져 청구하지 못한 회사는 포함되지 않습니다.</p>' + kpi +
+      '<p class="notice">상장예비심사를 청구한 코스닥 신약개발사(2005~2026년, 경계 바이오 포함)의 결과와 청구 당시 프로필입니다. 치료제 파이프라인이 없는 소재·의료기기·분석 플랫폼 회사는 뺐습니다. 승인 건은 상장 당시 증권신고서, 철회·미승인 건은 언론·공시로 조사했습니다. 기술성평가에서 이미 떨어져 청구하지 못한 회사는 포함되지 않습니다.</p>' + kpi +
       '<section class="panel"><header><div><h2>연도별 상장예비심사 결과</h2><p>청구 연도 기준. 막대 위 숫자는 통과율이고, 막대에 마우스를 올리면 회사 이름이 나옵니다. 심사를 통과한 뒤 공모를 접은 건은 뺐습니다.</p></div></header>' +
       '<div class="pbody chart">' + bioLegend(BIO_RES, resItems) + svgRes + "</div></section>" +
       '<section class="panel"><header><div><h2>청구 시점 L/O 유무와 선두 임상 단계</h2><p>L/O에는 플랫폼·옵션 계약을 포함합니다. "2상 이상"은 선두 자산이 임상 2상 이상이거나 상용화 단계입니다. 칸당 표본이 작아 방향만 참고하십시오.</p></div></header>' +
@@ -1761,7 +1761,7 @@
   var BIO_FDEF = {
     c: [
       { k: "sort", t: "정렬", single: true, opts: [["-1", "상장일 최근순"], ["1", "상장일 오래된순"]] },
-      { k: "cat", t: "분류", opts: [["A", "신약개발"], ["B", "경계(세포치료·플랫폼·소재)"]], of: function (c) { return c.cat; } },
+      { k: "cat", t: "분류", opts: [["A", "신약개발"], ["B", "경계(약물전달·세포치료·진단 병행)"]], of: function (c) { return c.cat; } },
       { k: "era", t: "상장 연도", opts: BIO_ERAS.map(function (e) { return [e[0], e[0]]; }), of: function (c) { return bioEraOf(+c.list_date.slice(0, 4)); } },
       { k: "top", t: "선두 단계", opts: BIO_STAGES.map(function (s) { return [s, s]; }), of: function (c) { return c.top; } },
       { k: "lo", t: "기술이전(L/O)", opts: [["해외 L/O", "해외 상대방 L/O"], ["국내 L/O만", "국내 L/O만"], ["L/O 없음", "L/O 없음"]], of: bioLoKey },
