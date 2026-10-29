@@ -1954,17 +1954,43 @@
     if (c.lic_sum) h += section("기술이전·계약 요약", "<p>" + esc(c.lic_sum) + "</p>", !inDeal);
     var day = function (x) { return String(x || "").replace(/\s*[(（].*$/, "").replace(/\s*;.*$/, "") || "-"; };
     var dirCls = function (d) { return /L\/O|플랫폼|옵션/.test(d || "") ? "lo" : /L\/I/.test(d || "") ? "li" : "etc"; };
-    if (c.cdeals.length) h += section("기술이전·공동연구 계약", '<ul class="bitems">' + c.cdeals.map(function (x) {
-      var amt = x.total && !/^기재 ?없음/.test(x.total) ? x.total : x.upfront && !/^기재 ?없음/.test(x.upfront) ? "선급금 " + x.upfront : "";
-      return '<li><div class="i1"><span class="ty ' + dirCls(x.dir) + '">' + esc(x.dir || "-") + '</span><b>' + esc(x.asset || "-") + '</b><span class="dt">' + esc(day(x.date)) + "</span></div>" +
-        '<div class="i2">' + esc(x.partner || "-") + (x.country && !/^기재 ?없음/.test(x.country) ? ' <span class="dim">· ' + esc(x.country) + "</span>" : "") + "</div>" +
-        (amt ? '<div class="i3">' + esc(amt) + "</div>" : "") + (x.src ? '<span class="ln">줄 ' + esc(x.src) + "</span>" : "") + "</li>";
-    }).join("") + "</ul>" + '<p class="snote">' + srcNote + " · 기술도입(L/I)·물질이전(MTA)·공급 계약 등은 뺐습니다.</p>", !inDeal, c.cdeals.length);
-    if (c.pipes.length) h += section("파이프라인 (신고서 시점)", '<ul class="bitems">' + c.pipes.map(function (p) {
-      return '<li><div class="i1"><b>' + esc(p.asset || "-") + '</b><span class="stg">' + esc(p.s || "-") + "</span></div>" +
-        '<div class="i2">' + esc([p.modality, p.ind].filter(Boolean).join(" · ") || "-") + "</div>" +
-        (p.stage ? '<div class="i3">' + esc(p.stage) + "</div>" : "") + "</li>";
-    }).join("") + "</ul>", !inDeal, c.pipes.length);
+    var nz = function (v) { return v && !/^(기재 ?없음|비공개|해당 ?없음|미기재|-)/.test(v) ? v : ""; };
+    var noEn = function (v) { return String(v || "").replace(/\s*\((?=[A-Za-z])[^)]*\)/g, "").trim(); };
+    var noParen = function (v) { return String(v || "").replace(/\s*[(（][^)）]*[)）]/g, "").trim(); };
+    var shortAmt = function (x) {
+      var t = nz(x.total) || (nz(x.upfront) ? "선급금 " + nz(x.upfront) : "");
+      var cut = t.replace(/\s*[(（;].*$/, "");
+      return { full: t, short: cut.length > 34 ? cut.slice(0, 33) + "…" : cut };
+    };
+    var ym = function (x) { var m = String(x || "").match(/((?:19|20)\d{2})[.\-\/년\s]*(\d{1,2})?/); return m ? m[1] + (m[2] ? "." + ("0" + m[2]).slice(-2) : "") : "-"; };
+    if (c.cdeals.length) {
+      var cd = c.cdeals.slice().sort(function (a, b) { return ym(a.date) < ym(b.date) ? -1 : ym(a.date) > ym(b.date) ? 1 : 0; });
+      var nLo = cd.filter(function (x) { return dirCls(x.dir) === "lo"; }).length;
+      var sum = '<div class="tsum"><span>L/O <b>' + nLo + "</b></span><span>공동연구·공동개발 <b>" + (cd.length - nLo) + "</b></span>" + (c.glo ? '<span class="tag b-tech">해외 L/O 포함</span>' : "") + "</div>";
+      h += section("기술이전·공동연구 계약", sum + '<div class="scroll"><table class="mini btbl"><thead><tr><th>체결</th><th>유형</th><th>대상 자산 · 상대방</th><th class="hide-m">규모</th><th class="num hide-m">줄</th></tr></thead><tbody>' +
+        cd.map(function (x) {
+          var a = shortAmt(x), co = noParen(nz(x.country));
+          return '<tr><td class="c-ym">' + esc(ym(x.date)) + '</td><td><span class="ty ' + dirCls(x.dir) + '">' + esc(dirCls(x.dir) === "lo" ? (/플랫폼/.test(x.dir) ? "플랫폼" : /옵션/.test(x.dir) ? "옵션" : "L/O") : "공동") + "</span></td>" +
+            '<td><b class="as">' + esc(x.asset || "-") + '</b><span class="pt">' + esc(x.partner || "-") + (co ? " · " + esc(co) : "") + "</span>" +
+            (a.short ? '<span class="am show-m">' + esc(a.short) + "</span>" : "") + "</td>" +
+            '<td class="hide-m c-am"' + (a.full ? ' title="' + esc(a.full) + '"' : "") + ">" + (a.short ? esc(a.short) : '<span class="dim">비공개·미기재</span>') + "</td>" +
+            '<td class="num hide-m dim">' + esc(x.src || "") + "</td></tr>";
+        }).join("") + "</tbody></table></div>" +
+        '<p class="snote">' + srcNote + " · 규모에 마우스를 올리면 원문 표기 전체가 보입니다. 기술도입(L/I)·물질이전(MTA)·공급 계약 등은 뺐습니다.</p>", !inDeal, cd.length);
+    }
+    if (c.pipes.length) {
+      var SR = { "상용화": 0, "임상 3상·허가심사": 1, "임상 2상": 2, "임상 1상": 3, "전임상": 4, "탐색·연구": 5, "플랫폼": 6, "기재 불명확": 7 };
+      var pp = c.pipes.slice().sort(function (a, b) { return (SR[a.s] != null ? SR[a.s] : 8) - (SR[b.s] != null ? SR[b.s] : 8); });
+      var sc = {}; pp.forEach(function (p) { sc[p.s || "기재 불명확"] = (sc[p.s || "기재 불명확"] || 0) + 1; });
+      var psum = '<div class="tsum">' + Object.keys(sc).sort(function (a, b) { return (SR[a] != null ? SR[a] : 8) - (SR[b] != null ? SR[b] : 8); }).map(function (k) { return "<span>" + esc(k) + " <b>" + sc[k] + "</b></span>"; }).join("") + "</div>";
+      h += section("파이프라인 (신고서 시점)", psum + '<div class="scroll"><table class="mini btbl"><thead><tr><th>자산</th><th class="hide-m">모달리티</th><th>적응증</th><th>단계</th></tr></thead><tbody>' +
+        pp.map(function (p) {
+          return '<tr><td><b class="as">' + esc(p.asset || "-") + '</b><span class="pt show-m">' + esc(noEn(p.modality)) + "</span></td>" +
+            '<td class="hide-m">' + esc(noEn(p.modality) || "-") + "</td><td>" + (nz(p.ind) ? esc(p.ind) : '<span class="dim">-</span>') + "</td>" +
+            '<td><span class="stg s' + (SR[p.s] != null ? SR[p.s] : 8) + '"' + (p.stage ? ' title="' + esc("신고서: " + p.stage) + '"' : "") + ">" + esc(p.s || "-") + "</span></td></tr>";
+        }).join("") + "</tbody></table></div>" +
+        '<p class="snote">앞선 단계 순. 단계는 신고서 문구를 구간으로 분류한 값이며, 단계에 마우스를 올리면 신고서 기재 문구가 보입니다.</p>', !inDeal, pp.length);
+    }
     if (c.proj) {
       var P = c.proj;
       h += section("추정 손익 (공모가 산정용)", table([P.unit || "단위"].concat(P.years.map(function (y, i) { return esc(y) + (P.ae[i] && /실적|A/.test(P.ae[i]) ? " 실적" : ""); })),
