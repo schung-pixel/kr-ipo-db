@@ -1,10 +1,10 @@
 {
- "run_at": "2026-10-30T05:13:36+09:00",
+ "run_at": "2026-10-30T18:58:22+09:00",
  "fetch": "ok",
  "http_status": 200,
- "response_bytes": 196027,
- "rows": 332,
- "saved": 332,
+ "response_bytes": 198392,
+ "rows": 336,
+ "saved": 336,
  "approved": 216,
  "corp_list": 2762,
  "manual_rows": 0
