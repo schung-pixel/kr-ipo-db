@@ -50414,9 +50414,9 @@ CREATE TABLE meta (
   key   TEXT PRIMARY KEY,
   value TEXT
 );
-INSERT INTO "meta" VALUES('last_list_date','2026-10-31');
+INSERT INTO "meta" VALUES('last_list_date','2026-11-01');
 INSERT INTO "meta" VALUES('schema_stage','2');
-INSERT INTO "meta" VALUES('kind_as_of','2026-10-31');
+INSERT INTO "meta" VALUES('kind_as_of','2026-11-01');
 CREATE TABLE review (
   deal_id               TEXT PRIMARY KEY,
   prelim_filed_dt       TEXT,
