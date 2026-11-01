@@ -10,7 +10,71 @@
   var EMBED = !!embedEl;
   var memPath = "/";
   function curPath() { return EMBED ? memPath : (location.hash.replace(/^#/, "") || "/"); }
-  function goPath(p) { if (EMBED) { memPath = p; route(); } else { location.hash = p; } }
+  // 화면 이동 기록: 휴대폰(갤럭시 등)의 뒤로 가기가 앱을 닫지 않고 앞 화면으로 돌아가게, 이동마다 기록을 쌓습니다.
+  // 임베드(아티팩트)에서도 같은 방식(주소는 바꾸지 않고 기록만)으로 동작합니다.
+  var hist = [curPath()], hi = 0, popSkip = 0, overlay = null, exitAt = 0;
+  function pushH(st, url) {
+    try { if (EMBED) history.pushState(st, ""); else history.pushState(st, "", url); return true; } catch (e) { return false; }
+  }
+  function replaceH(st, url) {
+    try { if (EMBED) history.replaceState(st, ""); else history.replaceState(st, "", url); } catch (e) { /* 무시 */ }
+  }
+  function goPath(p, replace) {
+    var cur = curPath();
+    if (p === cur) { route(); return; }
+    // 상세에서 다른 상세로(이전·다음) 넘어갈 때는 기록을 늘리지 않습니다
+    if (replace == null) replace = /^\/deal\//.test(cur) && /^\/deal\//.test(p);
+    if (replace) { hist[hi] = p; replaceH({ n: hi, p: p }, "#" + p); }
+    else { hist = hist.slice(0, hi + 1); hist.push(p); hi++; if (!pushH({ n: hi, p: p }, "#" + p)) { hist.pop(); hi--; } }
+    if (EMBED) memPath = p;
+    route();
+  }
+  // 상세 닫기: 목록에서 연 상세면 기록 한 칸 뒤로(뒤로 가기와 같은 결과), 아니면 바탕 화면으로 바꿔 둡니다
+  function closeTo(base) {
+    if (hi > 0 && hist[hi - 1] === base) { try { history.back(); return; } catch (e) { /* 아래로 */ } }
+    goPath(base, true);
+  }
+  // 팝업(필터·드롭다운 시트): 열 때 기록 한 칸을 쌓아 뒤로 가기로 닫히게 합니다
+  function overlayOpen(close) {
+    if (overlay) return;
+    if (pushH({ n: hi, p: curPath(), ov: 1 }, "#" + curPath())) overlay = close;
+  }
+  function overlayDone() {
+    if (!overlay) return;
+    overlay = null; popSkip++;
+    try { history.back(); } catch (e) { popSkip--; }
+  }
+  var toastTimer = null;
+  function toast(msg) {
+    var t = document.getElementById("toast");
+    if (!t) { t = document.createElement("div"); t.id = "toast"; t.className = "toast"; t.setAttribute("role", "status"); document.body.appendChild(t); }
+    t.textContent = msg; t.classList.add("on");
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove("on"); }, 1800);
+  }
+  window.addEventListener("popstate", function (e) {
+    if (popSkip) { popSkip--; return; }
+    var st = e.state || {};
+    if (overlay && !st.ov) { var f = overlay; overlay = null; f(); return; }
+    if (st.guard) {
+      // 첫 화면에서 뒤로 가기: 한 번 더 누르면 종료(2초 안)
+      if (Date.now() - exitAt < 2000) { popSkip = 0; try { history.back(); } catch (err) { /* 무시 */ } return; }
+      exitAt = Date.now(); toast("뒤로 버튼을 한 번 더 누르면 종료합니다");
+      pushH({ n: 0, p: hist[0] }, "#" + hist[0]); hi = 0;
+      if (EMBED) memPath = hist[0];
+      route(); return;
+    }
+    if (typeof st.n === "number") {
+      hi = st.n; hist[hi] = st.p;
+      if (EMBED) memPath = st.p;
+      route();
+    }
+  });
+  // 시작 시: 맨 앞에 '종료 확인' 칸을 두고 그 위에 현재 화면을 올립니다
+  (function () {
+    var p0 = curPath();
+    replaceH({ guard: 1 }, EMBED ? undefined : "#/");
+    pushH({ n: 0, p: p0 }, "#" + p0);
+  })();
 
   var DEFAULTS = { status: "all", cand: "ipo", spac: false, year: "", board: "", q: "", sortKey: "date", sortDir: -1 };
   var state = Object.assign({}, DEFAULTS, { sYear: "", sPeriod: "all", sUnit: "year", sWin: null, metric: "count", league: "count", listScroll: 0 });
@@ -361,6 +425,7 @@
     var opts = Array.prototype.slice.call(panel.querySelectorAll(".dd-o"));
     var cur = panel.querySelector('.dd-o[aria-selected="true"]') || opts[0];
     ddOpen = { sel: sel, btn: btn, wrap: wrap, panel: panel, mobile: mobile };
+    if (mobile) overlayOpen(function () { ddClose(false); });
     if (cur) { cur.focus({ preventScroll: true }); cur.scrollIntoView({ block: "nearest" }); }
     opts.forEach(function (o) {
       o.addEventListener("click", function () { ddPick(o.dataset.v); });
@@ -407,6 +472,7 @@
   function ddClose(refocus) {
     var o = ddOpen; if (!o) return;
     ddOpen = null;
+    if (o.mobile) overlayDone();
     o.btn.setAttribute("aria-expanded", "false"); o.btn.classList.remove("open"); o.btn.removeAttribute("aria-controls");
     if (o.mobile) {
       o.wrap.classList.add("closing");
@@ -544,6 +610,7 @@
     document.body.appendChild(wrap);
     var panel = wrap.querySelector(".dd-panel");
     fpOpen = { btn: btn, wrap: wrap, panel: panel, body: wrap.querySelector(".fp-body"), mobile: mobile };
+    if (mobile) overlayOpen(function () { fpClose(false); });
     fpOpen.body.innerHTML = fpBody(); fpBind();
     btn.setAttribute("aria-expanded", "true"); btn.classList.add("open");
     if (!mobile) {
@@ -562,6 +629,7 @@
   function fpClose(refocus) {
     var o = fpOpen; if (!o) return;
     fpOpen = null;
+    if (o.mobile) overlayDone();
     var btn = document.getElementById("f-menu");
     if (btn) { btn.setAttribute("aria-expanded", "false"); btn.classList.remove("open"); }
     if (o.mobile) { o.wrap.classList.add("closing"); setTimeout(function () { o.wrap.remove(); }, 180); } else o.wrap.remove();
@@ -973,8 +1041,8 @@
     slot.outerHTML = viz || "";
     if (!wasOpen) focusSheet();
   }
-  document.getElementById("s-close").addEventListener("click", function () { goPath(baseView()); });
-  shade.addEventListener("click", function () { goPath(baseView()); });
+  document.getElementById("s-close").addEventListener("click", function () { closeTo(baseView()); });
+  shade.addEventListener("click", function () { closeTo(baseView()); });
   // 휴대폰: 시트 머리(손잡이 부분)를 잡아 아래로 끌면 닫힘. 충분히 내리거나 빠르게 튕기면 닫고, 아니면 제자리로
   (function () {
     var head = sheet.querySelector(".sheet-head"), y0 = null, t0 = 0, dy = 0, pid = null;
@@ -999,7 +1067,7 @@
       if (dy > Math.min(140, sheet.offsetHeight * 0.25) || (dy > 30 && v > 0.6)) {
         sheet.style.transform = "translateY(100%)";
         setTimeout(function () {
-          goPath(baseView());
+          closeTo(baseView());
           sheet.style.transition = ""; sheet.style.transform = ""; shade.style.opacity = "";
         }, 200);
       } else {
@@ -1936,6 +2004,7 @@
     document.body.appendChild(wrap);
     var panel = wrap.querySelector(".dd-panel");
     bfOpen = { sc: sc, btn: btn, wrap: wrap, panel: panel, body: wrap.querySelector(".fp-body"), mobile: mobile };
+    if (mobile) overlayOpen(function () { bfClose(false); });
     bfOpen.body.innerHTML = bfBody(sc); bfBind();
     btn.setAttribute("aria-expanded", "true"); btn.classList.add("open");
     if (!mobile) {
@@ -1955,6 +2024,7 @@
   function bfClose(refocus) {
     var o = bfOpen; if (!o) return;
     bfOpen = null;
+    if (o.mobile) overlayDone();
     var btn = app.querySelector('[data-bf="' + o.sc + '"]');
     if (btn) { btn.setAttribute("aria-expanded", "false"); btn.classList.remove("open"); }
     if (o.mobile) { o.wrap.classList.add("closing"); setTimeout(function () { o.wrap.remove(); }, 180); } else o.wrap.remove();
@@ -2187,13 +2257,14 @@
   }).catch(function () {
     app.innerHTML = '<p class="err">데이터를 불러오지 못했습니다. 네트워크 연결을 확인한 뒤 새로 고침해 주십시오. 처음 접속한 기기에서는 오프라인 상태로 열 수 없습니다.</p>';
   });
-  window.addEventListener("hashchange", route);
+  // 주소창에서 직접 바꾼 경우(드묾): 기록에 이어 붙이고 화면만 다시 그립니다
+  window.addEventListener("hashchange", function () { var p = curPath(); if (hist[hi] !== p) { hist = hist.slice(0, hi + 1); hist.push(p); hi++; } route(); });
   // 링크 클릭: 임베드 모드에서는 메모리 경로로, 목록→상세 이동 시 위치를 기억합니다.
   document.addEventListener("click", function (e) {
     var a = e.target.closest && e.target.closest('a[href^="#/"]');
     if (!a || e.metaKey || e.ctrlKey || e.shiftKey) return;
     var to = a.getAttribute("href").slice(1);
-    if (EMBED) { e.preventDefault(); goPath(to); }
+    e.preventDefault(); goPath(to);
   });
   function syncTopH() {
     var t = document.querySelector(".top");
@@ -2219,7 +2290,7 @@
     if (!sheetId || e.target.closest("input, select, textarea")) return;
     if (e.key === "ArrowLeft") { var b = document.getElementById("s-prev"); if (!b.disabled) b.click(); }
     if (e.key === "ArrowRight") { var n = document.getElementById("s-next"); if (!n.disabled) n.click(); }
-    if (e.key === "Escape") goPath(baseView());
+    if (e.key === "Escape") closeTo(baseView());
   });
 
   // 화면 전환은 상단 탭(휴대폰은 페이지 점)으로만 합니다. 좌우 끌기는 통계 그래프의 기간 이동에 씁니다.
