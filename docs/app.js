@@ -319,7 +319,7 @@
     if (tab === "stats") { if (view !== "stats") { renderStats(); window.scrollTo(0, 0); } }
     else if (tab === "bio") { if (view !== "bio") { renderBio(); window.scrollTo(0, 0); } }
     else if (view !== "list") { renderList(); window.scrollTo(0, 0); }
-    document.title = (tab === "stats" ? "통계" : tab === "bio" ? "기술특례 바이오" : "딜 목록") + " · IPO 데이터룸";
+    document.title = (tab === "stats" ? "통계" : tab === "bio" ? "기술특례 바이오" : "목록") + " · IPO 데이터룸";
   }
   function baseView() { return view === "stats" ? "/stats" : view === "bio" ? "/bio" : "/"; }
 
