@@ -629,7 +629,9 @@ details.tv summary { cursor: pointer; color: var(--muted); font-size: 12px; }
   .tgl { background: none; padding: 0; grid-template-columns: 1fr; }
   .tgl::before { display: none; }
   .tgl button[aria-pressed="true"] { display: none; }
-  .tgl button { width: 34px; height: 34px; padding: 0; border-radius: 10px; color: var(--muted); background: var(--surface); border: 1px solid var(--line2); }
+  /* 테마 버튼: 아래 필터 버튼과 같은 원형(크기·테두리·바탕), 세로 줄을 맞춤 */
+  .tgl button, .tgl button:not([aria-pressed="true"]) { width: 42px; height: 42px; padding: 0; border-radius: 999px; color: var(--ink); background: var(--surface); border: 1px solid var(--edge); }
+  .tgl button svg { width: 18px; height: 18px; }
   .srow { padding-top: 4px; padding-bottom: 4px; }
   .search { box-shadow: none; height: 42px; }
   .fbtn { box-shadow: none; width: 42px; height: 42px; }
@@ -813,3 +815,4 @@ a.bcard:active { background: var(--surface2); }
 /* 알림 토스트(뒤로 가기 종료 안내 등) */
 .toast { position: fixed; left: 50%; bottom: calc(28px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 12px); z-index: 90; background: rgba(21, 32, 43, .92); color: #fff; font-size: 13px; padding: 9px 16px; border-radius: 999px; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; white-space: nowrap; }
 .toast.on { opacity: 1; transform: translate(-50%, 0); }
+@media (max-width: 760px) { .tgl button { height: 42px; } }
