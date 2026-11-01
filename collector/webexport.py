@@ -179,7 +179,9 @@ def build_payload(conn) -> dict:
         rv = review.get(d["deal_id"])
         d["correction_order"] = bool(rv and rv["correction_order"])
         lk = conn.execute("SELECT data FROM deal_lockup WHERE deal_id=?", (d["deal_id"],)).fetchone()
-        d["lockup"] = _lockup_view(json.loads(lk["data"])) if lk and lk["data"] else None
+        lkd = json.loads(lk["data"]) if lk and lk["data"] else {}
+        d["lockup"] = _lockup_view(lkd) if lkd else None
+        d["listed_shares"] = lkd.get("listed") or lkd.get("listed_any")   # 상장예정주식수(밴드 기준 시가총액용)
         fn = conn.execute("SELECT data FROM deal_fin WHERE deal_id=?", (d["deal_id"],)).fetchone()
         d["fin"] = _fin_view(json.loads(fn["data"])) if fn and fn["data"] else None
 

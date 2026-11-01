@@ -12,7 +12,7 @@ import zipfile
 
 from .doctext import _clean, _decode
 
-LOCKUP_VERSION = 5
+LOCKUP_VERSION = 6
 # 2019년 이전 원문을 공시 뷰어로 받을 때 읽을 목차(투자위험요소·공모 일반사항)
 VIEWER_SECTIONS = ("기타위험", "투자위험요소", "공모가격결정방법", "모집또는매출에관한일반사항", "공모개요", "유통")
 
@@ -489,6 +489,9 @@ def merge(base: dict, new: dict, rcept_no: str) -> dict:
     """여러 원문의 결과를 합칩니다. 유통물량 묶음(상장주식수·상장일 유통·해제 일정·주주별 내역)과
     확약 비율은 각각 그 값을 가진 가장 최근 원문(접수번호가 큰 쪽)에서 가져옵니다."""
     out = dict(base or {})
+    # 상장예정주식수는 유통물량 표를 못 읽은 원문에서도 따로 남깁니다(밴드 기준 시가총액 계산용)
+    if new.get("listed") and (not out.get("src_listed") or rcept_no > out["src_listed"]):
+        out["listed_any"], out["src_listed"] = new["listed"], rcept_no
     if new.get("float0") or new.get("schedule"):
         if not out.get("src_float") or rcept_no > out["src_float"]:
             for k in _BUNDLE:

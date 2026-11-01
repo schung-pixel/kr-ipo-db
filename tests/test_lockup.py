@@ -110,6 +110,11 @@ class LockupTest(unittest.TestCase):
         self.assertEqual(m["float0"]["shares"], 2)
         self.assertEqual(m["commit"]["ratio"], 5.0)
 
+    def test_merge_keeps_listed_without_float(self):
+        m = lockup.merge({}, {"listed": 12548950, "status": "not_found"}, "20250411001507")
+        self.assertEqual(m["listed_any"], 12548950)
+        self.assertEqual(m["status"], "not_found")
+
     def test_period_parse(self):
         self.assertEqual(lockup._months("상장일로부터 6개월"), 6)
         self.assertEqual(lockup._months("2년 6개월"), 30)

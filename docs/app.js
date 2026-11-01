@@ -780,6 +780,16 @@
       (F.src ? " · 출처 " + dartLink(F.src) : "") + "</p>";
     return section("재무 요약", h, true);
   }
+  // 희망 밴드 기준 공모 후 시가총액: 상장예정주식수 × 밴드 하단~상단(억원). 단일 희망가는 한 값
+  function bandCap(d) {
+    var n = d.listed_shares, lo = d.offer_price_low, hi = d.offer_price_high;
+    var single = lo && lo === hi;
+    if (!n || !lo) return single ? "단일 희망가" : "";
+    var x = n * lo, y = n * (hi || lo), jo = y >= 1e12;
+    var f = function (v) { return jo ? (v / 1e12).toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : eok(v); };
+    var a = f(x), b = f(y);
+    return (single ? "단일 희망가 · " : "") + "시가총액 " + (a === b ? a : a + "~" + b) + (jo ? "조원" : "억원");
+  }
   function dartLink(no, text) {
     return '<a href="' + DART_VIEW + esc(no) + '" target="_blank" rel="noopener noreferrer">' + esc(text || no) + "</a>";
   }
@@ -911,13 +921,13 @@
     var term = function (k, v, sub, cls) { return '<div><span class="k">' + k + '</span><span class="v' + (cls ? " " + cls : "") + '">' + v + "</span>" + (sub ? '<span class="s">' + sub + "</span>" : "") + "</div>"; };
     html += '<div class="terms">' +
       term("확정 공모가", d.final_price ? int(d.final_price) + "<small>원</small>" : '<span class="dim">' + (d.status === "price_fixed" ? "확인 필요" : "미확정") + "</span>", p ? pill(p) : "", d.final_price ? "hl" : "") +
-      term("희망 밴드", d.offer_price_low ? bandText(d) + "<small>원</small>" : "-", d.offer_price_low && d.offer_price_low === d.offer_price_high ? "단일 희망가" : "") +
+      term("희망 밴드", d.offer_price_low ? bandText(d) + "<small>원</small>" : "-", bandCap(d)) +
       term("수요예측 경쟁률", d.inst_demand_ratio != null ? ratio(d.inst_demand_ratio, 2) : '<span class="dim">-</span>', [demandText(d, true), d.inst_demand_count ? int(d.inst_demand_count) + "건 참여" : ""].filter(Boolean).join(" · ")) +
       term("일반청약 경쟁률", d.retail_ratio != null ? ratio(d.retail_ratio, 2) : '<span class="dim">-</span>', d.retail_count ? int(d.retail_count) + "건" : "") +
       term("상장일", d.listing_dt ? esc(d.listing_dt) : '<span class="dim">-</span>', d.listing_dt && d.listing_dt > asOf() ? "예정" : "") +
       term(amtLabel, d.offer_amount != null ? eok(d.offer_amount) + "<small>억원</small>" : "-") +
       term(shrLabel, d.shares_offered != null ? int(d.shares_offered) + "<small>주</small>" : "-", d.secondary_shares ? "구주 " + int(d.secondary_shares) + "주" : "") +
-      term("대표주관", '<span style="font-family:var(--f-body);font-size:14.5px;font-weight:600">' + esc(d.lead_underwriters || "-") + "</span>", d.co_underwriters ? "공동 " + esc(d.co_underwriters) : "") +
+      term("대표주관", esc(d.lead_underwriters || "-"), d.co_underwriters ? "공동 " + esc(d.co_underwriters) : "", "txt") +
       "</div>";
     html += '<div id="bandviz-slot"></div>';
     html += finBlock(d);

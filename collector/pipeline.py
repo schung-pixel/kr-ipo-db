@@ -88,7 +88,7 @@ def _collect_lockups(client, conn, now, stats, log, workers, budget):
             if budget is not None and budget <= 0:
                 break
             # 유통물량을 이미 읽었으면, 확약 비율은 공모가 확정 뒤 원문에만 있으므로 확정 딜만 한 건 더 봅니다
-            if data.get("float0") and (data.get("commit") or not priced or fetched >= 2):
+            if (data.get("float0") or data.get("listed_any")) and (data.get("commit") or not priced or fetched >= 2):
                 break
             try:
                 text = pf.document(no)

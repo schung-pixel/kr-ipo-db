@@ -556,6 +556,17 @@ def lockup_plan(conn, min_year: str = "2020") -> list:
         "FROM ipo_deal d LEFT JOIN company c USING (corp_code) LEFT JOIN filing f ON f.rcept_no = d.first_rcept_no "
         "WHERE d.is_ipo_candidate=1 AND COALESCE(d.doc_signal, 1) != 0")}
     done = {r["deal_id"]: r for r in conn.execute("SELECT deal_id, tried, status, parser_version, data FROM deal_lockup")}
+    # v5 → v6: 상장예정주식수가 이미 있는 행은 다시 읽지 않고 버전만 올립니다(없는 행만 새 규칙으로 다시 읽음)
+    for r in list(done.values()):
+        if (r["parser_version"] or 0) == 5:
+            dd = _json.loads(r["data"] or "{}")
+            if dd.get("listed"):
+                dd["listed_any"] = dd["listed"]
+                dd["src_listed"] = dd.get("src_float")
+                conn.execute("UPDATE deal_lockup SET parser_version=?, data=? WHERE deal_id=?",
+                             (LOCKUP_VERSION, _json.dumps(dd, ensure_ascii=False, sort_keys=True), r["deal_id"]))
+    conn.commit()
+    done = {r["deal_id"]: r for r in conn.execute("SELECT deal_id, tried, status, parser_version, data FROM deal_lockup")}
     alls = _group(conn)[1]
     plan = []
     for deal_id, c in sorted(cands.items(), key=lambda kv: kv[1]["first_filing_dt"] or "", reverse=True):
@@ -578,8 +589,8 @@ def lockup_plan(conn, min_year: str = "2020") -> list:
             data = _json.loads(d["data"] or "{}")
             spac = "기업인수목적" in (c["corp_name"] or "") or "스팩" in (c["corp_name"] or "")
             priced = c["status"] in ("price_fixed", "completed")
-            complete = bool(data.get("float0")) and (bool(data.get("commit")) or spac or not priced
-                                                     or len(tried & set(order)) >= 2)
+            complete = bool(data.get("float0") or data.get("listed_any")) and (
+                bool(data.get("commit")) or spac or not priced or len(tried & set(order)) >= 2)
             if order[0] in tried and (complete or all(no in tried for no in order)):
                 continue
             plan.append((deal_id, c["corp_code"], order, c["status"] in ("price_fixed", "completed")))

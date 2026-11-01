@@ -790,3 +790,10 @@ a.bcard:active { background: var(--surface2); }
 .bio-hd span { font-size: 12px; font-weight: 500; color: var(--muted); }
 .terms.t6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (max-width: 760px) { .terms.t6 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* 상세 핵심 수치: 같은 크기로 통일, 숫자와 단위가 줄바꿈되지 않게 */
+.terms .v { font-size: 16px; white-space: nowrap; overflow-wrap: normal; }
+.terms .v.txt { font-family: var(--f-body); font-weight: 600; white-space: normal; overflow-wrap: anywhere; }
+.terms .v .pill { font-size: 11.5px; }
+.terms .s { line-height: 1.4; }
+@media (max-width: 760px) { .terms .v { font-size: 15px; } .terms > div { padding: 10px 12px; } }
+@media (max-width: 370px) { .terms .v { font-size: 13.5px; } .terms > div { padding: 10px 10px; } }
