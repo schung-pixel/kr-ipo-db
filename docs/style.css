@@ -797,3 +797,5 @@ a.bcard:active { background: var(--surface2); }
 .terms .s { line-height: 1.4; }
 @media (max-width: 760px) { .terms .v { font-size: 15px; } .terms > div { padding: 10px 12px; } }
 @media (max-width: 370px) { .terms .v { font-size: 13.5px; } .terms > div { padding: 10px 10px; } }
+/* 확정 공모가: 위치 칩을 값 오른쪽에 */
+.terms .v .pill { margin-left: 6px; vertical-align: 2px; font-family: var(--f-body); }

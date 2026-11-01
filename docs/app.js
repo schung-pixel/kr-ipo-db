@@ -780,15 +780,18 @@
       (F.src ? " · 출처 " + dartLink(F.src) : "") + "</p>";
     return section("재무 요약", h, true);
   }
-  // 희망 밴드 기준 공모 후 시가총액: 상장예정주식수 × 밴드 하단~상단(억원). 단일 희망가는 한 값
-  function bandCap(d) {
-    var n = d.listed_shares, lo = d.offer_price_low, hi = d.offer_price_high;
-    var single = lo && lo === hi;
-    if (!n || !lo) return single ? "단일 희망가" : "";
+  // 공모 후 시총: 상장예정주식수 × 가격(억원, 1조 이상은 조원). 밴드는 하단~상단
+  function capText(n, lo, hi) {
+    if (!n || !lo) return "";
     var x = n * lo, y = n * (hi || lo), jo = y >= 1e12;
     var f = function (v) { return jo ? (v / 1e12).toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : eok(v); };
     var a = f(x), b = f(y);
-    return (single ? "단일 희망가 · " : "") + "시가총액 " + (a === b ? a : a + "~" + b) + (jo ? "조원" : "억원");
+    return "시총 " + (a === b ? a : a + "~" + b) + (jo ? "조원" : "억원");
+  }
+  function bandCap(d) {
+    var single = d.offer_price_low && d.offer_price_low === d.offer_price_high;
+    var c = capText(d.listed_shares, d.offer_price_low, d.offer_price_high);
+    return [single ? "단일 희망가" : "", c].filter(Boolean).join(" · ");
   }
   function dartLink(no, text) {
     return '<a href="' + DART_VIEW + esc(no) + '" target="_blank" rel="noopener noreferrer">' + esc(text || no) + "</a>";
@@ -920,7 +923,7 @@
     var shrLabel = srcMethod(d, "shares_offered") === "DOC" ? "공모주식수 · 확정" : "공모주식수 · 신고서 기재";
     var term = function (k, v, sub, cls) { return '<div><span class="k">' + k + '</span><span class="v' + (cls ? " " + cls : "") + '">' + v + "</span>" + (sub ? '<span class="s">' + sub + "</span>" : "") + "</div>"; };
     html += '<div class="terms">' +
-      term("확정 공모가", d.final_price ? int(d.final_price) + "<small>원</small>" : '<span class="dim">' + (d.status === "price_fixed" ? "확인 필요" : "미확정") + "</span>", p ? pill(p) : "", d.final_price ? "hl" : "") +
+      term("확정 공모가", d.final_price ? int(d.final_price) + "<small>원</small>" + (p ? pill(p) : "") : '<span class="dim">' + (d.status === "price_fixed" ? "확인 필요" : "미확정") + "</span>", d.final_price ? capText(d.listed_shares, d.final_price, d.final_price) : "", d.final_price ? "hl" : "") +
       term("희망 밴드", d.offer_price_low ? bandText(d) + "<small>원</small>" : "-", bandCap(d)) +
       term("수요예측 경쟁률", d.inst_demand_ratio != null ? ratio(d.inst_demand_ratio, 2) : '<span class="dim">-</span>', [demandText(d, true), d.inst_demand_count ? int(d.inst_demand_count) + "건 참여" : ""].filter(Boolean).join(" · ")) +
       term("일반청약 경쟁률", d.retail_ratio != null ? ratio(d.retail_ratio, 2) : '<span class="dim">-</span>', d.retail_count ? int(d.retail_count) + "건" : "") +
