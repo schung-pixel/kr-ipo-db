@@ -50055,6 +50055,7 @@ INSERT INTO "kind_corp" VALUES('티앤이코리아','티앤이코리아','0053F0
 INSERT INTO "kind_corp" VALUES('인텔리빅스','인텔리빅스','420610','코스닥','소프트웨어 개발 및 공급업','AI 관제 인프라, AI 관제 플랫폼 등','2026-10-30','2026-10-30T01:18:02+09:00');
 INSERT INTO "kind_corp" VALUES('크리에이츠','크리에이츠','439270','코스닥','그외 기타 제품 제조업','골프 론치모니터','2026-10-30','2026-10-30T01:18:02+09:00');
 INSERT INTO "kind_corp" VALUES('한화플러스제6호스팩','한화플러스제6호스팩','0127E0','코스닥','금융 지원 서비스업','기업인수합병','2026-10-30','2026-10-30T01:18:02+09:00');
+INSERT INTO "kind_corp" VALUES('영광','영광','359410','코스닥','구조용 금속제품, 탱크 및 증기발생기 제조업','조선 기자재, 플랜트 기자재','2026-11-02','2026-11-02T04:32:42+09:00');
 CREATE TABLE kind_review (
   review_key    TEXT PRIMARY KEY,   -- {name_key}_{청구일}
   name_key      TEXT NOT NULL,
@@ -50414,9 +50415,9 @@ CREATE TABLE meta (
   key   TEXT PRIMARY KEY,
   value TEXT
 );
-INSERT INTO "meta" VALUES('last_list_date','2026-11-01');
+INSERT INTO "meta" VALUES('last_list_date','2026-11-02');
 INSERT INTO "meta" VALUES('schema_stage','2');
-INSERT INTO "meta" VALUES('kind_as_of','2026-11-01');
+INSERT INTO "meta" VALUES('kind_as_of','2026-11-02');
 CREATE TABLE review (
   deal_id               TEXT PRIMARY KEY,
   prelim_filed_dt       TEXT,
