@@ -182,6 +182,8 @@ def build_payload(conn) -> dict:
         lkd = json.loads(lk["data"]) if lk and lk["data"] else {}
         d["lockup"] = _lockup_view(lkd) if lkd else None
         d["listed_shares"] = lkd.get("listed") or lkd.get("listed_any")   # 상장예정주식수(밴드 기준 시가총액용)
+        if d["listed_shares"] and d.get("shares_offered") and d["listed_shares"] < d["shares_offered"]:
+            d["listed_shares"] = None      # 공모주식수보다 적으면 추출 오류로 봄
         fn = conn.execute("SELECT data FROM deal_fin WHERE deal_id=?", (d["deal_id"],)).fetchone()
         d["fin"] = _fin_view(json.loads(fn["data"])) if fn and fn["data"] else None
 
