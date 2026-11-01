@@ -799,3 +799,14 @@ a.bcard:active { background: var(--surface2); }
 @media (max-width: 370px) { .terms .v { font-size: 13.5px; } .terms > div { padding: 10px 10px; } }
 /* 확정 공모가: 위치 칩을 값 오른쪽에 */
 .terms .v .pill { margin-left: 6px; vertical-align: 2px; font-family: var(--f-body); }
+/* 휴대폰 상세 시트: 이전·다음·닫기 버튼 없이 손잡이를 끌어 닫기, 칩은 이름 아래 한 줄 */
+@media (max-width: 760px) {
+  .sheet .sh-acts { display: none; }
+  .sheet-head { touch-action: none; cursor: grab; padding-top: 26px; }
+  .sheet-head::before { top: 9px; width: 48px; height: 5px; margin-left: -24px; }
+  .sheet-head > div:first-child { flex: 1 1 100%; }
+  .sh-title { flex-direction: column; align-items: flex-start; gap: 8px; }
+  #sheet-chip { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  #sheet-chip::-webkit-scrollbar { display: none; }
+  #sheet-chip > * { flex: none; margin-left: 0; }
+}

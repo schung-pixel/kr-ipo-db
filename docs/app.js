@@ -975,6 +975,42 @@
   }
   document.getElementById("s-close").addEventListener("click", function () { goPath(baseView()); });
   shade.addEventListener("click", function () { goPath(baseView()); });
+  // 휴대폰: 시트 머리(손잡이 부분)를 잡아 아래로 끌면 닫힘. 충분히 내리거나 빠르게 튕기면 닫고, 아니면 제자리로
+  (function () {
+    var head = sheet.querySelector(".sheet-head"), y0 = null, t0 = 0, dy = 0, pid = null;
+    function mobile() { return window.matchMedia("(max-width: 760px)").matches; }
+    head.addEventListener("pointerdown", function (e) {
+      if (!mobile() || e.button > 0 || e.target.closest("a, button")) return;
+      y0 = e.clientY; t0 = Date.now(); dy = 0; pid = e.pointerId;
+      sheet.style.transition = "none"; sheet.style.animation = "none";
+      try { head.setPointerCapture(pid); } catch (err) { /* 무시 */ }
+    });
+    head.addEventListener("pointermove", function (e) {
+      if (y0 == null || e.pointerId !== pid) return;
+      dy = Math.max(0, e.clientY - y0);
+      sheet.style.transform = "translateY(" + dy + "px)";
+      shade.style.opacity = String(Math.max(0, 1 - dy / 400));
+    });
+    function end(e) {
+      if (y0 == null || (e && e.pointerId !== pid)) return;
+      var v = dy / Math.max(1, Date.now() - t0);
+      y0 = null;
+      sheet.style.transition = "transform .22s cubic-bezier(.2, .9, .3, 1)";
+      if (dy > Math.min(140, sheet.offsetHeight * 0.25) || (dy > 30 && v > 0.6)) {
+        sheet.style.transform = "translateY(100%)";
+        setTimeout(function () {
+          goPath(baseView());
+          sheet.style.transition = ""; sheet.style.transform = ""; shade.style.opacity = "";
+        }, 200);
+      } else {
+        sheet.style.transform = "";
+        shade.style.opacity = "";
+        setTimeout(function () { sheet.style.transition = ""; }, 240);
+      }
+    }
+    head.addEventListener("pointerup", end);
+    head.addEventListener("pointercancel", end);
+  })();
 
   // ---------------------------------------------------------------- 통계
   // 통계는 상장일 기준(상장 완료 건만). 상장일을 원문에서 못 읽은 일부 옛 건은 증권발행실적보고서 제출일로 추정합니다.
