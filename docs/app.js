@@ -1986,7 +1986,7 @@
     return ["수요예측", "청약", "상장", "납입"].map(function (k) {
       var xs = evs.filter(function (e) { return e.k === k; });
       if (!xs.length) return "";
-      return '<div class="dg"><h4><em class="ek k-' + EV_ORDER[k] + '">' + k + "</em>" + xs.length + "건</h4>" + xs.map(function (e) {
+      return '<div class="dg g-' + EV_ORDER[k] + '"><h4>' + k + " · " + xs.length + "건</h4>" + xs.map(function (e) {
         var d = e.d;
         return '<a class="it' + (focusRole(d) ? " focus" : "") + '" href="#/deal/' + encodeURIComponent(d.deal_id) + '"><span class="nm">' + esc(name(d)) + "</span>" +
           boardTag(d) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + focusTag(d) +
