@@ -52271,6 +52271,41 @@ CREATE TABLE kind_listing (
   fetched_at  TEXT
 );
 INSERT INTO "kind_listing" VALUES('씨아이에스케미칼','씨아이에스케미칼','2026-12-22','2026-11-03T07:31:48+09:00');
+INSERT INTO "kind_listing" VALUES('동원파츠','동원파츠','2026-11-10','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('넥스아이','넥스아이','2026-11-12','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('이에스티','이에스티','2026-11-04','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('영광','영광','2026-11-02','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('에이엘로봇','에이엘로봇','2026-11-18','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('한화플러스제6호스팩','한화플러스제6호스팩','2026-10-30','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('아이엠스팩1호','아이엠스팩1호','2026-11-04','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('인텔리빅스','인텔리빅스','2026-10-31','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('디티에스','디티에스','2026-10-23','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('엠에스바이오','엠에스바이오','2026-10-22','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('크리에이츠','크리에이츠','2026-10-29','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('티앤이코리아','티앤이코리아','2026-10-29','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('진코스텍','진코스텍','2026-10-15','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('에스케이증권제14호기업인수목적','에스케이증권제14호기업인수목적','2026-10-27','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('래블업','래블업','2026-11-03','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('엘리스','엘리스','2026-10-20','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('멜콘','멜콘','2026-10-15','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('한국제17호스팩','한국제17호스팩','2026-09-22','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('kb제34호스팩','KB제34호스팩','2026-09-22','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('와이즈플래닛컴퍼니','와이즈플래닛컴퍼니','2026-09-23','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('엔에이치스팩34호','엔에이치스팩34호','2026-09-10','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('글로벌테크놀로지','글로벌테크놀로지','2026-09-29','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('덕산넵코어스','덕산넵코어스','2026-09-30','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('네오사피엔스','네오사피엔스','2026-09-21','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('브릴스','브릴스','2026-10-01','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('스카이랩스','스카이랩스','2026-09-04','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('빅웨이브로보틱스','빅웨이브로보틱스','2026-09-29','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('해치텍','해치텍','2026-08-25','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('기도산업','기도산업','2026-08-21','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('니어스랩','니어스랩','2026-08-24','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('딜리셔스','딜리셔스','2026-08-12','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('에이치엘지노믹스','에이치엘지노믹스','2026-07-24','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('케이앤에스아이앤씨','케이앤에스아이앤씨','2026-08-13','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('스트라드비젼','스트라드비젼','2026-06-30','2026-11-03T07:35:16+09:00');
+INSERT INTO "kind_listing" VALUES('인제니아테라퓨틱스','인제니아테라퓨틱스','2026-08-18','2026-11-03T07:35:16+09:00');
 CREATE TABLE kind_review (
   review_key    TEXT PRIMARY KEY,   -- {name_key}_{청구일}
   name_key      TEXT NOT NULL,
