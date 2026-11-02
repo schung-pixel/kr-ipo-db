@@ -950,3 +950,7 @@ header.top nav.tabs .ind { will-change: transform; transition: transform .5s var
 /* 긴 목록: 화면 밖 카드·행은 배치·그리기를 미룹니다(탭 전환 지연 감소) */
 .cards .card { content-visibility: auto; contain-intrinsic-size: auto 150px; }
 table.deals tbody tr { content-visibility: auto; contain-intrinsic-size: auto 46px; }
+/* 화면 탭 A1: 선택 탭을 강조색(남색)으로 채움 */
+header.top nav.tabs .ind { background: var(--accent); box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--accent) 65%, transparent); }
+header.top nav.tabs .tab { transition: color .25s; }
+header.top nav.tabs .tab[aria-current="true"] { color: var(--accent-ink); font-weight: 600; }
