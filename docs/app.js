@@ -373,7 +373,8 @@
     });
   }
   var SORTERS = {
-    date: function (d) { return d.listing_dt || d.first_filing_dt; },
+    // 상장일(확정) → KIND 상장예정일 → 예상 상장일(납입일+4영업일) → 없으면 최초 신고일
+    date: function (d) { return d.listing_dt || d.listing_sched || d.listing_est || d.first_filing_dt; },
     inst: function (d) { return d.inst_demand_ratio; },
     retail: function (d) { return d.retail_ratio; },
     name: function (d) { return name(d); },
