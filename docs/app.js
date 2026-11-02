@@ -2007,7 +2007,7 @@
       var inMon = t.slice(0, 7) === calMonth, w = dOf(t).getDay(), st = ST[t];
       if (k === 35 && !inMon) break;
       var ks = {}; (DE[t] || []).forEach(function (e) { ks[e.k] = 1; });
-      var dots = ["수요예측", "청약", "상장", "납입"].filter(function (k) { return ks[k]; }).map(function (k) { return '<i class="k-' + EV_ORDER[k] + '"></i>'; }).join("");
+      var dots = ["수요예측", "청약", "상장"].filter(function (k) { return ks[k]; }).map(function (k) { return '<i class="k-' + EV_ORDER[k] + '"></i>'; }).join("");
       cells += '<button type="button" class="cd m1' + (inMon ? "" : " out") + (t === today ? " today" : "") + (t === calDay ? " sel" : "") + (w === 0 ? " sun" : w === 6 ? " sat" : "") +
         '" data-day="' + t + '" aria-label="' + esc(mdw(t)) + ((DE[t] || []).length ? " 일정 " + DE[t].length + "건" : "") + '"><span class="dn">' + dOf(t).getDate() + '</span><span class="mdots">' + dots + "</span></button>";
       t = addDays(t, 1);
@@ -2017,7 +2017,7 @@
       '<div class="cnav"><button type="button" class="xbtn" data-mon="-1" aria-label="이전 달"><svg viewBox="0 0 16 16"><path d="M10 3L5 8l5 5"/></svg></button>' +
       '<b class="mono">' + y + "." + ("0" + mo).slice(-2) + '</b><button type="button" class="xbtn" data-mon="1" aria-label="다음 달"><svg viewBox="0 0 16 16"><path d="M6 3l5 5-5 5"/></svg></button>' +
       '<button type="button" class="linkbtn" data-mon="0">오늘</button></div></header>' +
-      '<div class="pbody"><div class="legend cal-lg">' + ["수요예측", "청약", "상장", "납입"].map(function (k) { return '<span><i class="k-' + EV_ORDER[k] + '"></i>' + k + "</span>"; }).join("") + '</div><div class="cgrid">' + ["일", "월", "화", "수", "목", "금", "토"].map(function (x, i) { return '<span class="cw' + (i === 0 ? " sun" : i === 6 ? " sat" : "") + '">' + x + "</span>"; }).join("") + cells + "</div>" +
+      '<div class="pbody"><div class="legend cal-lg">' + ["수요예측", "청약", "상장"].map(function (k) { return '<span><i class="k-' + EV_ORDER[k] + '"></i>' + k + "</span>"; }).join("") + '</div><div class="cgrid">' + ["일", "월", "화", "수", "목", "금", "토"].map(function (x, i) { return '<span class="cw' + (i === 0 ? " sun" : i === 6 ? " sat" : "") + '">' + x + "</span>"; }).join("") + cells + "</div>" +
       '<h3 class="cday">' + esc(mdw(calDay)) + ' <span class="dim">' + sel.length + "건</span></h3>" + '<div class="cdl">' + dayList(sel) + "</div></div></section>";
   }
   // 딜별 일정표(S1): 회사마다 수요예측·청약·상장 날짜를 나란히, 진행 중인 단계는 강조색

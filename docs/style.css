@@ -1097,3 +1097,13 @@ header.top .tgl button svg { width: 12px; height: 12px; }
 .cd.m1 .mdots i.k-3, .cal-lg i.k-3 { background: var(--good); }
 .calm .cal-lg { margin-bottom: 2px; }
 @media (min-width: 761px) { .cd.m1 .dn { width: 34px; height: 34px; font-size: 14px; } .cd.m1 .mdots { gap: 4px; height: 6px; } .cd.m1 .mdots i { width: 6px; height: 6px; } }
+/* 달력 점 V4: 납입 제외, 수요예측 파랑·청약 빨강·상장 초록, 8px */
+:root { --cal-k0: #2563EB; --cal-k1: #E11D48; --cal-k3: #16A34A; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --cal-k0: #60A5FA; --cal-k1: #FB7185; --cal-k3: #4ADE80; } }
+:root[data-theme="dark"] { --cal-k0: #60A5FA; --cal-k1: #FB7185; --cal-k3: #4ADE80; }
+.cd.m1 .mdots, .cd.m1 .mdots { gap: 4px; height: 8px; align-items: center; }
+.cd.m1 .mdots i, .cd.m1 .mdots i { width: 8px; height: 8px; }
+.cd.m1 .mdots i.k-0, .cal-lg i.k-0 { background: var(--cal-k0); }
+.cd.m1 .mdots i.k-1, .cal-lg i.k-1 { background: var(--cal-k1); }
+.cd.m1 .mdots i.k-3, .cal-lg i.k-3 { background: var(--cal-k3); }
+@media (min-width: 761px) { .cd.m1 .mdots { gap: 4px; height: 8px; } .cd.m1 .mdots i { width: 8px; height: 8px; } }
