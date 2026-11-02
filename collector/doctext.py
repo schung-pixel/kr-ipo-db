@@ -477,7 +477,7 @@ def extract_listing_info(text: str) -> dict:
 
 
 # ---------------------------------------------------------------- 공모가 산정(밸류에이션)
-VAL_VERSION = 3
+VAL_VERSION = 4
 _VAL_METHODS = ("EV/EBITDA", "EV/Sales", "PER", "PSR", "PBR", "DCF")
 _VM = r"(EV\s*/\s*EBITDA|EV\s*/\s*Sales|PER|PSR|PBR|P/E|DCF)"
 
@@ -575,7 +575,7 @@ def extract_valuation(text: str) -> dict:
 
 
 _PEER_KIND = r"(?:비교\s*대상\s*회사|비교\s*기업|비교\s*회사|유사\s*기업|유사\s*회사)"
-_PEER_BAD = re.compile(r"선정|기준|당사|동사|모집단|제외|평가|산업|사업|업종|이상|이하|요건|해당|\d+\s*개")
+_PEER_BAD = re.compile(r"선정|기준|당사|동사|모집단|제외|평가|산업분류|사업내용|사업의|업종|이상|이하|요건|해당|\d+\s*개|^(?:기업|회사|업체)들?$")
 
 
 _CORP_SUFFIX = re.compile(r"(?i)(?:inc|ltd|co|corp|corporation|llc|plc|s\.?a|n\.?v|ag|limited|co\.?\s*ltd|l\.?p)\.?")
@@ -598,7 +598,7 @@ def clean_peers(names: list | None) -> list | None:
         return names
     out = []
     for x in merge_corp_suffix(list(names)):
-        x = re.sub(r"^.*(?:통해|고려하여|바탕으로|경우|결과|적으로)\s*", "", x).strip()
+        x = re.sub(r"^.*(?:통해|고려하여|바탕으로|경우|결과|적으로|기업인|회사인)\s+", "", x).strip()
         x = re.sub(r"(?<=[A-Za-z.)])\s*의$", "", x).strip()
         if not x or re.search(r"유사성|최종|고려하|\s및\s|^\d\)|선정|기준", x) or len(x) > 45:
             return None
@@ -606,9 +606,10 @@ def clean_peers(names: list | None) -> list | None:
     return out
 
 
-def _peer_names(seg: str, n: int | None = None, trim_first: bool = False) -> list | None:
+def _peer_names(seg: str, n: int | None = None, trim_first: bool = False, and_split: bool = False) -> list | None:
     seg = re.sub(r"\[?\s*총\s*\d+\s*개\s*사\s*\]?", "", seg)
-    parts = merge_corp_suffix([x.strip(" ·\t") for x in re.split(r"\s*,\s*|\s*、\s*", seg) if x.strip()])
+    sep = r"\s*,\s*|\s*、\s*" + (r"|\s+및\s+" if and_split else "")
+    parts = merge_corp_suffix([x.strip(" ·\t") for x in re.split(sep, seg) if x.strip()])
     if n:
         parts = parts[-n:]
     if trim_first and parts:
@@ -636,7 +637,17 @@ def extract_peers(t: str) -> list | None:
         nm = _peer_names(m.group(2), int(m.group(1)) if m.group(1) else None)
         if nm and (len(nm) > 1 or m.group(1)):
             found.append((m.start(), nm))
-    for m in re.finditer(r"(\d{1,2})\s*개\s*사\s*\(\s*([^)]{2,500})\)\s*(?:를|을)?\s*(?:당사의\s*|동사의\s*)?최종", t):
+    # 선정 요약표의 최종 단계 행: '최종 유사기업 | 재무적 유사성 | … | 제주항공, 진에어, 티웨이항공[총 3개사] |'
+    for m in re.finditer(r"최종\s*" + _PEER_KIND + r"\s*\|[^\[]{0,800}?\|\s*([^|\[]{2,300}?)\s*\[\s*총\s*(\d+)\s*개\s*사\s*\]", t):
+        nm = _peer_names(m.group(1), int(m.group(2)))
+        if nm:
+            found.append((m.start(), nm))
+    # 수를 밝히지 않은 문장: '충족하는 유비쿼스 및 코위버를 최종 비교기업으로', '최종적으로 화성산업, 동원개발, 서한 및 신원종합개발을 유사회사로 선정'
+    for m in re.finditer(r"(?:충족하는|최종적으로)\s+([^.|]{2,300}?)\s*(?:을|를)\s*(?:최종\s*)?(?:비교|유사)\s*(?:기업|회사|대상\s*회사)(?:으로|로)\s*선정", t):
+        nm = _peer_names(m.group(1), None, and_split=True)
+        if nm and len(nm) >= 2 and not re.search(r"\d+\s*개", m.group(1)):
+            found.append((m.start(), nm))
+    for m in re.finditer(r"(\d{1,2})\s*개\s*(?:사|기업|회사)\s*\(\s*([^)]{2,500})\)\s*(?:를|을)?\s*(?:당사의\s*|동사의\s*)?최종", t):
         nm = _peer_names(m.group(2), int(m.group(1)))
         if nm:
             found.append((m.start(), nm))

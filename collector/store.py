@@ -740,7 +740,7 @@ def val_plan(conn, min_year: str = "2016", max_year: str | None = None) -> list:
             data = _json.loads(d["data"] or "{}")
             tried = set(_json.loads(d["tried"] or "[]"))
             stale = (d["parser_version"] or 0) < VAL_VERSION
-            if (data.get("value") or data.get("disc_low") is not None) and not (stale and (data.get("multiple") is None or "peers" not in data)):
+            if (data.get("value") or data.get("disc_low") is not None) and not (stale and (data.get("multiple") is None or not data.get("peers"))):
                 if data.get("src") == order[0] or order[0] in tried:
                     continue
                 order = order[:1]

@@ -162,7 +162,23 @@ def _fin_view(x: dict) -> dict | None:
         if vs:
             out[k] = [None if vs[i] is None else round(vs[i] / 1e6) for i in idx]
             n += 1
-    return out if n >= 3 else None
+    # 원문 '-'(해당 기간 미기재)는 0으로 읽히므로, 같은 기간의 손익(매출·영업이익·순이익)이 모두 0이면 미기재로 봅니다.
+    pl = [k for k in ("revenue", "op_income", "net_income") if out.get(k)]
+    for j in range(len(out["periods"])):
+        if pl and all(out[k][j] == 0 for k in pl):
+            for k in pl:
+                out[k][j] = None
+    # 모든 항목이 비거나 0인 기간 열은 뺍니다.
+    keep = [j for j in range(len(out["periods"])) if any(out.get(k) and out[k][j] not in (None, 0) for k in FIN_ITEMS)]
+    if len(keep) != len(out["periods"]):
+        out["periods"] = [out["periods"][j] for j in keep]
+        out["q"] = [out["q"][j] for j in keep]
+        for k in FIN_ITEMS:
+            if out.get(k):
+                out[k] = [out[k][j] for j in keep]
+    if out.get("assets") and max((v or 0) for v in out["assets"]) < 10:
+        return None      # 자산총계가 1천만원 미만이면 단위·표 오독으로 봅니다
+    return out if n >= 3 and out["periods"] else None
 
 
 def _val_view(v: dict, d: dict):
