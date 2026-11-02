@@ -189,27 +189,38 @@ def _names(rows, keyword):
 def _group(conn):
     """(deal_id → 증권신고서 목록, deal_id → 구간 안의 모든 C001 공시).
 
-    태그 없는 신고서가 새 딜을 시작합니다. 철회신고서가 나온 뒤의 신고서는 [첨부추가] 등
-    태그가 붙어 있어도 새 딜(재신고)로 봅니다.
+    태그 없는 신고서가 새 딜을 시작합니다. 철회신고서가 나온 뒤의 신고서는 [첨부추가] 등 태그가 붙어 있어도
+    새 딜(재신고)로 봅니다. [첨부추가] 신고서는 증권발행실적보고서 뒤에 나오거나 앞 신고서와 180일 넘게
+    떨어져 있으면 새 딜로 봅니다(예: 비상장 공모를 마친 회사가 이듬해 IPO 신고서를 [첨부추가]로 낸 경우).
     """
     filings = conn.execute("SELECT * FROM filing ORDER BY corp_code, rcept_no").fetchall()
     reg: dict[str, list] = {}
     alls: dict[str, list] = {}
     current: dict[str, str] = {}
     closed: set = set()
+    last_dt: dict[str, str] = {}
+    done: set = set()
     for f in filings:
         corp = f["corp_code"]
         if f["doc_kind"] == "reg_equity":
-            if not f["tags"] or corp not in current or corp in closed:
+            # 앞 신고서와 180일 넘게 떨어진 신고서는 태그가 붙어 있어도 새 딜로 봅니다
+            # (예: 비상장 공모를 마친 회사가 1년 뒤 IPO 신고서를 [첨부추가]로 제출한 경우).
+            fresh = "첨부추가" in (f["report_nm"] or "")
+            gap = fresh and corp in last_dt and (date.fromisoformat(f["rcept_dt"]) - date.fromisoformat(last_dt[corp])).days > 180
+            last_dt[corp] = f["rcept_dt"]
+            if not f["tags"] or corp not in current or corp in closed or gap or (fresh and corp in done):
                 current[corp] = f"{corp}_{f['rcept_no']}"
                 reg[current[corp]], alls[current[corp]] = [], []
                 closed.discard(corp)
+                done.discard(corp)
             reg[current[corp]].append(f)
             alls[current[corp]].append(f)
         elif corp in current:
             alls[current[corp]].append(f)
             if "철회신고서" in (f["report_nm"] or ""):
                 closed.add(corp)
+            elif f["doc_kind"] == "result" and not (f["tags"] or ""):
+                done.add(corp)         # 증권발행실적보고서 뒤의 [첨부추가] 신고서는 새 공모로 봅니다
     return reg, alls
 
 
@@ -284,6 +295,9 @@ def rebuild_deals(conn, now: str) -> int:
             elif kd is not None and -5 <= kd <= 200:
                 # 비상장이어도 사업보고서 제출대상 회사는 주요사항보고서를 먼저 냅니다(LG에너지솔루션·신라젠 등)
                 cand, basis = 1, f"주요사항보고서 선행이나 신고 {kd}일 뒤 KIND 상장 [{ref}]"
+            elif kd is not None and kd > 200 and no_assign and any(f["doc_kind"] == "result" for f in span):
+                # 발행실적보고서까지 냈는데 상장은 200일 넘게 뒤: 상장 전 비상장 공모(유상증자)로 봅니다
+                cand, basis = 0, f"주요사항보고서 선행·발행 완료 후 {kd}일 뒤 상장, 상장 전 공모(유상증자)로 추정 [{ref}]"
             elif kd is not None and kd > 200 and no_assign:
                 cand, basis = 1, f"주요사항보고서 선행·배정기준일 없음, {kd}일 뒤 상장(이전 공모 시도) [{ref}]"
             else:
