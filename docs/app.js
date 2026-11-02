@@ -98,11 +98,14 @@
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
   }
-  function int(n) { return n == null ? "-" : Number(n).toLocaleString("ko-KR"); }
+  // 숫자 서식기는 만들 때 비용이 커서 한 번만 만들어 둡니다(목록 860건을 그릴 때 수백 ms 차이).
+  var NF = {};
+  function nf(min, max) { var k = min + ":" + max; return NF[k] || (NF[k] = new Intl.NumberFormat("ko-KR", { minimumFractionDigits: min, maximumFractionDigits: max })); }
+  function int(n) { return n == null ? "-" : nf(0, 3).format(Number(n)); }
   function eok(n) {
     if (n == null) return "-";
     var v = n / 1e8;
-    return v >= 100 ? Math.round(v).toLocaleString("ko-KR") : v.toLocaleString("ko-KR", { maximumFractionDigits: 1 });
+    return v >= 100 ? nf(0, 0).format(Math.round(v)) : nf(0, 1).format(v);
   }
   function pctText(v) { return (v > 0 ? "+" : "") + v.toFixed(1) + "%"; }
   var CORP_FORM = /\(주\)|㈜|\(유\)|\(재\)|\(사\)|주식회사|유한회사|유한책임회사/g;
@@ -251,7 +254,7 @@
   }
   function ratio(v, digits) {
     if (v == null) return null;
-    return Number(v).toLocaleString("ko-KR", { maximumFractionDigits: digits == null ? 0 : digits, minimumFractionDigits: digits || 0 }) + ":1";
+    return nf(digits || 0, digits == null ? 0 : digits).format(Number(v)) + ":1";
   }
 
   // 확정가가 희망 밴드의 어디에 놓였는지 (밴드가 없거나 단일 희망가면 판단하지 않음)

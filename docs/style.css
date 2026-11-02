@@ -947,3 +947,6 @@ header.top .tgl .tl { display: none; }
   header.top .tgl button, header.top .tgl button:not([aria-pressed="true"]), header.top .tgl button[aria-pressed="true"] { width: 34px; height: 34px; }
 }
 header.top nav.tabs .ind { will-change: transform; transition: transform .5s var(--spring), opacity .2s; }
+/* 긴 목록: 화면 밖 카드·행은 배치·그리기를 미룹니다(탭 전환 지연 감소) */
+.cards .card { content-visibility: auto; contain-intrinsic-size: auto 150px; }
+table.deals tbody tr { content-visibility: auto; contain-intrinsic-size: auto 46px; }
