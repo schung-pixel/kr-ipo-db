@@ -197,6 +197,73 @@ def _collect_financials(client, conn, now, stats, log, workers, budget):
     return budget
 
 
+VAL_VIEWER_SECTIONS = ("인수인의의견", "공모가격에대한의견", "공모가격결정방법")
+
+
+def val_text(client, rcept_no: str) -> str:
+    """공모가 산정 근거용 원문. 2019년 이전 원문(014)은 공시 뷰어에서 '인수인의 의견' 목차만 받습니다."""
+    try:
+        return doctext.to_text(client.document(rcept_no))
+    except DartError as exc:
+        if exc.status != "014" or not hasattr(client, "viewer_html") or os.environ.get("DART_VIEWER") == "0":
+            raise
+    return doctext.html_to_text(client.viewer_html(rcept_no, sections=VAL_VIEWER_SECTIONS))
+
+
+def _collect_valuations(client, conn, now, stats, log, workers, budget):
+    import json as _json
+    plan = store.val_plan(conn, min_year=os.environ.get("VAL_MIN_YEAR", "2020"), max_year=os.environ.get("VAL_MAX_YEAR") or None)
+    cap = os.environ.get("VAL_MAX")
+    if cap:
+        plan = plan[: int(cap)]
+    existing = {r["deal_id"]: r for r in conn.execute("SELECT deal_id, data, tried FROM deal_val")}
+    first = [order[0] for _, _, order in plan]
+    pf = _Prefetch(client, first[: budget if budget is not None else None], workers, ahead=workers * 3, fetch=val_text)
+    for deal_id, corp, order in plan:
+        if stats["quota_hit"] or (budget is not None and budget <= 0):
+            break
+        row = existing.get(deal_id)
+        data = _json.loads(row["data"]) if row and row["data"] else {}
+        tried = set(_json.loads(row["tried"] or "[]")) if row else set()
+        for no in order:
+            if budget is not None and budget <= 0:
+                break
+            try:
+                text = pf.document(no)
+            except DartQuotaExceeded:
+                stats["quota_hit"] = True
+                log("DART 일일 요청 한도 도달: 남은 원문은 다음 실행에서 이어서 처리합니다.")
+                break
+            except DartError as exc:
+                if exc.status in FATAL_STATUS:
+                    raise
+                tried.add(no)
+                _kind(stats, "조회:" + str(getattr(exc, "status", "") or type(exc).__name__))
+                continue
+            except Exception as exc:
+                stats["errors"] += 1
+                tried.add(no)
+                _kind(stats, "처리:" + type(exc).__name__)
+                continue
+            tried.add(no)
+            if budget is not None:
+                budget -= 1
+            try:
+                got = doctext.extract_valuation(text)
+            except Exception as exc:
+                got = {}
+                _kind(stats, "평가추출:" + type(exc).__name__)
+            if got.get("value") or got.get("disc_low") is not None:
+                got["src"] = no
+                data = got
+                break
+        store.save_deal_val(conn, deal_id, corp, data, list(tried), now)
+        conn.commit()
+        stats["valuations"] += 1
+    pf.close()
+    return budget
+
+
 def _kind(stats: dict, key: str) -> None:
     stats["error_kinds"][key] = stats["error_kinds"].get(key, 0) + 1
 
@@ -410,6 +477,11 @@ def collect(client, conn, bgn: date, end: date, max_corps: int | None = None,
     stats["financials"] = 0
     if lockups and not stats["quota_hit"] and (budget is None or budget > 0):
         budget = _collect_financials(client, conn, now, stats, log, workers, budget)
+
+    # 3-6) 증권신고서 '공모가격에 대한 의견'의 공모가 산정 근거
+    stats["valuations"] = 0
+    if lockups and not stats["quota_hit"] and (budget is None or budget > 0):
+        budget = _collect_valuations(client, conn, now, stats, log, workers, budget)
 
     # 4) IPO 후보 기업 개황 (신규 또는 비상장 상태로 오래된 건만 갱신)
     candidates = [r["corp_code"] for r in conn.execute(

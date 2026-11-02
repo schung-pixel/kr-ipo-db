@@ -706,6 +706,63 @@ def save_deal_fin(conn, deal_id: str, corp_code: str, data: dict, tried: list, n
         "parser_version": FIN_VERSION, "fetched_at": now}, volatile=("fetched_at",))
 
 
+def val_plan(conn, min_year: str = "2016", max_year: str | None = None) -> list:
+    """공모가 산정 근거 추출 계획: [(deal_id, corp_code, [rcept_no, ...])].
+
+    전문이 실린 증권신고서만 씁니다([발행조건확정]·첨부 정정 제외): 가장 최근 신고서 → 최초 신고서 순서.
+    스팩은 건너뜁니다. 이미 읽은 딜은 더 새 신고서가 나왔을 때만 다시 봅니다.
+    """
+    import json as _json
+    from .doctext import VAL_VERSION
+    cands = {r["deal_id"]: r for r in conn.execute(
+        "SELECT d.deal_id, d.corp_code, d.first_filing_dt, d.status, COALESCE(c.corp_name, f.corp_name) AS corp_name "
+        "FROM ipo_deal d LEFT JOIN company c USING (corp_code) LEFT JOIN filing f ON f.rcept_no = d.first_rcept_no "
+        "WHERE d.is_ipo_candidate=1 AND COALESCE(d.doc_signal, 1) != 0")}
+    done = {r["deal_id"]: r for r in conn.execute("SELECT deal_id, tried, parser_version, data FROM deal_val")}
+    alls = _group(conn)[1]
+    plan = []
+    for deal_id, c in sorted(cands.items(), key=lambda kv: kv[1]["first_filing_dt"] or "", reverse=True):
+        fd = c["first_filing_dt"] or ""
+        if fd < min_year or deal_id not in alls or (max_year and fd[:4] > max_year):
+            continue
+        nm = c["corp_name"] or ""
+        if "기업인수목적" in nm or "스팩" in nm:
+            continue
+        regs = [f for f in alls[deal_id] if f["doc_kind"] == "reg_equity"
+                and not any(k in (f["report_nm"] or "") for k in ("발행조건확정", "첨부", "정정제출요구"))]
+        order = [f["rcept_no"] for f in reversed(regs)]
+        if len(order) > 2:
+            order = [order[0], order[-1]]
+        if not order:
+            continue
+        d = done.get(deal_id)
+        if d:
+            data = _json.loads(d["data"] or "{}")
+            tried = set(_json.loads(d["tried"] or "[]"))
+            if data.get("value") or data.get("disc_low") is not None:
+                if data.get("src") == order[0] or order[0] in tried:
+                    continue
+                order = order[:1]
+            elif (d["parser_version"] or 0) >= VAL_VERSION and all(no in tried for no in order):
+                continue
+            elif (d["parser_version"] or 0) < VAL_VERSION:
+                pass
+            else:
+                order = [no for no in order if no not in tried]
+        plan.append((deal_id, c["corp_code"], order))
+    return plan
+
+
+def save_deal_val(conn, deal_id: str, corp_code: str, data: dict, tried: list, now: str) -> None:
+    import json as _json
+    from .doctext import VAL_VERSION
+    ok = bool(data.get("value") or data.get("disc_low") is not None)
+    upsert(conn, "deal_val", "deal_id", {
+        "deal_id": deal_id, "corp_code": corp_code, "data": _json.dumps(data, ensure_ascii=False, sort_keys=True),
+        "tried": _json.dumps(sorted(set(tried))), "status": "ok" if ok else "not_found",
+        "parser_version": VAL_VERSION, "fetched_at": now}, volatile=("fetched_at",))
+
+
 def result_plan(conn) -> list:
     """증권발행실적보고서 추출 계획: [(corp_code, rcept_no)] 후보 딜의 가장 최근 보고서 중 미추출·구버전 건."""
     from .doctext import PARSER_VERSION

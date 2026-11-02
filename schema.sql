@@ -212,6 +212,17 @@ CREATE TABLE IF NOT EXISTS deal_fin (
     fetched_at     TEXT
 );
 
+-- 증권신고서 '공모가격에 대한 의견'의 공모가 산정 근거(평가방법·적용 배수·주당 평가가액·할인율)
+CREATE TABLE IF NOT EXISTS deal_val (
+    deal_id        TEXT PRIMARY KEY,
+    corp_code      TEXT,
+    data           TEXT,       -- JSON: method, multiple, value, disc_low, disc_high, basis, pv_rate, peers_n, evidence, src
+    tried          TEXT,       -- 시도한 접수번호(JSON 배열)
+    status         TEXT,
+    parser_version INTEGER,
+    fetched_at     TEXT
+);
+
 CREATE TABLE IF NOT EXISTS kind_corp (
   name_key    TEXT PRIMARY KEY,
   corp_name   TEXT,

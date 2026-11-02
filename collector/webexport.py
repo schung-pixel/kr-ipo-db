@@ -64,6 +64,46 @@ def uw_display(s):
     return ", ".join(UW_DISPLAY.get(n.strip(), n.strip()) for n in str(s).split(","))
 
 
+# 업종 15개 대분류: DART 업종코드(KSIC)의 앞자리로 묶고, 코드가 없으면 KIND 업종명 낱말로 판단합니다
+SECTORS = ("바이오·제약", "의료기기", "반도체", "전자부품·디스플레이", "통신·전자기기", "기계·장비", "전기장비·2차전지",
+           "자동차·운송장비", "화학·소재", "소비재·유통", "SW·IT서비스", "게임", "미디어·콘텐츠", "금융·지주", "서비스·기타")
+_KSIC = [  # (코드 앞자리, 업종) — 긴 접두어가 먼저
+    ("5821", "게임"), ("5822", "SW·IT서비스"), ("581", "미디어·콘텐츠"), ("62", "SW·IT서비스"), ("63", "SW·IT서비스"),
+    ("61", "SW·IT서비스"), ("59", "미디어·콘텐츠"), ("60", "미디어·콘텐츠"), ("90", "미디어·콘텐츠"), ("713", "미디어·콘텐츠"),
+    ("7011", "바이오·제약"), ("213", "의료기기"), ("21", "바이오·제약"), ("271", "의료기기"),
+    ("261", "반도체"), ("262", "전자부품·디스플레이"), ("263", "통신·전자기기"), ("264", "통신·전자기기"),
+    ("265", "통신·전자기기"), ("266", "전자부품·디스플레이"), ("28", "전기장비·2차전지"),
+    ("27", "기계·장비"), ("29", "기계·장비"), ("25", "기계·장비"), ("30", "자동차·운송장비"), ("31", "자동차·운송장비"),
+    ("20", "화학·소재"), ("19", "화학·소재"), ("22", "화학·소재"), ("23", "화학·소재"), ("24", "화학·소재"),
+    ("10", "소비재·유통"), ("11", "소비재·유통"), ("12", "소비재·유통"), ("13", "소비재·유통"), ("14", "소비재·유통"),
+    ("15", "소비재·유통"), ("16", "소비재·유통"), ("17", "소비재·유통"), ("18", "소비재·유통"), ("32", "소비재·유통"),
+    ("33", "소비재·유통"), ("45", "소비재·유통"), ("46", "소비재·유통"), ("47", "소비재·유통"), ("55", "소비재·유통"),
+    ("56", "소비재·유통"), ("64", "금융·지주"), ("65", "금융·지주"), ("66", "금융·지주"), ("7150", "금융·지주"),
+]
+_SECTOR_WORDS = [
+    ("게임", "게임"), ("의약|바이오|생물|신약|제약|의학", "바이오·제약"), ("의료", "의료기기"), ("반도체", "반도체"),
+    ("디스플레이|전자부품|인쇄회로", "전자부품·디스플레이"), ("통신|방송장비|컴퓨터", "통신·전자기기"),
+    ("전지|전기|전동기|변압기", "전기장비·2차전지"), ("자동차|선박|항공|철도", "자동차·운송장비"),
+    ("소프트웨어|정보|포털|데이터", "SW·IT서비스"), ("영화|음악|출판|방송|광고|엔터|콘텐츠", "미디어·콘텐츠"),
+    ("화학|플라스틱|고무|금속|소재|시멘트|유리", "화학·소재"), ("기계|장비", "기계·장비"),
+    ("식품|음료|화장품|의복|섬유|가구|도매|소매|유통|가정용", "소비재·유통"), ("금융|투자|보험|지주|은행", "금융·지주"),
+]
+
+
+def sector_of(code, industry=None) -> str | None:
+    c = re.sub(r"\D", "", str(code or ""))
+    if c:
+        for pre, sec in _KSIC:
+            if c.startswith(pre):
+                return sec
+        return "서비스·기타"
+    t = industry or ""
+    for pat, sec in _SECTOR_WORDS:
+        if re.search(pat, t):
+            return sec
+    return "서비스·기타" if t else None
+
+
 SUMMARY_PATH = Path(__file__).resolve().parent.parent / "data" / "biz_summary.json"
 
 
@@ -123,6 +163,23 @@ def _fin_view(x: dict) -> dict | None:
             out[k] = [None if vs[i] is None else round(vs[i] / 1e6) for i in idx]
             n += 1
     return out if n >= 3 else None
+
+
+def _val_view(v: dict, d: dict):
+    """공모가 산정 근거: 할인율·평가가액이 희망 밴드와 맞는지(밴드 상단 ≈ 평가가액 × (1 − 최저 할인율)) 함께 표시합니다."""
+    if not v or not (v.get("value") or v.get("disc_low") is not None):
+        return None
+    out = {k: v.get(k) for k in ("method", "multiple", "value", "disc_low", "disc_high", "basis", "pv_rate", "peers_n", "src")}
+    hi, lo, val = d.get("offer_price_high"), d.get("offer_price_low"), v.get("value")
+    out["check"] = None
+    if val and hi and v.get("disc_low") is not None:
+        implied = val * (1 - v["disc_low"] / 100)
+        out["check"] = abs(implied - hi) / hi <= 0.05
+    if val and d.get("final_price"):
+        out["final_disc"] = round((1 - d["final_price"] / val) * 100, 1)   # 확정가의 평가가액 대비 할인율(음수면 할증)
+    if out.get("multiple") is not None and not (0 < out["multiple"] < 300):
+        out["multiple"] = None
+    return out
 
 
 def build_payload(conn) -> dict:
@@ -191,6 +248,8 @@ def build_payload(conn) -> dict:
             d["listed_shares"] = None      # 공모주식수보다 적으면 추출 오류로 봄
         fn = conn.execute("SELECT data FROM deal_fin WHERE deal_id=?", (d["deal_id"],)).fetchone()
         d["fin"] = _fin_view(json.loads(fn["data"])) if fn and fn["data"] else None
+        vl = conn.execute("SELECT data FROM deal_val WHERE deal_id=?", (d["deal_id"],)).fetchone()
+        d["val"] = _val_view(json.loads(vl["data"]), d) if vl and vl["data"] else None
 
     # KIND 예비심사: DART 딜에 예심 청구·승인일을 붙이고, 승인 후 아직 신고서가 없는 회사를 따로 담습니다.
     from datetime import date as _date
@@ -225,6 +284,7 @@ def build_payload(conn) -> dict:
             "source_rcept_no": (sm or {}).get("source_rcept_no") or (biz["rcept_no"] if biz else None),
             "industry": ci.get("industry") if ci else None, "products": ci.get("products") if ci else None,
         } if (biz or ci or sm) else None
+        d["sector"] = None if d["is_spac"] else sector_of(d.get("induty_code"), ci.get("industry") if ci else None)
         km = _KIND_MARKET.get((rv or {}).get("market") or "")
         if km:   # KIND 예심 시장 구분이 있으면 원문 판정보다 우선
             d["market_src"] = "KIND" if d.get("market") in (None, km) else "KIND(원문 판정 " + str(d.get("market")) + "와 다름)"
@@ -247,10 +307,27 @@ def build_payload(conn) -> dict:
             "filings": [], "underwriters": [], "securities": [], "use_of_proceeds": [], "sellers": [], "sources": [],
         })
 
+    # 예심 이력(KIND): 청구·승인·철회 전체. 같은 회사의 이후 DART 딜이 있으면 연결합니다.
+    by_key = {}
+    for d in deals + approvals:
+        by_key.setdefault(kind.name_key(d.get("corp_name") or ""), []).append(d)
+    reviews = []
+    for r in conn.execute("SELECT * FROM kind_review ORDER BY filed_dt DESC, corp_name"):
+        r = dict(r)
+        f = r.get("filed_dt") or ""
+        later = sorted((d for d in by_key.get(r["name_key"], []) if (d.get("first_filing_dt") or "") >= f),
+                       key=lambda d: d.get("first_filing_dt") or "")
+        reviews.append({
+            "n": r["corp_name"], "f": r.get("filed_dt"), "d": r.get("decided_dt"), "r": r.get("result"),
+            "m": r.get("market"), "t": r.get("listing_type"), "s": uw_display(r.get("sponsor")),
+            "id": later[0]["deal_id"] if later else None,
+        })
+
     return {
         "schema_version": SCHEMA_VERSION,
         "kind_as_of": store.get_meta(conn, "kind_as_of"),
         "approvals": approvals,
+        "reviews": reviews,
         "last_list_date": store.get_meta(conn, "last_list_date"),
         "attribution": "금융감독원 전자공시시스템(DART) 공시 기반",
         "deals": deals,

@@ -76,18 +76,18 @@
     pushH({ n: 0, p: p0 }, "#" + p0);
   })();
 
-  var DEFAULTS = { status: "all", cand: "ipo", spac: false, year: "", board: "", q: "", sortKey: "date", sortDir: -1 };
+  var DEFAULTS = { status: "all", cand: "ipo", spac: false, year: "", board: "", sector: "", focus: "", q: "", sortKey: "date", sortDir: -1 };
   var state = Object.assign({}, DEFAULTS, { sYear: "", sPeriod: "all", sUnit: "year", sWin: null, metric: "count", league: "count", listScroll: 0 });
   try {
     var saved = JSON.parse(localStorage.getItem("ipo-db-view") || "null");
-    if (saved) ["status", "spac", "year", "board", "sortKey", "sortDir", "sPeriod", "sUnit", "sWin", "metric", "league"].forEach(function (k) {
+    if (saved) ["status", "spac", "year", "board", "sector", "focus", "sortKey", "sortDir", "sPeriod", "sUnit", "sWin", "metric", "league"].forEach(function (k) {
       if (k in saved) state[k] = saved[k];
     });
   } catch (e) { /* 저장소를 쓸 수 없으면 기본값으로 시작 */ }
   function persist() {
     try {
       var o = {};
-      ["status", "cand", "spac", "year", "board", "sortKey", "sortDir", "sPeriod", "sUnit", "sWin", "metric", "league"].forEach(function (k) { o[k] = state[k]; });
+      ["status", "cand", "spac", "year", "board", "sector", "focus", "sortKey", "sortDir", "sPeriod", "sUnit", "sWin", "metric", "league"].forEach(function (k) { o[k] = state[k]; });
       localStorage.setItem("ipo-db-view", JSON.stringify(o));
     } catch (e) { /* 무시 */ }
   }
@@ -140,6 +140,25 @@
     return d.board === b;
   }
   // 배지: 시장(유가·코스닥)과 상장 경로(기술특례·성장성 특례·이익미실현)를 따로 붙입니다.
+  // 기준 주관사(강조 대상): NH투자증권. 대표·공동·인수단 중 맡은 역할을 돌려줍니다(없으면 "")
+  var FOCUS_NAME = "NH투자증권", FOCUS_SHORT = "NH";
+  var SECTORS = ["바이오·제약", "의료기기", "반도체", "전자부품·디스플레이", "통신·전자기기", "기계·장비", "전기장비·2차전지",
+    "자동차·운송장비", "화학·소재", "소비재·유통", "SW·IT서비스", "게임", "미디어·콘텐츠", "금융·지주", "서비스·기타"];
+  function focusRole(d) {
+    if (d._fr !== undefined) return d._fr;
+    var r = "";
+    if ((d.lead_underwriters || "").indexOf(FOCUS_NAME) >= 0) r = "대표";
+    else if ((d.co_underwriters || "").indexOf(FOCUS_NAME) >= 0) r = "공동";
+    else (d.underwriters || []).forEach(function (u) {
+      if (!r && (u.actnmn || "").replace("엔에이치투자증권", FOCUS_NAME).indexOf(FOCUS_NAME) >= 0) r = u.actsen === "대표" ? "대표" : u.actsen === "공동" ? "공동" : "인수";
+    });
+    d._fr = r;
+    return r;
+  }
+  function focusTag(d) {
+    var r = focusRole(d);
+    return r ? '<span class="tag b-focus" title="' + FOCUS_NAME + " " + r + (r === "인수" ? "단" : "주관") + ' 참여">' + FOCUS_SHORT + " " + r + "</span>" : "";
+  }
   function boardTag(d) {
     var m = d.board === "KOSPI" ? '<span class="tag b-ks">유가</span>'
       : (d.board === "KOSDAQ" || d.board === "KOSDAQ_TECH") ? '<span class="tag b-kq">코스닥</span>' : "";
@@ -301,7 +320,7 @@
   function route() {
     var h = curPath();
     var m = h.match(/^\/deal\/(.+)$/), mb = h.match(/^\/bio\/(.+)$/);
-    var tab = h.indexOf("/stats") === 0 ? "stats" : mb || h === "/bio" ? "bio" : m ? (view || "list") : "list";
+    var tab = h.indexOf("/stats") === 0 ? "stats" : h === "/cal" ? "cal" : mb || h === "/bio" ? "bio" : m ? (view || "list") : "list";
     setTabs(tab);
     hideTip();
     if (!data) return;
@@ -318,10 +337,11 @@
     closeSheet();
     if (tab === "stats") { if (view !== "stats") { renderStats(); window.scrollTo(0, 0); } }
     else if (tab === "bio") { if (view !== "bio") { renderBio(); window.scrollTo(0, 0); } }
+    else if (tab === "cal") { if (view !== "cal") { renderCal(); window.scrollTo(0, 0); } }
     else if (view !== "list") { renderList(); window.scrollTo(0, 0); }
-    document.title = (tab === "stats" ? "통계" : tab === "bio" ? "기술특례 바이오" : "목록") + " · IPO 데이터룸";
+    document.title = (tab === "stats" ? "통계" : tab === "bio" ? "기술특례 바이오" : tab === "cal" ? "일정" : "목록") + " · IPO 데이터룸";
   }
-  function baseView() { return view === "stats" ? "/stats" : view === "bio" ? "/bio" : "/"; }
+  function baseView() { return view === "stats" ? "/stats" : view === "bio" ? "/bio" : view === "cal" ? "/cal" : "/"; }
 
   // ---------------------------------------------------------------- 목록
   function baseRows(ignoreStatus) {
@@ -333,6 +353,10 @@
       if (!ignoreStatus && ss.length && ss.indexOf(stKey(d)) < 0) return false;
       if (ys.length && ys.indexOf(d.first_filing_dt.slice(0, 4)) < 0) return false;
       if (!boardOk(d, state.board)) return false;
+      var secs = multi("sector");
+      if (secs.length && secs.indexOf(d.sector || "") < 0) return false;
+      if (state.focus && !focusRole(d)) return false;
+      if (state.focus === "lead" && focusRole(d) !== "대표") return false;
       if (q && findMatch(name(d), q) === -1 && findMatch((d.lead_underwriters || "") + "," + uwSet(d).join(","), q) === -1) return false;
       return true;
     });
@@ -496,7 +520,7 @@
 
   var ST_LABEL = { all: "전체", approved: "예심 승인", filed: "신고서 제출", price_fixed: "가격 확정", upcoming: "상장 예정", completed: "상장 완료", withdrawn: "철회" };
   // 진행 상태·신고 연도는 여러 개를 고를 수 있습니다. 값은 "filed,price_fixed"처럼 쉼표로 이은 문자열("all"·""는 전체)
-  var MULTI = { status: ["approved", "filed", "price_fixed", "upcoming", "completed", "withdrawn"] };
+  var MULTI = { status: ["approved", "filed", "price_fixed", "upcoming", "completed", "withdrawn"], sector: SECTORS };
   function multi(k) {
     var v = state[k];
     return !v || v === "all" ? [] : String(v).split(",").filter(Boolean);
@@ -521,6 +545,9 @@
     if (ss.length) a.push({ k: "status", t: ST_LABEL[ss[0]] + (ss.length > 1 ? " 외 " + (ss.length - 1) : "") });
     if (state.board) a.push({ k: "board", t: BOARDS[state.board] });
     if (ys.length) a.push({ k: "year", t: yearText(ys) });
+    var secs = multi("sector");
+    if (secs.length) a.push({ k: "sector", t: secs[0] + (secs.length > 1 ? " 외 " + (secs.length - 1) : "") });
+    if (state.focus) a.push({ k: "focus", t: FOCUS_SHORT + (state.focus === "lead" ? " 대표주관" : " 참여") });
     if (state.spac !== DEFAULTS.spac) a.push({ k: "spac", t: state.spac ? "스팩 포함" : "스팩 제외" });
     return a;
   }
@@ -558,8 +585,10 @@
   function fpBody() {
     var counts = { all: 0, approved: 0, filed: 0, price_fixed: 0, upcoming: 0, completed: 0, withdrawn: 0 };
     baseRows(true).forEach(function (d) { var k = stKey(d); counts.all++; counts[k] = (counts[k] || 0) + 1; });
+    var secCounts = {};
+    data.deals.forEach(function (d) { if (candOk(d, state.cand) && (state.spac || !isSpac(d)) && d.sector) secCounts[d.sector] = (secCounts[d.sector] || 0) + 1; });
     var opt2 = function (k, v, label, n) {
-      var on = k === "status" || k === "year" ? (multi(k).length ? multi(k).indexOf(String(v)) >= 0 : v === "all" || v === "") : String(state[k]) === String(v);
+      var on = k === "status" || k === "year" || k === "sector" ? (multi(k).length ? multi(k).indexOf(String(v)) >= 0 : v === "all" || v === "") : String(state[k]) === String(v);
       return '<button type="button" class="fo" data-k="' + k + '" data-v="' + esc(v) + '" aria-pressed="' + on + '">' + esc(label) +
         (n != null ? '<span class="n">' + n + "</span>" : "") + "</button>";
     };
@@ -569,6 +598,9 @@
       Object.keys(BOARDS).map(function (k) { return opt2("board", k, BOARDS[k]); }).join("") + "</div></div>" +
       '<div class="fp-sec"><div class="fp-h">신고 연도<small>여러 개 선택</small></div><div class="fp-opts years" id="fp-years">' + opt2("year", "", "전체") +
       years().map(function (y) { return opt2("year", y, y); }).join("") + "</div></div>" +
+      '<div class="fp-sec"><div class="fp-h">업종<small>여러 개 선택</small></div><div class="fp-opts">' + opt2("sector", "", "전체") +
+      SECTORS.filter(function (k) { return secCounts[k]; }).map(function (k) { return opt2("sector", k, k, secCounts[k]); }).join("") + "</div></div>" +
+      '<div class="fp-sec"><div class="fp-h">' + FOCUS_NAME + '</div><div class="fp-opts">' + opt2("focus", "", "전체") + opt2("focus", "any", "참여 딜") + opt2("focus", "lead", "대표주관") + "</div></div>" +
       '<div class="fp-foot"><label class="switch"><input type="checkbox" id="fp-spac"' + (state.spac ? " checked" : "") + ">스팩 포함</label>" +
       '<span class="sp"></span><button type="button" class="linkbtn" id="fp-reset">초기화</button>' +
       '<button type="button" class="fp-done" id="fp-done">' + filtered().length.toLocaleString("ko-KR") + "건 보기</button></div>";
@@ -578,13 +610,13 @@
     o.body.querySelectorAll(".fo").forEach(function (b) {
       b.addEventListener("click", function () {
         var k = b.dataset.k;
-        if (k === "status" || k === "year") toggleMulti(k, b.dataset.v); else state[k] = b.dataset.v;
+        if (k === "status" || k === "year" || k === "sector") toggleMulti(k, b.dataset.v); else state[k] = b.dataset.v;
         persist(); fpRefresh();
       });
     });
     o.body.querySelector("#fp-spac").addEventListener("change", function (e) { state.spac = e.target.checked; persist(); fpRefresh(); });
     o.body.querySelector("#fp-reset").addEventListener("click", function () {
-      ["status", "spac", "year", "board"].forEach(function (k) { state[k] = DEFAULTS[k]; }); persist(); fpRefresh();
+      ["status", "spac", "year", "board", "sector", "focus"].forEach(function (k) { state[k] = DEFAULTS[k]; }); persist(); fpRefresh();
     });
     o.body.querySelector("#fp-done").addEventListener("click", function () { fpClose(true); });
   }
@@ -650,7 +682,7 @@
     } else if (!changed && rb) rb.remove();
   }
   function resetFilters() {
-    ["status", "spac", "year", "board", "q"].forEach(function (k) { state[k] = DEFAULTS[k]; });
+    ["status", "spac", "year", "board", "sector", "focus", "q"].forEach(function (k) { state[k] = DEFAULTS[k]; });
     persist(); renderList();
   }
 
@@ -685,7 +717,7 @@
     var cards = '<div class="cards">';
     rows.forEach(function (d) {
       var p = position(d);
-      var tags = boardTag(d) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + refileTag(d);
+      var tags = boardTag(d) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + refileTag(d) + focusTag(d);
       var bandCell = d.offer_price_low ? bandText(d) : (d.filed_price ? '<span class="dim" title="신고서 기재 기준가">' + int(d.filed_price) + "*</span>" : "-");
       var href = "#/deal/" + encodeURIComponent(d.deal_id);
       html += '<tr data-id="' + esc(d.deal_id) + '">' +
@@ -874,6 +906,45 @@
     if (/^\d+\.\d+$/.test(String(v))) return Number(v).toLocaleString("ko-KR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     return v;
   }
+  // 공모 구조: 신주·구주 비중, 공모비율(공모주식수 ÷ 상장예정주식수), 인수수수료율(인수대가 ÷ 인수금액)
+  function numOf(v) { if (v == null) return null; var n = Number(String(v).replace(/,/g, "")); return isFinite(n) && String(v).trim() !== "-" && String(v).trim() !== "" ? n : null; }
+  function structInfo(d) {
+    var so = d.shares_offered, sec = d.secondary_shares || 0, ls = d.listed_shares;
+    var amt = 0, fee = 0;
+    (d.underwriters || []).forEach(function (u) { var a = numOf(u.udtamt), f = numOf(u.udtprc); if (a && f != null) { amt += a; fee += f; } });
+    var sellers = (d.sellers || []).filter(function (x) { return numOf(x.slstk); });
+    return { so: so, neu: so != null ? so - sec : null, sec: sec, ls: ls, flt: so && ls ? so / ls * 100 : null,
+      fee: amt ? fee / amt * 100 : null, feeAmt: amt ? fee : null, sellers: sellers };
+  }
+  function valTerms(d, V, term, pct) {
+    var num = function (v, dg) { return v == null ? "-" : Number(v).toLocaleString("ko-KR", { maximumFractionDigits: dg == null ? 2 : dg }); };
+    var disc = V.disc_low != null ? num(V.disc_low, 1) + "~" + num(V.disc_high, 1) + "<small>%</small>" : "-";
+    var fd = V.final_disc != null ? (V.final_disc >= 0 ? num(V.final_disc, 1) + "<small>%</small>" : "할증 " + num(-V.final_disc, 1) + "<small>%</small>") : "-";
+    return '<div class="terms t4 val">' +
+      term("평가방법", esc(V.method || "-") + (V.multiple != null ? ' <span class="sl">·</span> ' + num(V.multiple) + "<small>배</small>" : ""), [V.basis, V.peers_n ? "비교기업 " + V.peers_n + "곳" : ""].filter(Boolean).join(" · ") || (V.multiple != null ? "적용 배수" : "")) +
+      term("주당 평가가액", V.value ? int(V.value) + "<small>원</small>" : "-", V.pv_rate != null ? "추정이익 현가 할인 연 " + num(V.pv_rate, 1) + "%" : "") +
+      term("밴드 할인율", disc, d.offer_price_low ? "희망 밴드 " + bandText(d) + "원" : "") +
+      term("확정가 할인율", fd, d.final_price ? "확정가 " + int(d.final_price) + "원 기준" : "공모가 미확정") +
+      "</div>";
+  }
+  function structBlock(d) {
+    if (isSpac(d)) return "";
+    var s = structInfo(d);
+    var V = d.val;
+    if (s.so == null && s.fee == null && !V) return "";
+    var term = function (k, v, sub) { return '<div><span class="k">' + k + '</span><span class="v">' + v + "</span>" + (sub ? '<span class="s">' + sub + "</span>" : "") + "</div>"; };
+    var pct = function (v) { return v == null ? "-" : v.toLocaleString("ko-KR", { maximumFractionDigits: 1 }) + "<small>%</small>"; };
+    var top = s.sellers.slice().sort(function (a, b) { return numOf(b.slstk) - numOf(a.slstk); });
+    var selTxt = top.length ? top.slice(0, 2).map(function (x) { return esc(x.hdr) + (x.rl_cmp && x.rl_cmp !== "-" ? "(" + esc(x.rl_cmp) + ")" : ""); }).join(", ") + (top.length > 2 ? " 외 " + (top.length - 2) + "명" : "") : "";
+    return section(V ? "공모 구조 · 밸류에이션" : "공모 구조", '<div class="terms t4">' +
+      term("신주 · 구주", s.so != null ? pct(s.so ? s.neu / s.so * 100 : null) + ' <span class="sl">/</span> ' + pct(s.so ? s.sec / s.so * 100 : null) : "-", s.sec ? "구주 " + int(s.sec) + "주" + (selTxt ? " · " + selTxt : "") : "전량 신주") +
+      term("공모비율", pct(s.flt), s.ls ? "상장예정 " + int(s.ls) + "주" : "상장예정주식수 미확인") +
+      term("인수수수료율", pct(s.fee), s.feeAmt != null ? "인수대가 " + eok(s.feeAmt) + "억원 · 신고서 기준" : "") +
+      term("인수단", int((d.underwriters || []).length) + "<small>곳</small>", (d.underwriters || []).map(function (u) { return u.actsen; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).join("·")) +
+      "</div>" + (V ? valTerms(d, V, term, pct) : "") +
+      '<p class="snote">공모비율은 공모주식수 ÷ 상장예정주식수, 수수료율은 인수단 인수대가 합계 ÷ 인수금액 합계(증권신고서 주요정보, 밴드 하단 기준)입니다. 성과수수료는 포함하지 않습니다.' +
+      (V ? " 공모가 산정 근거는 증권신고서 &lsquo;공모가격에 대한 의견&rsquo;에서 규칙으로 읽은 값입니다" + (V.src ? " (" + dartLink(V.src) + ")" : "") + "." + (V.check === false ? ' <b class="warn-t">할인율·평가가액이 희망 밴드와 맞지 않아 원문 확인이 필요합니다.</b>' : "") : "") + "</p>", true);
+  }
   function section(title, body, open, count) {
     return '<details class="sec"' + (open ? " open" : "") + "><summary>" + esc(title) +
       (count != null ? '<span class="cnt">' + count + "</span>" : "") + "</summary>" + body + "</details>";
@@ -934,7 +1005,7 @@
     for (var i = 0; i < list.length; i++) if (list[i].deal_id === id) { idx = i; break; }
     var prev = idx > 0 ? list[idx - 1] : null, next = idx >= 0 && idx < list.length - 1 ? list[idx + 1] : null;
     titleEl.textContent = name(d);
-    chipEl.innerHTML = chip(d) + boardTag(d) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + refileTag(d) + (bc ? bioChips(bc) : "");
+    chipEl.innerHTML = chip(d) + boardTag(d) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + refileTag(d) + focusTag(d) + (bc ? bioChips(bc) : "");
     var tlEl = document.getElementById("sheet-tl");
     if (d.status === "approved") {
       subEl.textContent = "예심 승인 " + (d.first_filing_dt || "-") + (d.prelim && d.prelim.market ? " · " + d.prelim.market : "") + (d.lead_underwriters ? " · " + d.lead_underwriters : "");
@@ -1000,6 +1071,7 @@
       term("대표주관", esc(d.lead_underwriters || "-"), d.co_underwriters ? "공동 " + esc(d.co_underwriters) : "", "txt") +
       "</div>";
     html += '<div id="bandviz-slot"></div>';
+    html += structBlock(d);
     html += finBlock(d);
     html += lockupBlock(d);
     if (bc) html += bioDetail(bc, true, !!companyBlock(d)) + '<h3 class="bio-hd">공모 세부 정보<span>일정·공시·인수인·자금 사용</span></h3>';
@@ -1395,7 +1467,7 @@
     var posTot = {}; POS.forEach(function (p) { posTot[p] = pc.reduce(function (a, o) { return a + o[p]; }, 0); });
     var legend3 = '<div class="legend">' + POS.map(function (p) { return '<span><i style="background:var(--pos-' + POS_KEY[p] + ')"></i>' + p + " " + posTot[p] + "</span>"; }).join("") + "</div>";
 
-    var techPanel = "", leaguePanel = "";
+    var techPanel = "", leaguePanel = "", sectorPanel = "";
     if (!statFast) (function () {   // 기술특례·주관사 표는 제스처가 끝난 뒤에만 다시 계산
     // ---- 4) 기술특례 분석
     var tech = deals.filter(function (d) { return d.board === "KOSDAQ_TECH" && !isSpac(d); });
@@ -1431,6 +1503,24 @@
         '<div class="scroll"><table class="mini grades"><thead><tr><th>평가 등급</th><th class="num">건수</th><th class="bar-cell"><span class="sr">건수 막대</span></th><th class="num">수요예측</th><th class="num">일반청약</th><th class="num">상단 이상</th></tr></thead><tbody>' + gradeRows + "</tbody></table></div>"
         : '<div class="empty">선택한 조건에 기술특례 상장 건이 없습니다.</div>') + "</div></section>";
 
+    // ---- 4-2) 업종별 현황(스팩 제외)
+    var sg = {};
+    deals.forEach(function (d) { if (!isSpac(d) && d.sector) (sg[d.sector] = sg[d.sector] || []).push(d); });
+    var skeys = Object.keys(sg).sort(function (a, b) { return sg[b].length - sg[a].length; });
+    var smax = Math.max.apply(null, skeys.map(function (k) { return sg[k].length; }).concat([1]));
+    var sectorRows = skeys.map(function (k) {
+      var ds = sg[k], im = median(ds.map(function (d) { return d.inst_demand_ratio; }));
+      var cm = ds.map(function (d) { return d.lockup && d.lockup.commit ? d.lockup.commit.ratio : null; }).filter(function (v) { return v != null; });
+      var pd = ds.filter(function (d) { return position(d); }), up = pd.filter(function (d) { var p = position(d); return p === "상단" || p === "초과"; }).length;
+      var amt = ds.reduce(function (a, d) { return a + (d.offer_amount || 0); }, 0);
+      return '<tr><td>' + esc(k) + '</td><td class="num">' + ds.length + '</td><td class="bar-cell"><div class="hbar" style="width:' + (ds.length / smax * 100).toFixed(1) + '%"></div></td><td class="num">' + eok(amt) +
+        '</td><td class="num">' + (im != null ? ratio(im, 0) : "-") + '</td><td class="num">' + (cm.length ? pct1(cm.reduce(function (a, v) { return a + v; }, 0) / cm.length) : "-") +
+        '</td><td class="num">' + (pd.length ? Math.round(up / pd.length * 100) + "%" : "-") + "</td></tr>";
+    }).join("");
+    sectorPanel = '<section class="panel sectors"><header><div><h2>업종별 현황</h2><p>' + periodText + " 상장 기준(스팩 제외). 업종은 DART 업종코드(KSIC)를 15개 대분류로 묶었습니다. 경쟁률은 중앙값, 확약비율은 원문에서 읽힌 건의 평균입니다.</p></div></header>" +
+      '<div class="pbody">' + (skeys.length ? '<div class="scroll"><table class="mini sect"><thead><tr><th>업종</th><th class="num">건수</th><th class="bar-cell"><span class="sr">막대</span></th><th class="num">공모액(억)</th><th class="num">수요예측</th><th class="num">확약비율</th><th class="num">상단 이상</th></tr></thead><tbody>' + sectorRows + "</tbody></table></div>"
+        : '<div class="empty">선택한 조건에 상장 건이 없습니다.</div>') + "</div></section>";
+
     // ---- 5) 대표주관사 순위
     var lg = {};
     deals.forEach(function (d) {
@@ -1447,7 +1537,7 @@
     leag.sort(function (a, b) { return b[lk] - a[lk] || b.count - a.count; });
     var maxL = leag.length ? Math.max(1, leag[0][lk]) : 1, topN = leag.slice(0, 15);
     var leagueRows = topN.map(function (r, i) {
-      return '<tr class="go" tabindex="0" data-uw="' + esc(r.name) + '"><td class="rank">' + (i + 1) + "</td><td>" + esc(r.name) + '</td><td class="num">' + r.count + '</td><td class="num">' + r.tech +
+      return '<tr class="go' + (r.name === FOCUS_NAME ? " focus" : "") + '" tabindex="0" data-uw="' + esc(r.name) + '"><td class="rank">' + (i + 1) + "</td><td>" + esc(r.name) + '</td><td class="num">' + r.count + '</td><td class="num">' + r.tech +
         '</td><td class="num">' + eok(r.amount) +
         '</td><td class="bar-cell"><div class="hbar" style="width:' + (r[lk] / maxL * 100).toFixed(1) + '%"></div></td></tr>';
     }).join("");
@@ -1468,7 +1558,7 @@
       '<div class="pbody chart zoomable">' + legend2 + svg2 + "</div></section>" +
       '<section class="panel"><header><div><h2>밴드 대비 확정가 위치</h2><p>' + unitWord + " 상장 건의 비중. 단일 희망가(스팩 등)는 제외. 위로 갈수록 높은 가격입니다.</p></div></header>" +
       '<div class="pbody chart zoomable">' + legend3 + svg3 + "</div></section></div>" +
-      (statFast ? '<div class="keep"></div>' : '<div class="panels even">' + techPanel + leaguePanel + "</div>") + "</div>");
+      (statFast ? '<div class="keep"></div>' : '<div class="stack"><div class="panels even">' + techPanel + leaguePanel + "</div>" + sectorPanel + "</div>") + "</div>");
     bindStats();
     bindChart();
   }
@@ -1735,6 +1825,213 @@
       var n = items ? items.filter(function (it) { return it.k === s.key; }).length : null;
       return '<span><i style="background:' + s.css + '"></i>' + esc(s.key) + (n != null ? " " + n : "") + "</span>";
     }).join("") + "</div>";
+  }
+  // ---------------------------------------------------------------- 일정 (공모 일정 · 최근 공시 · 예심 현황)
+  function isoOf(dt) { return dt.getFullYear() + "-" + ("0" + (dt.getMonth() + 1)).slice(-2) + "-" + ("0" + dt.getDate()).slice(-2); }
+  function dOf(s) { var p = s.split("-"); return new Date(+p[0], +p[1] - 1, +p[2]); }
+  function addDays(s, n) { var t = dOf(s); t.setDate(t.getDate() + n); return isoOf(t); }
+  function addMonths(s, n) { var t = dOf(s); t.setMonth(t.getMonth() + n); return isoOf(t); }
+  function daysBetween(a, b) { return Math.round((dOf(b) - dOf(a)) / 864e5); }
+  function todayIso() { return isoOf(new Date()); }
+  var WD = ["일", "월", "화", "수", "목", "금", "토"];
+  function mdw(s) { var t = dOf(s); return (t.getMonth() + 1) + "." + t.getDate() + " (" + WD[t.getDay()] + ")"; }
+  function md(s) { var t = dOf(s); return (t.getMonth() + 1) + "." + t.getDate(); }
+  // "2026년 12월 14일 ~ 2026년 12월 15일", "2026.12.14 ~ 12.15" 같은 원문 기일을 ISO 날짜 배열로
+  function kdates(raw) {
+    if (!raw) return [];
+    var out = [], y = null, m, re = /(?:(\d{4})\s*[년.\-]\s*)?(\d{1,2})\s*[월.\-]\s*(\d{1,2})\s*일?/g;
+    while ((m = re.exec(raw))) {
+      if (m[1]) y = +m[1];
+      if (!y) continue;
+      var mo = +m[2], da = +m[3];
+      if (mo < 1 || mo > 12 || da < 1 || da > 31) continue;
+      out.push(y + "-" + ("0" + mo).slice(-2) + "-" + ("0" + da).slice(-2));
+    }
+    return out;
+  }
+  function bizStart(today, n) {      // 오늘 포함 최근 n영업일(주말 제외)의 첫날
+    var t = dOf(today), k = 0;
+    while (true) { if (t.getDay() !== 0 && t.getDay() !== 6) { k++; if (k >= n) break; } t.setDate(t.getDate() - 1); }
+    return isoOf(t);
+  }
+  var EV_ORDER = { "수요예측": 0, "청약": 1, "납입": 2, "상장": 3 };
+  function calEvents() {
+    var ev = [];
+    data.deals.forEach(function (d) {
+      if (d.status === "withdrawn" || d.is_ipo_candidate !== 1) return;
+      if (d.demand_start) ev.push({ k: "수요예측", a: d.demand_start, b: d.demand_end || d.demand_start, d: d });
+      var s = kdates(d.subscription_raw);
+      if (s.length) ev.push({ k: "청약", a: s[0], b: s[s.length - 1] >= s[0] ? s[s.length - 1] : s[0], d: d });
+      var p = kdates(d.payment_raw);
+      if (p.length) ev.push({ k: "납입", a: p[0], b: p[0], d: d });
+      if (d.listing_dt) ev.push({ k: "상장", a: d.listing_dt, b: d.listing_dt, d: d });
+    });
+    return ev;
+  }
+  function rvApproved(r) { return /승인/.test(r.r || "") && !/미승인/.test(r.r || ""); }
+  function rvKind(r) {
+    var x = r.r || "";
+    if (!r.d || /접수/.test(x)) return "pending";
+    if (/미승인/.test(x)) return "rejected";
+    if (/심사 철회/.test(x)) return "withdrawn";
+    return rvApproved(r) || /공모 철회|상장 철회/.test(x) ? "approved" : "other";
+  }
+  function rvIpo(r) { return /신규상장/.test(r.t || "") && !/스팩/.test(r.n || ""); }
+  function nmLink(id, nm) { return id ? '<a class="nm" href="#/deal/' + encodeURIComponent(id) + '">' + esc(nm) + "</a>" : '<span class="nm">' + esc(nm) + "</span>"; }
+  function spText(s) {
+    if (!s) return '<span class="dim">-</span>';
+    return s.split(/\s*,\s*/).map(function (x) { return x.indexOf(FOCUS_NAME) >= 0 ? '<b class="focus-t">' + esc(x) + "</b>" : esc(x); }).join(", ");
+  }
+  function median(xs) {
+    if (!xs.length) return null;
+    var s = xs.slice().sort(function (a, b) { return a - b; }), h = s.length >> 1;
+    return s.length % 2 ? s[h] : Math.round((s[h - 1] + s[h]) / 2);
+  }
+  function renderCal() {
+    document.title = "일정 · IPO 데이터룸";
+    view = "cal";
+    var today = todayIso(), dow = dOf(today).getDay();
+    var wk0 = addDays(today, -((dow + 6) % 7));          // 이번 주 월요일
+    var horizon = addDays(wk0, 7 * 9 - 1);
+    var RV = data.reviews || [];
+    var byId = {}; data.deals.forEach(function (d) { byId[d.deal_id] = d; });
+
+    // 1) 공모 일정: 이번 주 월요일부터 9주
+    var ev = calEvents().filter(function (e) { return e.b >= wk0 && e.a <= horizon; });
+    ev.sort(function (x, y) { return x.a < y.a ? -1 : x.a > y.a ? 1 : EV_ORDER[x.k] - EV_ORDER[y.k] || (name(x.d) < name(y.d) ? -1 : 1); });
+    var weeks = {};
+    ev.forEach(function (e) { var w = e.a < wk0 ? wk0 : addDays(e.a, -((dOf(e.a).getDay() + 6) % 7)); (weeks[w] = weeks[w] || []).push(e); });
+    var thisWeek = (weeks[wk0] || []).length;
+    var agenda = Object.keys(weeks).sort().map(function (w) {
+      var lab = w === wk0 ? "이번 주" : w === addDays(wk0, 7) ? "다음 주" : mdw(w).replace(/ \(.\)$/, "") + " 주";
+      var rows = weeks[w].map(function (e) {
+        var d = e.d, past = e.b < today, now = e.a <= today && e.b >= today;
+        return '<a class="ev' + (past ? " past" : "") + (now ? " now" : "") + (focusRole(d) ? " focus" : "") + '" href="#/deal/' + encodeURIComponent(d.deal_id) + '">' +
+          '<span class="ed mono">' + (e.b !== e.a ? esc(md(e.a) + "~" + md(e.b)) : esc(mdw(e.a))) + "</span>" +
+          '<span class="ek k-' + EV_ORDER[e.k] + '">' + e.k + "</span>" +
+          '<span class="en"><span class="nm">' + esc(name(d)) + '</span><span class="tags">' + boardTag(d) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + focusTag(d) + "</span></span>" +
+          '<span class="eu">' + esc(d.lead_underwriters || "-") + (e.k === "수요예측" && d.offer_price_low ? ' · <span class="mono">' + bandText(d) + "</span>" : "") +
+          (e.k !== "수요예측" && d.final_price ? ' · <span class="mono">' + int(d.final_price) + "원</span>" : "") +
+          (d.offer_amount && e.k !== "납입" ? ' · <span class="mono">' + eok(d.offer_amount) + "억</span>" : "") + "</span></a>";
+      }).join("");
+      return '<div class="wk"><h3>' + lab + ' <span class="dim">' + esc(mdw(w).replace(/ \(.\)$/, "")) + "~" + esc(mdw(addDays(w, 6)).replace(/ \(.\)$/, "")) + "</span></h3>" + rows + "</div>";
+    }).join("") || '<div class="empty">앞으로 9주 안에 확인된 공모 일정이 없습니다.</div>';
+    var calPanel = '<section class="panel cal"><header><div><h2>공모 일정</h2><p>이번 주부터 9주. 수요예측 기일·청약일·납입일은 증권신고서 원문, 상장일은 증권발행실적보고서 기준입니다. 상장일은 실적보고서가 나와야 표시됩니다.</p></div></header>' +
+      '<div class="pbody">' + agenda + "</div></section>";
+
+    // 2) 최근 5영업일 공시·예심 이벤트
+    var since = bizStart(today, 5), feed = [];
+    data.deals.forEach(function (d) {
+      if (d.is_ipo_candidate !== 1) return;
+      (d.filings || []).forEach(function (f) {
+        if (!f.rcept_dt || f.rcept_dt < since) return;
+        var n = f.report_nm || "", k = null;
+        if (f.doc_kind === "reg_equity") {
+          if (/정정제출요구/.test(n)) k = "정정 요구";
+          else if (/발행조건확정/.test(n)) k = "공모가 확정";
+          else if (/기재정정/.test(n)) k = "신고서 정정";
+          else if (!/\[/.test(n)) k = "신고서 제출";
+        } else if (f.doc_kind === "result" && !/\[/.test(n)) k = "발행 실적";
+        if (k) feed.push({ dt: f.rcept_dt, k: k, id: d.deal_id, nm: name(d), d: d, no: f.rcept_no });
+      });
+      if (d.listing_dt && d.listing_dt >= since && d.listing_dt <= today) feed.push({ dt: d.listing_dt, k: "상장", id: d.deal_id, nm: name(d), d: d });
+    });
+    RV.forEach(function (r) {
+      var sp = r.s ? " · " + r.s : "";
+      if (r.f && r.f >= since) feed.push({ dt: r.f, k: "예심 청구", id: r.id, nm: r.n, sub: (r.m || "") + sp, sp: r.s });
+      if (r.d && r.d >= since && rvKind(r) !== "pending") feed.push({ dt: r.d, k: r.r, id: r.id, nm: r.n, sub: (r.m || "") + sp, sp: r.s });
+    });
+    var FK = { "신고서 제출": "k-new", "예심 청구": "k-new", "공모가 확정": "k-1", "상장": "k-3", "상장 승인": "k-3", "심사 승인": "k-ok", "정정 요구": "k-bad", "심사 미승인": "k-bad", "심사 철회": "k-bad", "공모 철회": "k-bad" };
+    feed.sort(function (a, b) { return a.dt < b.dt ? 1 : a.dt > b.dt ? -1 : (a.nm < b.nm ? -1 : 1); });
+    var feedHtml = feed.map(function (x) {
+      var foc = x.d ? !!focusRole(x.d) : (x.sp || "").indexOf(FOCUS_NAME) >= 0;
+      return '<li' + (foc ? ' class="focus"' : "") + '><span class="ed mono">' + esc(mdw(x.dt)) + '</span><span class="ek ' + (FK[x.k] || "k-etc") + '">' + esc(x.k) + "</span>" +
+        '<span class="en">' + nmLink(x.id, x.nm) + (x.d ? '<span class="tags">' + boardTag(x.d) + focusTag(x.d) + "</span>" : "") + "</span>" +
+        '<span class="eu">' + (x.d ? esc(x.d.lead_underwriters || "-") : x.sub ? spText(x.sub) : "") + "</span></li>";
+    }).join("");
+    var feedPanel = '<section class="panel feed"><header><div><h2>최근 공시 <span class="cnt">' + feed.length + "</span></h2><p>" + esc(mdw(since)) + " 이후 5영업일. 증권신고서·발행실적보고서(DART)와 상장예비심사 청구·결과(KIND)" + (data.kind_as_of ? ", KIND " + esc(data.kind_as_of) + " 기준" : "") + ".</p></div></header>" +
+      '<div class="pbody">' + (feed.length ? '<ul class="feedl">' + feedHtml + "</ul>" : '<div class="empty">최근 5영업일 동안 새 공시가 없습니다.</div>') + "</div></section>";
+
+    // 3) 예심 현황
+    var decided = RV.filter(function (r) { return rvKind(r) !== "pending" && rvKind(r) !== "other" && r.f && r.d; });
+    var y1 = addDays(today, -365);
+    var appr1 = decided.filter(function (r) { return r.d >= y1 && rvIpo(r) && rvKind(r) === "approved"; });
+    var dec1 = decided.filter(function (r) { return r.d >= y1 && rvIpo(r); });
+    var durs1 = appr1.map(function (r) { return daysBetween(r.f, r.d); });
+    var medDur = median(durs1);
+    var pendAll = RV.filter(function (r) { return rvKind(r) === "pending"; });
+    var pend = pendAll.filter(function (r) { return daysBetween(r.f, today) <= 365; }).sort(function (a, b) { return a.f < b.f ? -1 : 1; });
+    var stale = pendAll.length - pend.length;
+    var pendRows = pend.map(function (r) {
+      var el = daysBetween(r.f, today), over = medDur && el > medDur;
+      return "<tr" + ((r.s || "").indexOf(FOCUS_NAME) >= 0 ? ' class="focus"' : "") + "><td>" + nmLink(r.id, r.n) + (/스팩/.test(r.t || "") ? ' <span class="dim">(' + esc(r.t) + ")</span>" : "") + '</td><td class="c-m">' + esc(r.m || "-") + "</td><td>" + spText(r.s) +
+        '</td><td class="num mono">' + esc(r.f.slice(2).replace(/-/g, ".")) + '</td><td class="num mono' + (over ? " warn" : "") + '">' + el + "일</td></tr>";
+    }).join("");
+    var pendPanel = '<section class="panel"><header><div><h2>심사 중 <span class="cnt">' + pend.length + "</span></h2><p>청구서 접수 후 결과가 나오지 않은 건. 경과일이 최근 1년 승인 건의 심사기간 중앙값(" + (medDur != null ? medDur + "일" : "-") + ")을 넘으면 붉게 표시합니다." + (stale ? " 청구 후 1년이 넘도록 결과가 수록되지 않은 " + stale + "건은 제외했습니다." : "") + "</p></div></header>" +
+      '<div class="pbody"><div class="scroll"><table class="mini rv"><thead><tr><th>회사</th><th class="c-m">시장</th><th>주관사</th><th class="num">청구일</th><th class="num">경과</th></tr></thead><tbody>' + pendRows + "</tbody></table></div></div></section>";
+
+    // 승인 후 아직 상장하지 않은 건: 효력 6개월
+    var waiting = RV.filter(function (r) { return r.r === "심사 승인" && r.d && !/스팩|재상장/.test(r.t || ""); }).map(function (r) {
+      var exp = addMonths(r.d, 6), d = r.id ? byId[r.id] : null;
+      return { r: r, exp: exp, left: daysBetween(today, exp), d: d };
+    }).filter(function (x) { return x.left >= -30; }).sort(function (a, b) { return a.exp < b.exp ? -1 : 1; });
+    var waitRows = waiting.map(function (x) {
+      var r = x.r, d = x.d, st = d && d.status !== "approved" ? chip(d) : '<span class="dim">신고서 전</span>';
+      return "<tr" + ((r.s || "").indexOf(FOCUS_NAME) >= 0 ? ' class="focus"' : "") + "><td>" + nmLink(r.id, r.n) + "</td><td>" + spText(r.s) + '</td><td class="num mono">' + esc(r.d.slice(2).replace(/-/g, ".")) +
+        '</td><td class="num mono' + (x.left <= 45 ? " warn" : "") + '">' + (x.left >= 0 ? x.left + "일" : "만료") + "</td><td>" + st + "</td></tr>";
+    }).join("");
+    var waitPanel = '<section class="panel"><header><div><h2>승인 후 상장 대기 <span class="cnt">' + waiting.length + "</span></h2><p>예심 승인 효력은 결과 통지일부터 6개월입니다. 남은 기간 45일 이하는 붉게 표시합니다(만료 기준일은 승인일 + 6개월로 계산).</p></div></header>" +
+      '<div class="pbody"><div class="scroll"><table class="mini rv"><thead><tr><th>회사</th><th>주관사</th><th class="num">승인일</th><th class="num">남은 기간</th><th>진행</th></tr></thead><tbody>' + waitRows + "</tbody></table></div></div></section>";
+
+    // 주관사별 예심 실적 (KIND 수록 기간 전체, 신규상장·스팩 제외)
+    var sp = {};
+    decided.filter(rvIpo).forEach(function (r) {
+      (r.s || "미확인").split(/\s*,\s*/).forEach(function (s) {
+        var o = sp[s] = sp[s] || { s: s, n: 0, ok: 0, rej: 0, wd: 0, durs: [] };
+        o.n++;
+        var k = rvKind(r);
+        if (k === "approved") { o.ok++; o.durs.push(daysBetween(r.f, r.d)); } else if (k === "rejected") o.rej++; else o.wd++;
+      });
+    });
+    var spRows = Object.keys(sp).map(function (k) { return sp[k]; }).sort(function (a, b) { return b.n - a.n || b.ok - a.ok; });
+    var allOk = decided.filter(function (r) { return rvIpo(r) && rvKind(r) === "approved"; }).length, allN = decided.filter(rvIpo).length;
+    var minF = RV.reduce(function (m, r) { return r.d && (!m || r.d < m) ? r.d : m; }, null);
+    var spHtml = spRows.map(function (o) {
+      var foc = o.s.indexOf(FOCUS_NAME) >= 0;
+      return "<tr" + (foc ? ' class="focus"' : "") + "><td>" + esc(o.s) + '</td><td class="num">' + o.n + '</td><td class="num">' + o.ok + '</td><td class="num">' + (o.wd || '<span class="dim">0</span>') + '</td><td class="num">' + (o.rej || '<span class="dim">0</span>') +
+        '</td><td class="num"><b>' + Math.round(o.ok / o.n * 100) + '%</b></td><td class="num">' + (o.durs.length ? median(o.durs) + "일" : "-") + "</td></tr>";
+    }).join("");
+    var spPanel = '<section class="panel"><header><div><h2>주관사별 예심 실적</h2><p>KIND 수록 결과(' + (minF ? esc(minF.slice(0, 7).replace("-", ".")) : "-") + " 이후) 중 신규상장 청구, 스팩 제외. 공동 주관은 각각 1건. 승인률 = 승인 ÷ (승인 + 철회 + 미승인). 전체 " + allN + "건 중 승인 " + allOk + "건(" + (allN ? Math.round(allOk / allN * 100) : 0) + "%).</p></div></header>" +
+      '<div class="pbody"><div class="scroll"><table class="mini rv"><thead><tr><th>주관사</th><th class="num">결과</th><th class="num">승인</th><th class="num">철회</th><th class="num">미승인</th><th class="num">승인률</th><th class="num">심사기간</th></tr></thead><tbody>' + spHtml + "</tbody></table></div>" +
+      '<p class="snote">심사기간은 승인 건의 청구일~결과일 중앙값입니다. 출처: 한국거래소 KIND 상장예비심사 현황.</p></div></section>';
+
+    // 분기별 심사기간·승인률
+    var qs = {};
+    decided.filter(rvIpo).forEach(function (r) {
+      var q = r.d.slice(0, 4) + " Q" + (Math.floor((+r.d.slice(5, 7) - 1) / 3) + 1);
+      var o = qs[q] = qs[q] || { q: q, n: 0, ok: 0, durs: [] };
+      o.n++; if (rvKind(r) === "approved") { o.ok++; o.durs.push(daysBetween(r.f, r.d)); }
+    });
+    var qList = Object.keys(qs).sort().map(function (k) { return qs[k]; });
+    var qMax = Math.max.apply(null, qList.map(function (o) { return median(o.durs) || 0; }).concat([1]));
+    var qHtml = qList.map(function (o) {
+      var m = median(o.durs);
+      return "<tr><td>" + esc(o.q) + '</td><td class="num">' + o.n + '</td><td class="num">' + Math.round(o.ok / o.n * 100) + '%</td><td class="num">' + (m != null ? m + "일" : "-") +
+        '</td><td class="bar-cell"><div class="hbar" style="width:' + (m ? Math.round(m / qMax * 100) : 0) + '%"></div></td></tr>';
+    }).join("");
+    var qPanel = '<section class="panel"><header><div><h2>분기별 심사기간</h2><p>결과 통지일이 속한 분기 기준. 신규상장 청구, 스팩 제외.</p></div></header>' +
+      '<div class="pbody"><div class="scroll"><table class="mini rv q"><thead><tr><th>분기</th><th class="num">결과</th><th class="num">승인률</th><th class="num">심사기간</th><th class="bar-cell"><span class="sr">막대</span></th></tr></thead><tbody>' + qHtml + "</tbody></table></div></div></section>";
+
+    var expSoon = waiting.filter(function (x) { return x.left >= 0 && x.left <= 45; }).length;
+    var kpi = '<section class="summary" aria-label="요약">' +
+      kpiTile(int(thisWeek), "건", "이번 주 공모 일정") +
+      kpiTile(int(pend.length), "건", "예심 심사 중") +
+      kpiTile(medDur != null ? medDur : "-", "일", "심사기간 중앙값 (최근 1년 승인 " + appr1.length + "건)") +
+      kpiTile(dec1.length ? Math.round(appr1.length / dec1.length * 100) : "-", "%", "예심 승인률 (최근 1년 " + dec1.length + "건)" + (expSoon ? " · 효력 만료 임박 " + expSoon + "건" : ""), true) + "</section>";
+    app.innerHTML = '<div class="content cal-page">' + kpi +
+      '<div class="panels even">' + calPanel + feedPanel + "</div>" +
+      '<div class="panels even">' + pendPanel + waitPanel + "</div>" +
+      '<div class="panels even">' + spPanel + qPanel + "</div></div>";
   }
   function renderBio() {
     document.title = "기술특례 바이오 · IPO 데이터룸";
@@ -2279,6 +2576,7 @@
         var y0 = window.scrollY;
         if (view === "stats") { renderStats(); window.scrollTo(0, y0); }
         if (view === "bio") { renderBio(); window.scrollTo(0, y0); }
+        if (view === "cal") { renderCal(); window.scrollTo(0, y0); }
         if (sheetId) { if (sheetId.indexOf("bio:") === 0) openBioSheet(sheetId.slice(4)); else openSheet(sheetId); }
       }
       placeInd(document.querySelector(".tabs"));

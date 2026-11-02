@@ -127,9 +127,13 @@ _NUM = re.compile(r"^[\d,]+(?:\.\d+)?$")
 def _row_values(text: str, start: int, limit: int = 40) -> list:
     """'라벨 | a | b | ... |' 형태의 표 행에서 라벨 뒤 칸 값을 숫자로 읽습니다(‘-’는 None)."""
     vals = []
-    line = text[start:start + 1200].split("\n", 1)[0]       # 표의 한 행(줄)만 봅니다
-    for cell in line.split("|")[1:limit + 1]:
-        c = cell.strip().replace(" ", "")
+    chunk = text[start:start + 1200]
+    line = chunk.split("\n", 1)[0]
+    if any(c.strip() for c in line.split("|")[1:]):
+        chunk = line                                           # 한 줄에 칸이 이어지는 표는 그 행(줄)만 봅니다
+    # 칸마다 줄을 바꾼 표('|\n값 |\n값 |')는 다음 행 머리(숫자가 아닌 칸)에서 멈춥니다.
+    for cell in chunk.split("|")[1:limit + 1]:
+        c = re.sub(r"\s+", "", cell)
         if c in ("-", "—", ""):
             vals.append(None)                                  # 빈 칸은 건너뛰고 같은 행의 다음 칸을 계속 읽음
             continue
@@ -470,3 +474,94 @@ def extract_business(text: str) -> dict:
 def extract_listing_info(text: str) -> dict:
     """확정 전 신고서 한 건에서 읽는 값: 수요예측 기일 + 상장 시장·기술특례 + 사업의 개요."""
     return {**extract_schedule(text), **extract_profile(text), **extract_business(text)}
+
+
+# ---------------------------------------------------------------- 공모가 산정(밸류에이션)
+VAL_VERSION = 1
+_VAL_METHODS = ("EV/EBITDA", "EV/Sales", "PER", "PSR", "PBR", "DCF")
+_VM = r"(EV\s*/\s*EBITDA|EV\s*/\s*Sales|PER|PSR|PBR|P/E|DCF)"
+
+
+def _flat(text: str) -> str:
+    return re.sub(r"\s*\n\s*", " ", text)
+
+
+def _method_norm(m: str) -> str:
+    m = re.sub(r"\s+", "", m)
+    return {"P/E": "PER"}.get(m, m)
+
+
+def extract_valuation(text: str) -> dict:
+    """증권신고서 '공모가격에 대한 의견'에서 평가방법·적용 배수·주당 평가가액·할인율·이익 기준을 읽습니다.
+
+    정정 신고서는 '정정 전/정정 후'가 이어 나오므로 같은 항목은 마지막(정정 후) 값을 씁니다.
+    """
+    t = _flat(text)
+    out = {"method": None, "multiple": None, "value": None, "disc_low": None, "disc_high": None,
+           "basis": None, "pv_rate": None, "peers_n": None, "evidence": None}
+    ev = []
+    m = list(re.finditer(r"\[\s*" + _VM + r"\s*(?:배수)?\s*에\s*의한", t))
+    if m:
+        out["method"] = _method_norm(m[-1].group(1))
+    mm = list(re.finditer(r"적용\s*" + _VM + r"\s*(?:거래\s*)?(?:배수|멀티플)?\s*\|\s*(?:\(?[A-Z]\)?\s*\|\s*)?([\d,]+(?:\.\d+)?)\s*(?:배)?\s*\|", t))
+    if mm:
+        # 참고용(조정 실적 등) 배수가 뒤에 붙는 서식이 있어 가장 자주 나온 값을 씁니다(같으면 마지막).
+        vals = []
+        for x in mm:
+            try:
+                v = float(x.group(2).replace(",", ""))
+            except ValueError:
+                continue
+            if 0 < v < 1000:
+                vals.append((v, x))
+        if vals:
+            freq = {}
+            for v, _ in vals:
+                freq[v] = freq.get(v, 0) + 1
+            top = max(freq.values())
+            v, x = [vx for vx in vals if freq[vx[0]] == top][-1]
+            out["multiple"] = round(v, 2)
+            out["method"] = out["method"] or _method_norm(x.group(1))
+            ev.append(re.sub(r"\s+", " ", x.group(0))[:80])
+    if not out["method"]:
+        cnt = {k: len(re.findall(r"(?<![A-Za-z])" + re.escape(k) + r"(?![A-Za-z])", t)) for k in _VAL_METHODS}
+        best = max(cnt, key=cnt.get)
+        if cnt[best] >= 3:
+            out["method"] = best
+    vv = list(re.finditer(r"주당\s*평가\s*가액\s*\|\s*(?:\(?[A-Z]\)?\s*=?[^|]{0,30}\|\s*)?([\d,]{3,})\s*원", t))
+    if vv:
+        out["value"] = int(vv[-1].group(1).replace(",", ""))
+        ev.append(re.sub(r"\s+", " ", vv[-1].group(0))[:80])
+    dd = list(re.finditer(r"([\d.]+)\s*%\s*~\s*([\d.]+)\s*%\s*의\s*할인율", t))
+    if not dd:
+        dd = list(re.finditer(r"평가액\s*대비\s*할인율\s*\|\s*([\d.]+)\s*%\s*~\s*([\d.]+)\s*%", t))
+    if dd:
+        a, b = float(dd[-1].group(1)), float(dd[-1].group(2))
+        if 0 <= a < 100 and 0 <= b < 100:
+            out["disc_low"], out["disc_high"] = min(a, b), max(a, b)
+            ev.append(re.sub(r"\s+", " ", dd[-1].group(0))[:80])
+    fb = re.search(r"(20\d\d)\s*년\s*(?:예상|추정)\s*(당기순이익|순이익|EBITDA|영업이익|매출액)", t)
+    if fb:
+        out["basis"] = f"{fb.group(1)}년 추정 {fb.group(2)}"
+        pr = re.search(r"연\s*할인율\s*\|\s*([\d.]+)\s*%", t) or \
+            re.search(r"(?<![~\d.])\s([\d.]+)\s*%\s*의\s*(?:연\s*)?현가\s*할인율", t) or \
+            re.search(r"연\s*([\d.]+)\s*%\s*(?:의\s*)?(?:할인율|할인률)", t)
+        if pr:
+            try:
+                out["pv_rate"] = float(pr.group(1))
+            except ValueError:
+                pass
+    else:
+        lb = re.search(r"(20\d\d)\s*년\s*(\d분기|반기|[1-4]Q)?\s*(?:말)?\s*(?:기준)?\s*(?:직전\s*12개월|최근\s*4개\s*분기)?\s*\(?(LTM)\)?", t)
+        if lb:
+            out["basis"] = (lb.group(1) + "년 " + (lb.group(2) or "") + " LTM").replace("  ", " ")
+        else:
+            ab = re.search(r"적용\s*(당기순이익|순이익|EBITDA|매출액)[^|]{0,20}?(20\d\d)\s*년", t)
+            if ab:
+                out["basis"] = f"{ab.group(2)}년 {ab.group(1)}"
+    pn = re.search(r"최종\s*(?:선정된\s*)?(?:비교\s*기업|비교\s*대상\s*회사|비교\s*회사|유사\s*회사|유사\s*기업)\s*[-:]?\s*(?:총\s*)?(\d{1,2})\s*개\s*사", t) or \
+        re.search(r"최종\s*(?:선정된\s*)?(\d{1,2})\s*개\s*(?:비교\s*기업|비교\s*회사|유사\s*회사|유사\s*기업)", t)
+    if pn:
+        out["peers_n"] = int(pn.group(1))
+    out["evidence"] = " | ".join(ev) or None
+    return out

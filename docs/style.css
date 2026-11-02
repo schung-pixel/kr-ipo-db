@@ -845,3 +845,63 @@ a.bcard:active { background: var(--surface2); }
 .sbox:has(.fbtn.on) .search { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
 .sbox .sclear { right: 44px; }
 @media (max-width: 760px) { .sbox .fbtn { width: 36px; height: 36px; box-shadow: none; } }
+/* 기준 주관사(NH투자증권) 참여 표시 */
+.tag.b-focus { color: #fff; background: #1a6fd1; box-shadow: none; font-weight: 600; }
+:root[data-theme="dark"] .tag.b-focus { background: #3b8cf0; color: #0b1520; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tag.b-focus { background: #3b8cf0; color: #0b1520; } }
+.league tr.focus td { background: color-mix(in srgb, #1a6fd1 10%, transparent); }
+.league tr.focus td:nth-child(2) { color: #1a6fd1; font-weight: 700; }
+.stack { display: grid; gap: inherit; }
+.stack > .panels { margin: 0; }
+.mini.sect td:first-child { white-space: nowrap; font-weight: 500; }
+@media (max-width: 760px) { .mini.sect .bar-cell { display: none; } .mini.sect th, .mini.sect td { font-size: 12px; } }
+
+/* 일정: 공모 일정·최근 공시·예심 현황 */
+.cal .wk + .wk { margin-top: 6px; }
+.cal .wk h3 { margin: 4px 0 4px; font-size: 13px; font-weight: 600; }
+.cal .wk h3 .dim { font-weight: 400; font-size: 12px; margin-left: 4px; }
+.ev, .feedl li { display: grid; grid-template-columns: 84px 64px minmax(0, 1fr); grid-template-areas: "d k n" ". . u"; gap: 1px 8px; align-items: center;
+  padding: 7px 8px; border-radius: 10px; text-decoration: none; color: inherit; }
+.ev + .ev { border-top: 1px solid var(--line2); border-radius: 0; }
+.ev:hover, .feedl li:hover { background: var(--surface2); }
+.ev.past { opacity: .5; }
+.ev.now { background: var(--accent-soft); border-radius: 10px; }
+.ev .ed, .feedl .ed { grid-area: d; font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.ev .ek, .feedl .ek { grid-area: k; justify-self: start; font-size: 11.5px; font-weight: 600; padding: 2px 7px; border-radius: 6px; white-space: nowrap; background: var(--neutral-soft); color: var(--neutral); }
+.ev .en, .feedl .en { grid-area: n; display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ev .en .nm, .feedl .en .nm { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.feedl .en a.nm { color: inherit; text-decoration: none; }
+.feedl .en a.nm:hover { text-decoration: underline; }
+.ev .en .tags, .feedl .en .tags { display: inline-flex; gap: 4px; flex: 0 1 auto; min-width: 0; overflow: hidden; }
+.ev .en .nm, .feedl .en .nm { flex: 0 0 auto; max-width: 100%; }
+.ev .eu, .feedl .eu { grid-area: u; font-size: 12px; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ek.k-0 { background: var(--info-soft); color: var(--info); }
+.ek.k-1 { background: var(--eosin-soft); color: var(--eosin); }
+.ek.k-2 { background: var(--neutral-soft); color: var(--neutral); }
+.ek.k-3, .ek.k-ok { background: var(--good-soft); color: var(--good); }
+.ek.k-new { background: var(--accent-soft); color: var(--accent); }
+.ek.k-bad { background: var(--bad-soft); color: var(--bad); }
+.feedl { list-style: none; margin: 0; padding: 0; }
+.feedl li + li { border-top: 1px solid var(--line2); border-radius: 0; }
+.ev.focus .nm, .feedl li.focus .nm { color: #1a6fd1; }
+.mini.rv td a.nm { color: inherit; font-weight: 600; text-decoration: none; }
+.mini.rv td a.nm:hover { text-decoration: underline; }
+.mini.rv td .nm { font-weight: 600; }
+.mini.rv td.warn { color: var(--bad); font-weight: 600; }
+.mini.rv tr.focus td { background: color-mix(in srgb, #1a6fd1 8%, transparent); }
+.focus-t { color: #1a6fd1; font-weight: 700; }
+.mini.rv.q .bar-cell { width: 34%; padding-left: 14px; }
+.cal-page .panel .pbody .scroll { max-height: 520px; overflow: auto; }
+.cal .pbody, .feed .pbody { max-height: 640px; overflow: auto; }
+@media (max-width: 760px) {
+  .ev, .feedl li { grid-template-columns: 72px 58px minmax(0, 1fr); padding: 7px 4px; }
+  .ev .ed, .feedl .ed { font-size: 11.5px; }
+  .ev .eu, .feedl .eu { white-space: normal; }
+  .mini.rv th, .mini.rv td { font-size: 12px; }
+  .mini.rv .c-m { display: none; }
+  .mini.rv td:first-child { min-width: 7em; }
+}
+.mini.rv td:last-child, .mini.rv th:last-child { padding-left: 12px; white-space: nowrap; }
+.terms .v .sl { color: var(--faint); font-size: 13px; margin: 0 2px; }
+.terms.val { margin-top: 8px; }
+.warn-t { color: var(--bad); font-weight: 600; }
