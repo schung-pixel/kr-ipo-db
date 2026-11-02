@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 from .parse import classify, iso_date, price_range, to_int
@@ -235,6 +235,26 @@ def _check_listing(listing_dt: str, report_dt: str) -> str:
     return listing_dt
 
 
+def _kind_listed(conn, corp_name: str, rcept_no: str, corp_code: str | None = None) -> int | None:
+    """KIND 상장법인 목록의 상장일 − 신고서 접수일(일). 회사명으로 찾고, 사명이 바뀐 회사는 종목코드로 찾습니다.
+    목록에 없으면 None."""
+    from .kind import name_key
+    try:
+        row = conn.execute("SELECT listed_dt FROM kind_corp WHERE name_key=?", (name_key(corp_name or ""),)).fetchone()
+        if not row and corp_code:
+            sc = conn.execute("SELECT stock_code FROM company WHERE corp_code=?", (corp_code,)).fetchone()
+            if sc and (sc["stock_code"] or "").strip():
+                row = conn.execute("SELECT listed_dt FROM kind_corp WHERE stock_code=?", (sc["stock_code"].strip(),)).fetchone()
+    except Exception:
+        return None
+    if not row or not row["listed_dt"]:
+        return None
+    try:
+        return (date.fromisoformat(row["listed_dt"]) - date(int(rcept_no[:4]), int(rcept_no[4:6]), int(rcept_no[6:8]))).days
+    except ValueError:
+        return None
+
+
 def rebuild_deals(conn, now: str) -> int:
     """filing·estk_* 테이블에서 ipo_deal, review, field_source를 다시 계산합니다."""
     deals, spans = _group(conn)
@@ -247,15 +267,27 @@ def rebuild_deals(conn, now: str) -> int:
         # 가장 이른 건으로 후보를 판별하고 가장 늦은 건을 가격·물량의 기준으로 삼습니다.
         with_estk = [f for f in fl if conn.execute(
             "SELECT 1 FROM estk_general WHERE rcept_no=?", (f["rcept_no"],)).fetchone()]
+        # KIND 상장법인 목록의 상장일: 신고 뒤에 상장했으면 이 공모는 신규상장(또는 그 시도)입니다
+        kd = _kind_listed(conn, first["corp_name"], first["rcept_no"], first["corp_code"])
         if not with_estk:
-            cand, basis = None, "증권신고서 주요정보 미확인"
-        else:
-            g = conn.execute("SELECT rpt_rcpn FROM estk_general WHERE rcept_no=?",
-                             (with_estk[0]["rcept_no"],)).fetchone()
-            if (g["rpt_rcpn"] or "").strip() in ("", "-"):
-                cand, basis = 1, f"주요사항보고서 미선행(rpt_rcpn 없음), KIND 대조 필요 [{with_estk[0]['rcept_no']}]"
+            if kd is not None and -5 <= kd <= 200:
+                cand, basis = 1, f"KIND 상장일 대조(신고 {kd}일 뒤 상장), 증권신고서 주요정보 미확인"
             else:
-                cand, basis = 0, f"주요사항보고서 선행(rpt_rcpn 있음), 유상증자 등으로 추정 [{with_estk[0]['rcept_no']}]"
+                cand, basis = None, "증권신고서 주요정보 미확인"
+        else:
+            g = conn.execute("SELECT rpt_rcpn, asstd FROM estk_general WHERE rcept_no=?",
+                             (with_estk[0]["rcept_no"],)).fetchone()
+            no_assign = (g["asstd"] or "-").strip() in ("", "-")   # 배정기준일 없음: 주주배정 증자가 아님
+            ref = with_estk[0]["rcept_no"]
+            if (g["rpt_rcpn"] or "").strip() in ("", "-"):
+                cand, basis = 1, f"주요사항보고서 미선행(rpt_rcpn 없음), KIND 대조 필요 [{ref}]"
+            elif kd is not None and -5 <= kd <= 200:
+                # 비상장이어도 사업보고서 제출대상 회사는 주요사항보고서를 먼저 냅니다(LG에너지솔루션·신라젠 등)
+                cand, basis = 1, f"주요사항보고서 선행이나 신고 {kd}일 뒤 KIND 상장 [{ref}]"
+            elif kd is not None and kd > 200 and no_assign:
+                cand, basis = 1, f"주요사항보고서 선행·배정기준일 없음, {kd}일 뒤 상장(이전 공모 시도) [{ref}]"
+            else:
+                cand, basis = 0, f"주요사항보고서 선행(rpt_rcpn 있음), 유상증자 등으로 추정 [{ref}]"
 
         # 가격: 숫자 1개면 신고서 기재가(filed_price), 2개면 희망밴드.
         # 발행조건확정 건에 자체 주요정보 행이 있는 경우에만 확정가로 인정합니다.
@@ -330,6 +362,13 @@ def rebuild_deals(conn, now: str) -> int:
             if retail_ratio is None and dr["retail_ratio"]:
                 retail_ratio, retail_count = dr["retail_ratio"], dr["retail_count"]
                 ev_retail = (f["rcept_no"], dr["retail_evidence"])
+
+        # 원문에서 상장일을 못 읽었으면 KIND 상장법인 목록의 상장일(신고 후 200일 안)을 씁니다
+        if listing_dt is None and results and kd is not None and 0 <= kd <= 200:
+            from datetime import timedelta as _td
+            r0 = first["rcept_no"]
+            listing_dt = (date(int(r0[:4]), int(r0[4:6]), int(r0[6:8])) + _td(days=kd)).isoformat()
+            ev_list = (results[-1]["rcept_no"], "KIND 상장법인 목록 상장일")
 
         src = with_estk[-1] if with_estk else None
         estk_no = src["rcept_no"] if src else None

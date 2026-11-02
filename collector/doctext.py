@@ -127,17 +127,21 @@ _NUM = re.compile(r"^[\d,]+(?:\.\d+)?$")
 def _row_values(text: str, start: int, limit: int = 40) -> list:
     """'라벨 | a | b | ... |' 형태의 표 행에서 라벨 뒤 칸 값을 숫자로 읽습니다(‘-’는 None)."""
     vals = []
-    for cell in text[start:start + 1200].split("|")[1:limit + 1]:
+    line = text[start:start + 1200].split("\n", 1)[0]       # 표의 한 행(줄)만 봅니다
+    for cell in line.split("|")[1:limit + 1]:
         c = cell.strip().replace(" ", "")
         if c in ("-", "—", ""):
-            if c == "" and vals:
-                break
-            vals.append(None)
+            vals.append(None)                                  # 빈 칸은 건너뛰고 같은 행의 다음 칸을 계속 읽음
             continue
-        c = c.replace(":1", "")
+        c = re.sub(r"[:;]1$", "", c)                           # '42.0 ; 1' 같은 오기
+        c = re.sub(r"^1[:;](?=[\d,]+(?:\.\d+)?$)", "", c)        # '1 : 1,102.89'(앞뒤가 바뀐 표기)
+        if re.fullmatch(r"\d{1,3},\d{2}", c):                   # '148,39'(소수점을 쉼표로 쓴 오기)
+            c = c.replace(",", ".")
         if not _NUM.match(c):
             break
         vals.append(float(c.replace(",", "")))
+    while vals and vals[-1] is None:
+        vals.pop()
     return vals
 
 

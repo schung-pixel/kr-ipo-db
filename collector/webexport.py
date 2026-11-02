@@ -88,12 +88,17 @@ def _lockup_view(x: dict) -> dict | None:
     sched = x.get("schedule")
     if sched and sched[-1].get("pct", 0) > 100.5:
         sched = None
-    if not (f0 or sched or x.get("commit")):
+    commit = x.get("commit")
+    # 확약 표를 잘못 읽은 경우: 신청수량 합계가 너무 작으면(참여 건수 열을 읽음), 미확약 행 없이 100%면 버림
+    if commit and ((commit.get("total") or 0) and commit["total"] < 100000
+                   or commit.get("ratio") == 100 and len(commit.get("by") or []) <= 2):
+        commit = None
+    if not (f0 or sched or commit):
         return None
     return {"listed": lst,
             "float0": {"shares": f0["shares"], "pct": f0["pct"]} if f0 else None,
             "schedule": sched, "groups": x.get("groups") if f0 or sched else None, "groups_full": x.get("groups_full"),
-            "commit": x.get("commit"),
+            "commit": commit,
             "src_float": x.get("src_float"), "src_commit": x.get("src_commit")}
 
 
