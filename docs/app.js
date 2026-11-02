@@ -533,9 +533,8 @@
       '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13.5 13.5L17 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>' +
       '<input class="search" id="f-q" type="search" autocomplete="off" placeholder="기업명·주관사 검색 (초성 가능)" aria-label="기업명·주관사 검색" value="' + esc(state.q) + '">' +
       '<button type="button" class="sclear" id="f-clear" aria-label="검색어 지우기"' + (state.q ? "" : " hidden") + '><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>' +
-      "</div>" +
       '<button type="button" class="fbtn' + (act.length ? " on" : "") + '" id="f-menu" aria-haspopup="dialog" aria-expanded="false" aria-label="필터' + (act.length ? " " + act.length + "개 적용" : "") + '">' + FILTER_ICON +
-      (act.length ? '<span class="fb-n">' + act.length + "</span>" : "") + "</button></div>" +
+      (act.length ? '<span class="fb-n">' + act.length + "</span>" : "") + "</button></div></div>" +
       (act.length ? '<div class="afilters" aria-label="적용된 필터">' + act.map(function (f) {
         return '<button type="button" class="af" data-k="' + f.k + '" aria-label="' + esc(f.t) + ' 필터 해제">' + esc(f.t) + '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>';
       }).join("") + '<button type="button" class="linkbtn" id="f-reset">모두 지우기</button></div>' : "") +
@@ -1927,7 +1926,7 @@
   }
   function bioSearchRow(sc) {
     return '<div class="srow bio-srow"><div class="sbox"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13.5 13.5L17 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>' +
-      '<input class="search" id="bio-q" type="search" autocomplete="off" placeholder="회사·사업 검색 (초성 가능)" value="' + esc(bioState.q) + '" aria-label="회사 검색"></div>' + bioFilterBtn(sc) + "</div>";
+      '<input class="search" id="bio-q" type="search" autocomplete="off" placeholder="회사·사업 검색 (초성 가능)" value="' + esc(bioState.q) + '" aria-label="회사 검색">' + bioFilterBtn(sc) + "</div></div>";
   }
   function bioChips(sc) {
     var act = bioActive(sc);

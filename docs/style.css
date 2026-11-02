@@ -834,3 +834,14 @@ a.bcard:active { background: var(--surface2); }
   .tgl button, .tgl button:not([aria-pressed="true"]) { width: 36px; height: 36px; }
   .tgl button svg { width: 16px; height: 16px; }
 }
+/* 검색창 안에 필터 아이콘(I3): 테두리 없는 아이콘, 적용 시 검색창 테두리와 아이콘을 강조하고 개수 표시 */
+.sbox .search { padding-right: 84px; }
+.sbox .fbtn { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); z-index: 1; width: 36px; height: 36px; border: 0; border-radius: 999px;
+  background: transparent; background-image: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; color: var(--ink); }
+.sbox .fbtn:active { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.sbox .fbtn.on { color: var(--accent); background: transparent; border: 0; }
+.sbox .fbtn.open { color: var(--accent); }
+.sbox .fbtn .fb-n { top: 1px; right: -1px; }
+.sbox:has(.fbtn.on) .search { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.sbox .sclear { right: 44px; }
+@media (max-width: 760px) { .sbox .fbtn { width: 36px; height: 36px; box-shadow: none; } }
