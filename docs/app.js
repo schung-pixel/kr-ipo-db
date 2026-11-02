@@ -1971,33 +1971,85 @@
     Object.keys(m).forEach(function (k) { m[k].sort(function (x, y) { return EV_ORDER[x.k] - EV_ORDER[y.k] || (name(x.d) < name(y.d) ? -1 : 1); }); });
     return m;
   }
+  function calDates(d) {
+    var sub = kdates(d.subscription_raw), pay = kdates(d.payment_raw);
+    return { ds: d.demand_start, de: d.demand_end || d.demand_start, ss: sub[0] || null, se: sub.length ? sub[sub.length - 1] : null, pay: pay[0] || null, lst: d.listing_dt || null };
+  }
+  function rngT(a, b) { return a ? md(a) + (b && b !== a ? "~" + md(b) : "") : "미정"; }
+  function pxText(d) {
+    var p = d.final_price ? int(d.final_price) + "원" : d.offer_price_low ? bandText(d) + "원" : "";
+    return [p, d.offer_amount ? eok(d.offer_amount) + "억" : ""].filter(Boolean).join(" · ");
+  }
+  // 그날 일정: 종류별(수요예측·청약·상장·납입)로 묶은 목록
+  function dayList(evs) {
+    if (!evs.length) return '<div class="empty">이날 확인된 공모 일정이 없습니다.</div>';
+    return ["수요예측", "청약", "상장", "납입"].map(function (k) {
+      var xs = evs.filter(function (e) { return e.k === k; });
+      if (!xs.length) return "";
+      return '<div class="dg"><h4><em class="ek k-' + EV_ORDER[k] + '">' + k + "</em>" + xs.length + "건</h4>" + xs.map(function (e) {
+        var d = e.d;
+        return '<a class="it' + (focusRole(d) ? " focus" : "") + '" href="#/deal/' + encodeURIComponent(d.deal_id) + '"><span class="nm">' + esc(name(d)) + "</span>" +
+          boardTag(d) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + focusTag(d) +
+          '<span class="r mono">' + esc(rngT(e.a, e.b)) + '</span><span class="u">' + esc(d.lead_underwriters || "주관사 미확인") + (pxText(d) ? " · " + '<span class="mono">' + pxText(d) + "</span>" : "") + "</span></a>";
+      }).join("") + "</div>";
+    }).join("");
+  }
+  // 공모 달력(S5): 칸에는 시작일만 개수 배지(수요예측 시작·청약 시작·상장), 누른 날은 진행 중인 일정까지 종류별로
   function monthPanel(today) {
     if (!calMonth) calMonth = today.slice(0, 7);
     if (!calDay) calDay = today;
-    var DE = dayEvents();
+    var DE = dayEvents(), ST = {};
+    calEvents().forEach(function (e) { if (e.k !== "납입") { var o = ST[e.a] = ST[e.a] || { "수요예측": 0, "청약": 0, "상장": 0 }; o[e.k]++; } });
     var y = +calMonth.slice(0, 4), mo = +calMonth.slice(5, 7);
     var first = new Date(y, mo - 1, 1), start = isoOf(new Date(y, mo - 1, 1 - first.getDay()));
     var cells = "", t = start;
     for (var k = 0; k < 42; k++) {
-      var inMon = t.slice(0, 7) === calMonth, evs = DE[t] || [], w = dOf(t).getDay();
+      var inMon = t.slice(0, 7) === calMonth, w = dOf(t).getDay(), st = ST[t];
       if (k === 35 && !inMon) break;
-      var chips = evs.slice(0, 3).map(function (e) { return '<i class="ce k-' + EV_ORDER[e.k] + '"><b>' + e.k.slice(0, 1) + "</b>" + esc(name(e.d)) + "</i>"; }).join("") +
-        (evs.length > 3 ? '<i class="more">+' + (evs.length - 3) + "</i>" : "");
-      var dots = evs.slice(0, 4).map(function (e) { return '<i class="k-' + EV_ORDER[e.k] + '"></i>'; }).join("");
-      cells += '<button type="button" class="cd' + (inMon ? "" : " out") + (t === today ? " today" : "") + (t === calDay ? " sel" : "") + (w === 0 ? " sun" : w === 6 ? " sat" : "") + (evs.length ? " has" : "") +
-        '" data-day="' + t + '"><span class="dn">' + dOf(t).getDate() + "</span>" +
-        (evs.length ? '<span class="cchips">' + chips + '</span><span class="cdots">' + dots + (evs.length > 4 ? "<em>+</em>" : "") + "</span>" : "") + "</button>";
+      var badges = st ? [["수요예측", "수"], ["청약", "청"], ["상장", "상"]].map(function (x) {
+        return st[x[0]] ? '<s class="ek k-' + EV_ORDER[x[0]] + '"><span class="sh">' + x[1] + '</span><span class="lg">' + x[0] + " </span>" + st[x[0]] + "</s>" : "";
+      }).join("") : "";
+      cells += '<button type="button" class="cd' + (inMon ? "" : " out") + (t === today ? " today" : "") + (t === calDay ? " sel" : "") + (w === 0 ? " sun" : w === 6 ? " sat" : "") +
+        '" data-day="' + t + '"><span class="dn">' + dOf(t).getDate() + "</span>" + (badges ? '<span class="cb">' + badges + "</span>" : "") + "</button>";
       t = addDays(t, 1);
     }
     var sel = DE[calDay] || [];
-    var list = sel.length ? sel.map(function (e) { return evRow(e, today); }).join("") : '<div class="empty">이날 확인된 공모 일정이 없습니다.</div>';
-    var legend = '<div class="legend cal-lg">' + ["수요예측", "청약", "납입", "상장"].map(function (k) { return '<span><i class="k-' + EV_ORDER[k] + '"></i>' + k + "</span>"; }).join("") + "</div>";
-    return '<section class="panel calm"><header><div><h2>공모 달력</h2><p>날짜를 누르면 그날 일정이 아래에 나옵니다. 상장일은 증권발행실적보고서가 나와야 표시됩니다.</p></div>' +
+    return '<section class="panel calm"><header><div><h2>공모 달력</h2><p>칸에는 수요예측·청약이 시작되는 날과 상장일만 개수로 표시합니다. 날짜를 누르면 그날 진행 중인 일정까지 아래에 나옵니다.</p></div>' +
       '<div class="cnav"><button type="button" class="xbtn" data-mon="-1" aria-label="이전 달"><svg viewBox="0 0 16 16"><path d="M10 3L5 8l5 5"/></svg></button>' +
       '<b class="mono">' + y + "." + ("0" + mo).slice(-2) + '</b><button type="button" class="xbtn" data-mon="1" aria-label="다음 달"><svg viewBox="0 0 16 16"><path d="M6 3l5 5-5 5"/></svg></button>' +
       '<button type="button" class="linkbtn" data-mon="0">오늘</button></div></header>' +
-      '<div class="pbody">' + legend + '<div class="cgrid">' + ["일", "월", "화", "수", "목", "금", "토"].map(function (x, i) { return '<span class="cw' + (i === 0 ? " sun" : i === 6 ? " sat" : "") + '">' + x + "</span>"; }).join("") + cells + "</div>" +
-      '<h3 class="cday">' + esc(mdw(calDay)) + ' <span class="dim">' + sel.length + "건</span></h3>" + '<div class="cdl">' + list + "</div></div></section>";
+      '<div class="pbody"><div class="cgrid">' + ["일", "월", "화", "수", "목", "금", "토"].map(function (x, i) { return '<span class="cw' + (i === 0 ? " sun" : i === 6 ? " sat" : "") + '">' + x + "</span>"; }).join("") + cells + "</div>" +
+      '<h3 class="cday">' + esc(mdw(calDay)) + ' <span class="dim">' + sel.length + "건</span></h3>" + '<div class="cdl">' + dayList(sel) + "</div></div></section>";
+  }
+  // 딜별 일정표(S1): 회사마다 수요예측·청약·상장 날짜를 나란히, 진행 중인 단계는 강조색
+  function dealTable(today) {
+    var rows = data.deals.filter(function (d) { return d.status !== "withdrawn" && d.is_ipo_candidate === 1; }).map(function (d) {
+      var c = calDates(d), nxt = [c.ds, c.de, c.ss, c.se, c.pay, c.lst].filter(function (v) { return v && v >= today; }).sort()[0];
+      return { d: d, c: c, nxt: nxt };
+    }).filter(function (r) {
+      var c = r.c;
+      if (!r.nxt || r.nxt > addDays(today, 70)) return false;
+      if (c.ds && c.de < addDays(today, -14) && !c.ss && !c.lst) return false;   // 일정이 멈춘 신고서
+      return true;
+    });
+    var live = function (r) { var c = r.c; return (c.ds && c.ds <= today && c.de >= today) || (c.ss && c.ss <= today && c.se >= today) || c.lst === today; };
+    var now = rows.filter(live).sort(function (a, b) { return a.nxt < b.nxt ? -1 : 1; });
+    var next = rows.filter(function (r) { return !live(r); }).sort(function (a, b) { return a.nxt < b.nxt ? -1 : a.nxt > b.nxt ? 1 : (name(a.d) < name(b.d) ? -1 : 1); });
+    var row = function (r) {
+      var d = r.d, c = r.c;
+      var box = function (lab, a, b) {
+        var on = a && a <= today && (b || a) >= today, done = a && (b || a) < today;
+        return '<span class="dt' + (on ? " on" : done ? " done" : "") + '"><i>' + lab + '</i><b class="mono">' + esc(rngT(a, b)) + "</b></span>";
+      };
+      return '<a class="drow' + (focusRole(d) ? " focus" : "") + '" href="#/deal/' + encodeURIComponent(d.deal_id) + '"><span class="t1"><span class="nm">' + esc(name(d)) + "</span>" +
+        boardTag(d) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + focusTag(d) + '<span class="u">' + esc(d.lead_underwriters || "") + "</span></span>" +
+        '<span class="dts">' + box("수요예측", c.ds, c.de) + box("청약", c.ss, c.se) + box("상장", c.lst, c.lst) + "</span>" +
+        (pxText(d) ? '<span class="px mono">' + pxText(d) + "</span>" : "") + "</a>";
+    };
+    return '<section class="panel dtable"><header><div><h2>딜별 공모 일정</h2><p>진행 중 ' + now.length + "건 · 다가오는 일정 " + next.length + "건(70일 이내). 진행 중인 단계는 남색, 끝난 단계는 흐리게 표시합니다. 상장일은 증권발행실적보고서가 나와야 표시됩니다.</p></div></header>" +
+      '<div class="pbody">' + (now.length ? '<h3 class="dsec">진행 중</h3>' + now.map(row).join("") : "") +
+      (next.length ? '<h3 class="dsec">다가오는 일정</h3>' + next.map(row).join("") : "") +
+      (!now.length && !next.length ? '<div class="empty">확인된 공모 일정이 없습니다.</div>' : "") + "</div></section>";
   }
   function bindCal() {
     var p = app.querySelector(".calm");
@@ -2026,20 +2078,6 @@
     var horizon = addDays(wk0, 7 * 9 - 1);
     var RV = data.reviews || [];
     var byId = {}; data.deals.forEach(function (d) { byId[d.deal_id] = d; });
-
-    // 1) 공모 일정: 이번 주 월요일부터 9주
-    var ev = calEvents().filter(function (e) { return e.b >= wk0 && e.a <= horizon; });
-    ev.sort(function (x, y) { return x.a < y.a ? -1 : x.a > y.a ? 1 : EV_ORDER[x.k] - EV_ORDER[y.k] || (name(x.d) < name(y.d) ? -1 : 1); });
-    var weeks = {};
-    ev.forEach(function (e) { var w = e.a < wk0 ? wk0 : addDays(e.a, -((dOf(e.a).getDay() + 6) % 7)); (weeks[w] = weeks[w] || []).push(e); });
-    var thisWeek = (weeks[wk0] || []).length;
-    var agenda = Object.keys(weeks).sort().map(function (w) {
-      var lab = w === wk0 ? "이번 주" : w === addDays(wk0, 7) ? "다음 주" : mdw(w).replace(/ \(.\)$/, "") + " 주";
-      var rows = weeks[w].map(function (e) { return evRow(e, today); }).join("");
-      return '<div class="wk"><h3>' + lab + ' <span class="dim">' + esc(mdw(w).replace(/ \(.\)$/, "")) + "~" + esc(mdw(addDays(w, 6)).replace(/ \(.\)$/, "")) + "</span></h3>" + rows + "</div>";
-    }).join("") || '<div class="empty">앞으로 9주 안에 확인된 공모 일정이 없습니다.</div>';
-    var calPanel = '<section class="panel cal"><header><div><h2>주별 공모 일정</h2><p>이번 주부터 9주. 수요예측 기일·청약일·납입일은 증권신고서 원문, 상장일은 증권발행실적보고서 기준입니다. 상장일은 실적보고서가 나와야 표시됩니다.</p></div></header>' +
-      '<div class="pbody">' + agenda + "</div></section>";
 
     // 3) 예심 현황
     var decided = RV.filter(function (r) { return rvKind(r) !== "pending" && rvKind(r) !== "other" && r.f && r.d; });
@@ -2111,7 +2149,7 @@
     var qPanel = '<section class="panel"><header><div><h2>분기별 심사기간</h2><p>결과 통지일이 속한 분기 기준. 신규상장 청구, 스팩 제외.</p></div></header>' +
       '<div class="pbody"><div class="scroll"><table class="mini rv q"><thead><tr><th>분기</th><th class="num">결과</th><th class="num">승인률</th><th class="num">심사기간</th><th class="bar-cell"><span class="sr">막대</span></th></tr></thead><tbody>' + qHtml + "</tbody></table></div></div></section>";
 
-    app.innerHTML = '<div class="content cal-page">' + monthPanel(today) + calPanel +
+    app.innerHTML = '<div class="content cal-page">' + monthPanel(today) + dealTable(today) +
       '<div class="panels even">' + pendPanel + waitPanel + "</div>" +
       '<div class="panels even">' + spPanel + qPanel + "</div></div>";
     bindCal();

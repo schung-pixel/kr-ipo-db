@@ -1009,3 +1009,55 @@ header.top .brand .upd { font-size: 12px; color: var(--faint); font-family: var(
 }
 .ce { color: var(--ink); background: none; }
 .cd.out .ce { color: var(--muted); }
+
+/* 공모 달력 S5: 시작일 개수 배지 */
+.cd { min-height: 78px; }
+.cd .cb { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; width: 100%; }
+.cd .cb s { text-decoration: none; font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 5px; line-height: 1.45; white-space: nowrap; }
+.cd .cb s .sh { display: none; }
+.cd.has { background: var(--surface); }
+@media (max-width: 760px) {
+  .cd { min-height: 58px; padding: 4px 1px 4px; gap: 2px; }
+  .cd .cb { align-items: center; gap: 1px; }
+  .cd .cb s { font-size: 9.5px; padding: 0 3px; line-height: 13px; border-radius: 4px; }
+  .cd .cb s .lg { display: none; }
+  .cd .cb s .sh { display: inline; }
+}
+.ek.k-0 { background: var(--info-soft); color: var(--info); }
+.ek.k-1 { background: var(--eosin-soft); color: var(--eosin); }
+.ek.k-2 { background: var(--neutral-soft); color: var(--neutral); }
+.ek.k-3 { background: var(--good-soft); color: var(--good); }
+/* 그날 일정(종류별) */
+.cdl .dg + .dg { margin-top: 6px; }
+.cdl .dg h4 { display: flex; align-items: center; gap: 6px; margin: 8px 0 2px; font-size: 12.5px; }
+.cdl .dg h4 .ek { font-size: 11.5px; font-weight: 600; padding: 1px 8px; border-radius: 6px; font-style: normal; }
+.cdl .it { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 6px; padding: 8px 2px; border-top: 1px solid var(--line2); text-decoration: none; color: inherit; }
+.cdl .it .nm { font-weight: 600; overflow-wrap: anywhere; }
+.cdl .it .r { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.cdl .it .u { width: 100%; font-size: 12px; color: var(--muted); }
+.cdl .it.focus .nm, .drow.focus .nm { color: #1a6fd1; }
+.cdl .it:hover { background: var(--surface2); }
+/* 딜별 일정표 S1 */
+.dtable .dsec { margin: 4px 0 0; font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .02em; }
+.drow { display: grid; gap: 7px; padding: 10px 2px 11px; border-top: 1px solid var(--line2); text-decoration: none; color: inherit; }
+.dtable .dsec + .drow { border-top: 0; }
+.drow:hover { background: var(--surface2); }
+.drow .t1 { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-width: 0; }
+.drow .t1 .nm { font-weight: 600; font-size: 14.5px; overflow-wrap: anywhere; }
+.drow .t1 .u { margin-left: auto; font-size: 12px; color: var(--muted); }
+.drow .dts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.drow .dt { background: var(--surface2); border-radius: 9px; padding: 5px 8px; min-width: 0; }
+.drow .dt i { display: block; font-style: normal; font-size: 10.5px; color: var(--muted); }
+.drow .dt b { font-size: 12.5px; font-weight: 500; white-space: nowrap; }
+.drow .dt.on { background: var(--accent); color: var(--accent-ink); }
+.drow .dt.on i { color: color-mix(in srgb, var(--accent-ink) 75%, transparent); }
+.drow .dt.done { opacity: .5; }
+.drow .px { font-size: 12px; color: var(--muted); }
+@media (min-width: 1061px) {
+  .dtable .pbody { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; }
+  .dtable .dsec { grid-column: 1 / -1; }
+  .dtable .drow { border-top: 1px solid var(--line2); }
+}
+@media (max-width: 760px) { .drow .dt { padding: 5px 6px; } .drow .dt b { font-size: 12px; } }
+.cgrid > .cd { align-self: stretch; height: auto; justify-content: flex-start; }
+.cd .dn { flex: none; }
