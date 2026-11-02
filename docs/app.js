@@ -2006,19 +2006,18 @@
     for (var k = 0; k < 42; k++) {
       var inMon = t.slice(0, 7) === calMonth, w = dOf(t).getDay(), st = ST[t];
       if (k === 35 && !inMon) break;
-      var badges = st ? [["수요예측", "수"], ["청약", "청"], ["상장", "상"]].map(function (x) {
-        return st[x[0]] ? '<s class="ek k-' + EV_ORDER[x[0]] + '"><span class="sh">' + x[1] + '</span><span class="lg">' + x[0] + " </span>" + st[x[0]] + "</s>" : "";
-      }).join("") : "";
-      cells += '<button type="button" class="cd' + (inMon ? "" : " out") + (t === today ? " today" : "") + (t === calDay ? " sel" : "") + (w === 0 ? " sun" : w === 6 ? " sat" : "") +
-        '" data-day="' + t + '"><span class="dn">' + dOf(t).getDate() + "</span>" + (badges ? '<span class="cb">' + badges + "</span>" : "") + "</button>";
+      var ks = {}; (DE[t] || []).forEach(function (e) { ks[e.k] = 1; });
+      var dots = ["수요예측", "청약", "상장", "납입"].filter(function (k) { return ks[k]; }).map(function (k) { return '<i class="k-' + EV_ORDER[k] + '"></i>'; }).join("");
+      cells += '<button type="button" class="cd m1' + (inMon ? "" : " out") + (t === today ? " today" : "") + (t === calDay ? " sel" : "") + (w === 0 ? " sun" : w === 6 ? " sat" : "") +
+        '" data-day="' + t + '" aria-label="' + esc(mdw(t)) + ((DE[t] || []).length ? " 일정 " + DE[t].length + "건" : "") + '"><span class="dn">' + dOf(t).getDate() + '</span><span class="mdots">' + dots + "</span></button>";
       t = addDays(t, 1);
     }
     var sel = DE[calDay] || [];
-    return '<section class="panel calm"><header><div><h2>공모 달력</h2><p>칸에는 수요예측·청약이 시작되는 날과 상장일만 개수로 표시합니다. 날짜를 누르면 그날 진행 중인 일정까지 아래에 나옵니다.</p></div>' +
+    return '<section class="panel calm"><header><div><h2>공모 달력</h2><p>점은 그날 진행 중인 일정 종류입니다. 날짜를 누르면 그날 일정이 아래에 나옵니다.</p></div>' +
       '<div class="cnav"><button type="button" class="xbtn" data-mon="-1" aria-label="이전 달"><svg viewBox="0 0 16 16"><path d="M10 3L5 8l5 5"/></svg></button>' +
       '<b class="mono">' + y + "." + ("0" + mo).slice(-2) + '</b><button type="button" class="xbtn" data-mon="1" aria-label="다음 달"><svg viewBox="0 0 16 16"><path d="M6 3l5 5-5 5"/></svg></button>' +
       '<button type="button" class="linkbtn" data-mon="0">오늘</button></div></header>' +
-      '<div class="pbody"><div class="cgrid">' + ["일", "월", "화", "수", "목", "금", "토"].map(function (x, i) { return '<span class="cw' + (i === 0 ? " sun" : i === 6 ? " sat" : "") + '">' + x + "</span>"; }).join("") + cells + "</div>" +
+      '<div class="pbody"><div class="legend cal-lg">' + ["수요예측", "청약", "상장", "납입"].map(function (k) { return '<span><i class="k-' + EV_ORDER[k] + '"></i>' + k + "</span>"; }).join("") + '</div><div class="cgrid">' + ["일", "월", "화", "수", "목", "금", "토"].map(function (x, i) { return '<span class="cw' + (i === 0 ? " sun" : i === 6 ? " sat" : "") + '">' + x + "</span>"; }).join("") + cells + "</div>" +
       '<h3 class="cday">' + esc(mdw(calDay)) + ' <span class="dim">' + sel.length + "건</span></h3>" + '<div class="cdl">' + dayList(sel) + "</div></div></section>";
   }
   // 딜별 일정표(S1): 회사마다 수요예측·청약·상장 날짜를 나란히, 진행 중인 단계는 강조색
