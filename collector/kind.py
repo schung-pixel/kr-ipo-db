@@ -362,7 +362,6 @@ def review_for(conn, corp_name: str, first_filing_dt: str) -> dict | None:
 # 공모기업 진행현황(pubofrprogcom.do)에 실적보고서보다 먼저 올라옵니다. 두 화면 모두 예비심사 화면과
 # 같은 호출 규칙(…Sub / …_sub)으로 부르고, 표에서 '회사명' 열과 '상장일' 열만 읽습니다.
 LISTING_SCREENS = (
-    ("listinvstg/listingcompany.do", "searchListingTypeMain", "searchListingTypeSub", "listingtype_sub"),
     ("listinvstg/pubofrprogcom.do", "searchPubofrProgComMain", "searchPubofrProgComSub", "pubofrprogcom_sub"),
 )
 
@@ -411,7 +410,7 @@ def fetch_listing_sched(session=None, today: date | None = None, timeout: int = 
             resp.encoding = resp.encoding or "utf-8"
             got = parse_listing_sched(resp.text)
             status[key] = len(got)
-            if not got:
+            if True:   # 표 구성 확인용(작은 화면): 최근 응답 원문을 남깁니다
                 Path("data/kind").mkdir(parents=True, exist_ok=True)
                 (Path("data/kind") / f"_{key}_last.html").write_text(resp.text, encoding="utf-8")
             rows += got
