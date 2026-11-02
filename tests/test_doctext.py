@@ -45,3 +45,17 @@ class ValuationTest(unittest.TestCase):
         t = ("2027년 추정 순이익 | 11,972백만원 | 연할인율 | 20.0% | B |\n적용 PER(배) | 평균 | 27.49 | 주1)")
         v = doctext.extract_valuation(t)
         self.assertEqual((v["basis"], v["pv_rate"], v["multiple"]), ("2027년 추정 순이익", 20.0, 27.49))
+
+
+class PeersTest(unittest.TestCase):
+    def test_table(self):
+        t = "최종 비교대상회사 | 세진중공업, 현대힘스, 한라IMS | 대표주관회사인 한국투자증권㈜는 상기 선정기준을 충족하는 세진중공업, 현대힘스, 한라IMS 총 3개사를 최종 비교대상회사로 선정하였습니다."
+        self.assertEqual(doctext.extract_peers(t), ["세진중공업", "현대힘스", "한라IMS"])
+
+    def test_paren(self):
+        t = "상기 기준에 따라, 2개사(CATL, 삼성SDI)를 최종 비교기업으로 선정하였습니다."
+        self.assertEqual(doctext.extract_peers(t), ["CATL", "삼성SDI"])
+
+    def test_sentence(self):
+        t = "동사는 고려제강, KOBELCO WIRE CO LTD, NIPPON SEISEN CO LTD 총 3개사를 최종 비교기업으로 선정하였습니다."
+        self.assertEqual(doctext.extract_peers(t), ["고려제강", "KOBELCO WIRE CO LTD", "NIPPON SEISEN CO LTD"])

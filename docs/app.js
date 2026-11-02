@@ -921,11 +921,11 @@
     var disc = V.disc_low != null ? num(V.disc_low, 1) + "~" + num(V.disc_high, 1) + "<small>%</small>" : "-";
     var fd = V.final_disc != null ? (V.final_disc >= 0 ? num(V.final_disc, 1) + "<small>%</small>" : "할증 " + num(-V.final_disc, 1) + "<small>%</small>") : "-";
     return '<div class="terms t4 val">' +
-      term("평가방법", esc(V.method || "-") + (V.multiple != null ? ' <span class="sl">·</span> ' + num(V.multiple) + "<small>배</small>" : ""), [V.basis, V.peers_n ? "비교기업 " + V.peers_n + "곳" : ""].filter(Boolean).join(" · ") || (V.multiple != null ? "적용 배수" : "")) +
+      term("평가방법", esc(V.method || "-") + (V.multiple != null ? ' <span class="sl">·</span> ' + num(V.multiple) + "<small>배</small>" : ""), [V.basis, V.peers_n && !(V.peers && V.peers.length) ? "비교기업 " + V.peers_n + "곳" : ""].filter(Boolean).join(" · ") || (V.multiple != null ? "적용 배수" : "")) +
       term("주당 평가가액", V.value ? int(V.value) + "<small>원</small>" : "-", V.pv_rate != null ? "추정이익 현가 할인 연 " + num(V.pv_rate, 1) + "%" : "") +
       term("밴드 할인율", disc, d.offer_price_low ? "희망 밴드 " + bandText(d) + "원" : "") +
       term("확정가 할인율", fd, d.final_price ? "확정가 " + int(d.final_price) + "원 기준" : "공모가 미확정") +
-      "</div>";
+      "</div>" + (V.peers && V.peers.length ? '<p class="peers"><span class="k">비교기업 ' + V.peers.length + "곳</span>" + V.peers.map(function (x) { return '<span class="chip-s">' + esc(x) + "</span>"; }).join("") + "</p>" : "");
   }
   function structBlock(d) {
     if (isSpac(d)) return "";
@@ -1467,7 +1467,7 @@
     var posTot = {}; POS.forEach(function (p) { posTot[p] = pc.reduce(function (a, o) { return a + o[p]; }, 0); });
     var legend3 = '<div class="legend">' + POS.map(function (p) { return '<span><i style="background:var(--pos-' + POS_KEY[p] + ')"></i>' + p + " " + posTot[p] + "</span>"; }).join("") + "</div>";
 
-    var techPanel = "", leaguePanel = "", sectorPanel = "", valPanel = "";
+    var techPanel = "", leaguePanel = "", sectorPanel = "", valPanel = "", uwPanel = "";
     if (!statFast) (function () {   // 기술특례·주관사 표는 제스처가 끝난 뒤에만 다시 계산
     // ---- 4) 기술특례 분석
     var tech = deals.filter(function (d) { return d.board === "KOSDAQ_TECH" && !isSpac(d); });
@@ -1548,6 +1548,28 @@
         (sRows ? '<h3 class="minih">업종별 PER 적용 (3건 이상)</h3><div class="scroll"><table class="mini sect">' + vHead + "<tbody>" + sRows + "</tbody></table></div>" : "")
         : '<div class="empty">선택한 조건에 산정 근거를 읽은 상장 건이 없습니다.</div>') + "</div></section>";
 
+    // ---- 4-4) 대표주관사별 공모 조건(수수료율·할인율·가격 결정)
+    var ug = {};
+    deals.filter(function (d) { return !isSpac(d); }).forEach(function (d) {
+      uwSet(d).forEach(function (n) { (ug[n] = ug[n] || []).push(d); });
+    });
+    var ukeys = Object.keys(ug).filter(function (k) { return ug[k].length >= 5; }).sort(function (a, b) { return ug[b].length - ug[a].length; });
+    var uRows = ukeys.map(function (k) {
+      var ds = ug[k], fees = ds.map(function (d) { return structInfo(d).fee; }).filter(function (v) { return v != null && v > 0 && v < 15; });
+      var vs = ds.filter(function (d) { return d.val; });
+      var lo = avg(vs.map(function (d) { return d.val.disc_low; })), hi = avg(vs.map(function (d) { return d.val.disc_high; }));
+      var fd = median(vs.map(function (d) { return d.val.final_disc; }));
+      var pd = ds.filter(function (d) { return position(d); }), up = pd.filter(function (d) { var q = position(d); return q === "상단" || q === "초과"; }).length;
+      var im = median(ds.map(function (d) { return d.inst_demand_ratio; }));
+      var foc = k.indexOf(FOCUS_NAME) >= 0;
+      return "<tr" + (foc ? ' class="focus"' : "") + "><td>" + esc(k) + '</td><td class="num">' + ds.length + '</td><td class="num">' + (fees.length ? f1(avg(fees), "%") : "-") +
+        '</td><td class="num">' + (lo != null ? f1(lo) + "~" + f1(hi, "%") : "-") + '</td><td class="num">' + (fd == null ? "-" : fd < 0 ? "할증 " + f1(-fd, "%") : f1(fd, "%")) +
+        '</td><td class="num">' + (pd.length ? Math.round(up / pd.length * 100) + "%" : "-") + '</td><td class="num">' + (im != null ? ratio(im, 0) : "-") + "</td></tr>";
+    }).join("");
+    uwPanel = '<section class="panel uwp"><header><div><h2>대표주관사별 공모 조건</h2><p>' + periodText + " 상장 기준(스팩 제외), 대표주관 5건 이상. 공동 대표주관은 각사에 1건씩 셉니다. 수수료율은 인수대가 ÷ 인수금액(신고서 기준, 성과수수료 제외) 평균, 밴드 할인율은 평균, 확정가 할인율·경쟁률은 중앙값입니다.</p></div></header>" +
+      '<div class="pbody">' + (uRows ? '<div class="scroll"><table class="mini sect uw"><thead><tr><th>대표주관</th><th class="num">건수</th><th class="num">수수료율</th><th class="num">밴드 할인율</th><th class="num">확정가 할인율</th><th class="num">상단 이상</th><th class="num">수요예측</th></tr></thead><tbody>' + uRows + "</tbody></table></div>"
+        : '<div class="empty">선택한 조건에 대표주관 5건 이상인 주관사가 없습니다.</div>') + "</div></section>";
+
     // ---- 5) 대표주관사 순위
     var lg = {};
     deals.forEach(function (d) {
@@ -1585,7 +1607,7 @@
       '<div class="pbody chart zoomable">' + legend2 + svg2 + "</div></section>" +
       '<section class="panel"><header><div><h2>밴드 대비 확정가 위치</h2><p>' + unitWord + " 상장 건의 비중. 단일 희망가(스팩 등)는 제외. 위로 갈수록 높은 가격입니다.</p></div></header>" +
       '<div class="pbody chart zoomable">' + legend3 + svg3 + "</div></section></div>" +
-      (statFast ? '<div class="keep"></div>' : '<div class="stack"><div class="panels even">' + techPanel + leaguePanel + "</div>" + '<div class="panels even">' + sectorPanel + valPanel + "</div></div>") + "</div>");
+      (statFast ? '<div class="keep"></div>' : '<div class="stack"><div class="panels even">' + techPanel + leaguePanel + "</div>" + '<div class="panels even">' + sectorPanel + valPanel + "</div>" + uwPanel + "</div>") + "</div>");
     bindStats();
     bindChart();
   }

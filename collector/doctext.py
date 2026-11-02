@@ -477,7 +477,7 @@ def extract_listing_info(text: str) -> dict:
 
 
 # ---------------------------------------------------------------- 공모가 산정(밸류에이션)
-VAL_VERSION = 2
+VAL_VERSION = 3
 _VAL_METHODS = ("EV/EBITDA", "EV/Sales", "PER", "PSR", "PBR", "DCF")
 _VM = r"(EV\s*/\s*EBITDA|EV\s*/\s*Sales|PER|PSR|PBR|P/E|DCF)"
 
@@ -567,5 +567,88 @@ def extract_valuation(text: str) -> dict:
         re.search(r"최종\s*(?:선정된\s*)?(\d{1,2})\s*개\s*(?:비교\s*기업|비교\s*회사|유사\s*회사|유사\s*기업)", t)
     if pn:
         out["peers_n"] = int(pn.group(1))
+    out["peers"] = extract_peers(t)
+    if out["peers"]:
+        out["peers_n"] = len(out["peers"])
     out["evidence"] = " | ".join(ev) or None
     return out
+
+
+_PEER_KIND = r"(?:비교\s*대상\s*회사|비교\s*기업|비교\s*회사|유사\s*기업|유사\s*회사)"
+_PEER_BAD = re.compile(r"선정|기준|당사|동사|모집단|제외|평가|산업|사업|업종|이상|이하|요건|해당|\d+\s*개")
+
+
+_CORP_SUFFIX = re.compile(r"(?i)(?:inc|ltd|co|corp|corporation|llc|plc|s\.?a|n\.?v|ag|limited|co\.?\s*ltd|l\.?p)\.?")
+
+
+def merge_corp_suffix(parts: list) -> list:
+    """'Thermo Fisher Scientific, Inc.'처럼 쉼표 뒤 법인 형태 표기를 앞 이름에 붙입니다."""
+    out = []
+    for x in parts:
+        if out and _CORP_SUFFIX.fullmatch(x.strip()):
+            out[-1] = out[-1] + ", " + x.strip()
+        else:
+            out.append(x)
+    return out
+
+
+def clean_peers(names: list | None) -> list | None:
+    """문장에서 함께 잡힌 앞말('…를 통해', '…바탕으로')·조사('의')를 떼고, 그래도 문장 조각이면 명단 전체를 버립니다."""
+    if not names:
+        return names
+    out = []
+    for x in merge_corp_suffix(list(names)):
+        x = re.sub(r"^.*(?:통해|고려하여|바탕으로|경우|결과|적으로)\s*", "", x).strip()
+        x = re.sub(r"(?<=[A-Za-z.)])\s*의$", "", x).strip()
+        if not x or re.search(r"유사성|최종|고려하|\s및\s|^\d\)|선정|기준", x) or len(x) > 45:
+            return None
+        out.append(x)
+    return out
+
+
+def _peer_names(seg: str, n: int | None = None, trim_first: bool = False) -> list | None:
+    seg = re.sub(r"\[?\s*총\s*\d+\s*개\s*사\s*\]?", "", seg)
+    parts = merge_corp_suffix([x.strip(" ·\t") for x in re.split(r"\s*,\s*|\s*、\s*", seg) if x.strip()])
+    if n:
+        parts = parts[-n:]
+    if trim_first and parts:
+        # 문장 속 나열('...충족하는 대웅제약, ...')의 첫 항목에서 앞 문장을 떼어냅니다.
+        parts[0] = re.sub(r"^.*(?:는|은|을|를|한|된|인|여|서|며|해|과|및|결과|통해)\s+", "", parts[0])
+    out = []
+    for x in parts:
+        x = re.sub(r"\(주\)|㈜|주식회사|\(\s*주\s*\)", "", x).strip(" ()")
+        x = re.sub(r"\s*(?:를|을)?\s*포함\s*(?:하여|한|해)?$|\s*(?:등|를|을)$", "", x).strip()
+        if re.fullmatch(r"[가-힣 ]+", x):
+            x = x.replace(" ", "")
+        if not x or len(x) > 40 or _PEER_BAD.search(x):
+            return None
+        out.append(x)
+    if not out or (n and len(out) != n):
+        return None
+    return out
+
+
+def extract_peers(t: str) -> list | None:
+    """최종 비교기업(유사회사) 명단. 표('최종 비교대상회사 | A, B, C |'), 괄호('총 6개사(A, B, …)를 최종'),
+    문장('A, B, C 총 3개사를 최종 비교기업으로') 서식을 읽고, 정정 전·후가 함께 있으면 가장 자주(같으면 뒤에) 나온 명단을 씁니다."""
+    found = []
+    for m in re.finditer(r"최종\s*" + _PEER_KIND + r"\s*(?:선정\s*결과)?\s*(?:-\s*총\s*(\d+)\s*개\s*사)?\s*\|\s*([^|]{2,500}?)\s*\|", t):
+        nm = _peer_names(m.group(2), int(m.group(1)) if m.group(1) else None)
+        if nm and (len(nm) > 1 or m.group(1)):
+            found.append((m.start(), nm))
+    for m in re.finditer(r"(\d{1,2})\s*개\s*사\s*\(\s*([^)]{2,500})\)\s*(?:를|을)?\s*(?:당사의\s*|동사의\s*)?최종", t):
+        nm = _peer_names(m.group(2), int(m.group(1)))
+        if nm:
+            found.append((m.start(), nm))
+    for m in re.finditer(r"((?:[^.|:]|\.(?=\s*,|\s*(?:총|등)?\s*\d{1,2}\s*개)){2,600}?)\s*(?:총|등)?\s*(\d{1,2})\s*개\s*(?:회)?\s*사\s*(?:를|을)?\s*(?:[^.|]{0,40}?)최종\s*(?:적으로\s*)?(?:선정된\s*)?" + _PEER_KIND, t):
+        nm = _peer_names(m.group(1), int(m.group(2)), trim_first=True)
+        if nm:
+            found.append((m.start(), nm))
+    if not found:
+        return None
+    freq = {}
+    for _, nm in found:
+        freq[tuple(nm)] = freq.get(tuple(nm), 0) + 1
+    top = max(freq.values())
+    best = [nm for _, nm in sorted(found) if freq[tuple(nm)] == top][-1]
+    return clean_peers(best)

@@ -169,7 +169,12 @@ def _val_view(v: dict, d: dict):
     """공모가 산정 근거: 할인율·평가가액이 희망 밴드와 맞는지(밴드 상단 ≈ 평가가액 × (1 − 최저 할인율)) 함께 표시합니다."""
     if not v or not (v.get("value") or v.get("disc_low") is not None):
         return None
-    out = {k: v.get(k) for k in ("method", "multiple", "value", "disc_low", "disc_high", "basis", "pv_rate", "peers_n", "src")}
+    out = {k: v.get(k) for k in ("method", "multiple", "value", "disc_low", "disc_high", "basis", "pv_rate", "peers_n", "peers", "src")}
+    if out.get("peers"):
+        from .doctext import clean_peers
+        out["peers"] = clean_peers(out["peers"])
+        if out["peers"]:
+            out["peers_n"] = len(out["peers"])
     hi, lo, val = d.get("offer_price_high"), d.get("offer_price_low"), v.get("value")
     out["check"] = None
     if val and hi and v.get("disc_low") is not None:
