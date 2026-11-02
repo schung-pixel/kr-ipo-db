@@ -403,7 +403,7 @@ def fetch_listing_sched(session=None, today: date | None = None, timeout: int = 
             s.get(f"{BASE}/{path}", params={"method": main}, headers={"User-Agent": USER_AGENT}, timeout=timeout)
             data = {"method": sub, "forward": fwd, "currentPageSize": "100", "pageIndex": "1", "orderMode": "1",
                     "orderStat": "D", "searchMode": "", "searchCorpName": "", "marketType": "", "repIsuSrtCd": "",
-                    "fromDate": (today - timedelta(days=20)).isoformat(), "toDate": (today + timedelta(days=60)).isoformat()}
+                    "fromDate": (today - timedelta(days=150)).isoformat(), "toDate": (today + timedelta(days=150)).isoformat()}
             resp = s.post(f"{BASE}/{path}", data=data, headers={"User-Agent": USER_AGENT, "Referer": f"{BASE}/{path}?method={main}"},
                           timeout=timeout)
             resp.raise_for_status()
