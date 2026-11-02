@@ -223,6 +223,14 @@ CREATE TABLE IF NOT EXISTS deal_val (
     fetched_at     TEXT
 );
 
+-- KIND 신규상장 예정일(신규상장기업 목록·공모기업 진행현황). 실적보고서 전 상장일 표시용
+CREATE TABLE IF NOT EXISTS kind_listing (
+  name_key    TEXT PRIMARY KEY,
+  corp_name   TEXT,
+  listing_dt  TEXT,
+  fetched_at  TEXT
+);
+
 CREATE TABLE IF NOT EXISTS kind_corp (
   name_key    TEXT PRIMARY KEY,
   corp_name   TEXT,

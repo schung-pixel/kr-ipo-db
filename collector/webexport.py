@@ -181,6 +181,27 @@ def _fin_view(x: dict) -> dict | None:
     return out if n >= 3 and out["periods"] else None
 
 
+# 한국거래소 휴장일(주말 외). 예상 상장일 계산용이며, 해마다 KRX 공지로 보강합니다.
+KRX_HOLIDAYS = {"2026-12-25", "2026-12-31", "2027-01-01", "2027-02-08", "2027-02-09", "2027-03-01", "2027-05-05",
+                "2027-05-13", "2027-08-16", "2027-09-14", "2027-09-15", "2027-09-16", "2027-10-04", "2027-10-11",
+                "2027-12-27", "2027-12-31"}
+
+
+def _first_date(raw):
+    m = re.search(r"(\d{4})\s*[년.\-]\s*(\d{1,2})\s*[월.\-]\s*(\d{1,2})", raw or "")
+    return f"{int(m.group(1)):04d}-{int(m.group(2)):02d}-{int(m.group(3)):02d}" if m else None
+
+
+def _add_bizdays(iso: str, n: int) -> str:
+    from datetime import date as _d, timedelta as _td
+    t = _d.fromisoformat(iso)
+    while n > 0:
+        t += _td(days=1)
+        if t.weekday() < 5 and t.isoformat() not in KRX_HOLIDAYS:
+            n -= 1
+    return t.isoformat()
+
+
 def _val_view(v: dict, d: dict):
     """공모가 산정 근거: 할인율·평가가액이 희망 밴드와 맞는지(밴드 상단 ≈ 평가가액 × (1 − 최저 할인율)) 함께 표시합니다."""
     if not v or not (v.get("value") or v.get("disc_low") is not None):
@@ -327,6 +348,22 @@ def build_payload(conn) -> dict:
                        for k in ("filed_dt", "decided_dt", "result", "market", "listing_type", "sponsor")},
             "filings": [], "underwriters": [], "securities": [], "use_of_proceeds": [], "sellers": [], "sources": [],
         })
+
+    # 상장일이 공시되기 전: KIND 신규상장 예정일(listing_sched), 없으면 납입일 + 4영업일(listing_est, 예상)
+    for d in deals:
+        if d.get("listing_dt") or d.get("status") == "withdrawn" or d.get("is_ipo_candidate") != 1:
+            continue
+        ks = None
+        try:
+            ks = conn.execute("SELECT listing_dt FROM kind_listing WHERE name_key=?", (kind.name_key(d.get("corp_name") or ""),)).fetchone()
+        except Exception:
+            ks = None
+        if ks and ks["listing_dt"] and ks["listing_dt"] >= (d.get("first_filing_dt") or ""):
+            d["listing_sched"] = ks["listing_dt"]
+            continue
+        pay = _first_date(d.get("payment_raw"))
+        if pay and pay >= (_date.today() - __import__("datetime").timedelta(days=14)).isoformat():
+            d["listing_est"] = _add_bizdays(pay, 4)
 
     # 예심 이력(KIND): 청구·승인·철회 전체. 같은 회사의 이후 DART 딜이 있으면 연결합니다.
     by_key = {}

@@ -1076,7 +1076,8 @@
       term("희망 밴드", d.offer_price_low ? bandText(d) + "<small>원</small>" : "-", bandCap(d)) +
       term("수요예측 경쟁률", d.inst_demand_ratio != null ? ratio(d.inst_demand_ratio, 2) : '<span class="dim">-</span>', [demandText(d, true), d.inst_demand_count ? int(d.inst_demand_count) + "건 참여" : ""].filter(Boolean).join(" · ")) +
       term("일반청약 경쟁률", d.retail_ratio != null ? ratio(d.retail_ratio, 2) : '<span class="dim">-</span>', d.retail_count ? int(d.retail_count) + "건" : "") +
-      term("상장일", d.listing_dt ? esc(d.listing_dt) : '<span class="dim">-</span>', d.listing_dt && d.listing_dt > asOf() ? "예정" : "") +
+      term("상장일", d.listing_dt ? esc(d.listing_dt) : lstOf(d).dt ? esc(lstOf(d).dt) : '<span class="dim">-</span>',
+        d.listing_dt ? (d.listing_dt > asOf() ? "예정" : "") : d.listing_sched ? "KIND 신규상장 예정" : d.listing_est ? "예상 · 납입일 + 4영업일" : "") +
       term(amtLabel, d.offer_amount != null ? eok(d.offer_amount) + "<small>억원</small>" : "-") +
       term(shrLabel, d.shares_offered != null ? int(d.shares_offered) + "<small>주</small>" : "-", d.secondary_shares ? "구주 " + int(d.secondary_shares) + "주" : "") +
       term("대표주관", esc(d.lead_underwriters || "-"), d.co_underwriters ? "공동 " + esc(d.co_underwriters) : "", "txt") +
@@ -1915,6 +1916,13 @@
     return isoOf(t);
   }
   var EV_ORDER = { "수요예측": 0, "청약": 1, "납입": 2, "상장": 3 };
+  // 상장일: 실적보고서 확정 > KIND 신규상장 예정 > 납입일+4영업일 예상
+  function lstOf(d) {
+    if (d.listing_dt) return { dt: d.listing_dt, q: "" };
+    if (d.listing_sched) return { dt: d.listing_sched, q: "예정" };
+    if (d.listing_est) return { dt: d.listing_est, q: "예상" };
+    return { dt: null, q: "" };
+  }
   function calEvents() {
     var ev = [];
     data.deals.forEach(function (d) {
@@ -1924,7 +1932,8 @@
       if (s.length) ev.push({ k: "청약", a: s[0], b: s[s.length - 1] >= s[0] ? s[s.length - 1] : s[0], d: d });
       var p = kdates(d.payment_raw);
       if (p.length) ev.push({ k: "납입", a: p[0], b: p[0], d: d });
-      if (d.listing_dt) ev.push({ k: "상장", a: d.listing_dt, b: d.listing_dt, d: d });
+      var lq = lstOf(d);
+      if (lq.dt) ev.push({ k: "상장", a: lq.dt, b: lq.dt, d: d, q: lq.q });
     });
     return ev;
   }
@@ -1973,7 +1982,8 @@
   }
   function calDates(d) {
     var sub = kdates(d.subscription_raw), pay = kdates(d.payment_raw);
-    return { ds: d.demand_start, de: d.demand_end || d.demand_start, ss: sub[0] || null, se: sub.length ? sub[sub.length - 1] : null, pay: pay[0] || null, lst: d.listing_dt || null };
+    var lq = lstOf(d);
+    return { ds: d.demand_start, de: d.demand_end || d.demand_start, ss: sub[0] || null, se: sub.length ? sub[sub.length - 1] : null, pay: pay[0] || null, lst: lq.dt, lq: lq.q };
   }
   function rngT(a, b) { return a ? md(a) + (b && b !== a ? "~" + md(b) : "") : "미정"; }
   function pxText(d) {
@@ -1990,7 +2000,7 @@
         var d = e.d;
         return '<a class="it' + (focusRole(d) ? " focus" : "") + '" href="#/deal/' + encodeURIComponent(d.deal_id) + '"><span class="nm">' + esc(name(d)) + "</span>" +
           boardTag(d) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + focusTag(d) +
-          '<span class="r mono">' + esc(rngT(e.a, e.b)) + '</span><span class="u">' + esc(d.lead_underwriters || "주관사 미확인") + (pxText(d) ? " · " + '<span class="mono">' + pxText(d) + "</span>" : "") + "</span></a>";
+          '<span class="r mono">' + esc(rngT(e.a, e.b)) + (e.q ? ' <em class="lq">' + e.q + "</em>" : "") + '</span><span class="u">' + esc(d.lead_underwriters || "주관사 미확인") + (pxText(d) ? " · " + '<span class="mono">' + pxText(d) + "</span>" : "") + "</span></a>";
       }).join("") + "</div>";
     }).join("");
   }
@@ -2042,7 +2052,7 @@
       };
       return '<a class="drow' + (focusRole(d) ? " focus" : "") + '" href="#/deal/' + encodeURIComponent(d.deal_id) + '"><span class="t1"><span class="nm">' + esc(name(d)) + "</span>" +
         boardTag(d) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + focusTag(d) + '<span class="u">' + esc(d.lead_underwriters || "") + "</span></span>" +
-        '<span class="dts">' + box("수요예측", c.ds, c.de) + box("청약", c.ss, c.se) + box("상장", c.lst, c.lst) + "</span>" +
+        '<span class="dts">' + box("수요예측", c.ds, c.de) + box("청약", c.ss, c.se) + box("상장" + (c.lq ? ' <em class="lq">' + c.lq + "</em>" : ""), c.lst, c.lst) + "</span>" +
         (pxText(d) ? '<span class="px mono">' + pxText(d) + "</span>" : "") + "</a>";
     };
     return '<section class="panel dtable"><header><div><h2>딜별 공모 일정</h2><p>진행 중 ' + now.length + "건 · 다가오는 일정 " + next.length + "건(70일 이내). 진행 중인 단계는 남색, 끝난 단계는 흐리게 표시합니다. 상장일은 증권발행실적보고서가 나와야 표시됩니다.</p></div></header>" +

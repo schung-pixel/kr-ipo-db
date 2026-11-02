@@ -1107,3 +1107,5 @@ header.top .tgl button svg { width: 12px; height: 12px; }
 .cd.m1 .mdots i.k-1, .cal-lg i.k-1 { background: var(--cal-k1); }
 .cd.m1 .mdots i.k-3, .cal-lg i.k-3 { background: var(--cal-k3); }
 @media (min-width: 761px) { .cd.m1 .mdots { gap: 4px; height: 8px; } .cd.m1 .mdots i { width: 8px; height: 8px; } }
+.lq { font-style: normal; font-size: 10px; font-weight: 600; padding: 0 4px; border-radius: 4px; margin-left: 3px; background: var(--warn-soft); color: var(--warn); vertical-align: 1px; }
+.drow .dt.on .lq { background: color-mix(in srgb, var(--accent-ink) 20%, transparent); color: var(--accent-ink); }

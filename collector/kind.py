@@ -357,6 +357,79 @@ def review_for(conn, corp_name: str, first_filing_dt: str) -> dict | None:
     return dict(row) if row else None
 
 
+# ---------------------------------------------------------------- 신규상장 예정일
+# 상장일은 납입 후 거래소 신규상장 승인 때 정해지고, KIND 신규상장기업 목록(listingcompany.do)과
+# 공모기업 진행현황(pubofrprogcom.do)에 실적보고서보다 먼저 올라옵니다. 두 화면 모두 예비심사 화면과
+# 같은 호출 규칙(…Sub / …_sub)으로 부르고, 표에서 '회사명' 열과 '상장일' 열만 읽습니다.
+LISTING_SCREENS = (
+    ("listinvstg/listingcompany.do", "searchListingTypeMain", "searchListingTypeSub", "listingtype_sub"),
+    ("listinvstg/pubofrprogcom.do", "searchPubofrProgComMain", "searchPubofrProgComSub", "pubofrprogcom_sub"),
+)
+
+
+def parse_listing_sched(html: str) -> list:
+    p = _TableParser()
+    p.feed(html)
+    out = []
+    for t, summary in zip(p.tables, p.summaries):
+        if not t:
+            continue
+        heads = [h.replace(" ", "") for h in t[0]]
+        body = t[1:]
+        if not any("회사명" in h or "기업명" in h for h in heads) and summary:
+            heads = [h.strip().replace(" ", "") for h in re.split(r"[,，]", summary) if h.strip()]
+            body = t
+        ni = next((i for i, h in enumerate(heads) if "회사명" in h or "기업명" in h), None)
+        li = next((i for i, h in enumerate(heads) if "상장일" in h or "상장예정" in h or "매매개시" in h), None)
+        if ni is None or li is None:
+            continue
+        for r in body:
+            if len(r) <= max(ni, li):
+                continue
+            name, dt = r[ni].strip(), _iso(r[li])
+            if name and dt and "결과" not in name:
+                out.append({"name_key": name_key(name), "corp_name": name, "listing_dt": dt})
+    return out
+
+
+def fetch_listing_sched(session=None, today: date | None = None, timeout: int = 30) -> tuple[list, dict]:
+    """두 화면에서 (회사명, 상장일) 목록을 받습니다. 화면별 건수·오류는 status에 담습니다."""
+    import requests
+    s = session or requests.Session()
+    today = today or date.today()
+    rows, status = [], {}
+    for path, main, sub, fwd in LISTING_SCREENS:
+        key = path.split("/")[-1].split(".")[0]
+        try:
+            s.get(f"{BASE}/{path}", params={"method": main}, headers={"User-Agent": USER_AGENT}, timeout=timeout)
+            data = {"method": sub, "forward": fwd, "currentPageSize": "100", "pageIndex": "1", "orderMode": "1",
+                    "orderStat": "D", "searchMode": "", "searchCorpName": "", "marketType": "", "repIsuSrtCd": "",
+                    "fromDate": (today - timedelta(days=20)).isoformat(), "toDate": (today + timedelta(days=60)).isoformat()}
+            resp = s.post(f"{BASE}/{path}", data=data, headers={"User-Agent": USER_AGENT, "Referer": f"{BASE}/{path}?method={main}"},
+                          timeout=timeout)
+            resp.raise_for_status()
+            resp.encoding = resp.encoding or "utf-8"
+            got = parse_listing_sched(resp.text)
+            status[key] = len(got)
+            if not got:
+                Path("data/kind").mkdir(parents=True, exist_ok=True)
+                (Path("data/kind") / f"_{key}_last.html").write_text(resp.text, encoding="utf-8")
+            rows += got
+        except Exception as exc:
+            status[key] = f"{type(exc).__name__}: {str(exc)[:120]}"
+    return rows, status
+
+
+def save_listing_sched(conn, rows: list, now: str) -> int:
+    from . import store
+    seen = {}
+    for r in rows:
+        seen[r["name_key"]] = r            # 같은 회사가 두 화면에 모두 있으면 뒤 화면 값으로(같은 날짜)
+    for r in seen.values():
+        store.upsert(conn, "kind_listing", "name_key", {**r, "fetched_at": now}, volatile=("fetched_at",))
+    return len(seen)
+
+
 def dump_debug(html: str, folder: Path) -> Path:
     folder.mkdir(parents=True, exist_ok=True)
     p = folder / "_last_response.html"

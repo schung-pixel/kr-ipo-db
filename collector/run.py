@@ -90,6 +90,14 @@ def cmd_kind(conn, args) -> None:
         except Exception as exc:
             status["corp_list_error"] = f"{type(exc).__name__}: {str(exc)[:200]}"
             print(f"주의: KIND 상장법인 목록 조회 실패({type(exc).__name__})")
+    if not args.no_fetch:   # 신규상장 예정일: 실패해도 계속
+        try:
+            rows, st = kind.fetch_listing_sched(today=now_kst().date())
+            status["listing_sched"] = {"screens": st, "saved": kind.save_listing_sched(conn, rows, now)}
+            print(f"KIND 신규상장 예정일 {status['listing_sched']['saved']}건 반영 {st}")
+        except Exception as exc:
+            status["listing_sched_error"] = f"{type(exc).__name__}: {str(exc)[:200]}"
+            print(f"주의: KIND 신규상장 예정일 조회 실패({type(exc).__name__})")
     if folder.exists():
         m = kind.load_manual(conn, folder, now)
         status["manual_rows"] = m
