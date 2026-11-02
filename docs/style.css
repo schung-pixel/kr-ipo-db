@@ -946,3 +946,4 @@ header.top .tgl .tl { display: none; }
 @media (max-width: 760px) {
   header.top .tgl button, header.top .tgl button:not([aria-pressed="true"]), header.top .tgl button[aria-pressed="true"] { width: 34px; height: 34px; }
 }
+header.top nav.tabs .ind { will-change: transform; transition: transform .5s var(--spring), opacity .2s; }

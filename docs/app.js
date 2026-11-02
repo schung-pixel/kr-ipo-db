@@ -317,6 +317,7 @@
     });
     placeInd(document.querySelector(".tabs"));
   }
+  var routeSeq = 0;
   function route() {
     var h = curPath();
     var m = h.match(/^\/deal\/(.+)$/), mb = h.match(/^\/bio\/(.+)$/);
@@ -335,10 +336,17 @@
       return;
     }
     closeSheet();
-    if (tab === "stats") { if (view !== "stats") { renderStats(); window.scrollTo(0, 0); } }
-    else if (tab === "bio") { if (view !== "bio") { renderBio(); window.scrollTo(0, 0); } }
-    else if (tab === "cal") { if (view !== "cal") { renderCal(); window.scrollTo(0, 0); } }
-    else if (view !== "list") { renderList(); window.scrollTo(0, 0); }
+    var draw = function () {
+      if (tab === "stats") { if (view !== "stats") { renderStats(); window.scrollTo(0, 0); } }
+      else if (tab === "bio") { if (view !== "bio") { renderBio(); window.scrollTo(0, 0); } }
+      else if (tab === "cal") { if (view !== "cal") { renderCal(); window.scrollTo(0, 0); } }
+      else if (view !== "list") { renderList(); window.scrollTo(0, 0); }
+    };
+    // 탭을 바꿀 때는 표시 막대가 먼저 움직이기 시작한 뒤(두 프레임 뒤) 화면을 그립니다.
+    // 목록처럼 무거운 화면을 바로 그리면 그동안 애니메이션이 멈췄다가 튀어 보입니다.
+    var token = ++routeSeq;
+    if (view && view !== tab) requestAnimationFrame(function () { requestAnimationFrame(function () { if (token === routeSeq) draw(); }); });
+    else draw();
     document.title = (tab === "stats" ? "통계" : tab === "bio" ? "기술특례 바이오" : tab === "cal" ? "일정" : "목록") + " · IPO 데이터룸";
   }
   function baseView() { return view === "stats" ? "/stats" : view === "bio" ? "/bio" : view === "cal" ? "/cal" : "/"; }
