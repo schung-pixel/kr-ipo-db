@@ -197,7 +197,8 @@ def main(argv=None) -> int:
                 anchor = date.fromisoformat(last) if last else today
                 bgn, end = anchor - timedelta(days=args.lookback), today
             collect(_client(), conn, bgn, end, max_corps=args.max_corps,
-                    max_docs=args.max_docs, refetch_docs=args.refetch_docs)
+                    max_docs=args.max_docs, refetch_docs=args.refetch_docs,
+                    workers=int(os.environ.get("DART_WORKERS", "4")))
             store.export_sql(conn, args.sql)
             webexport.export_json(conn, "docs/data/deals.json",
                                   now_kst().replace(microsecond=0).isoformat())

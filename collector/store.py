@@ -739,14 +739,15 @@ def val_plan(conn, min_year: str = "2016", max_year: str | None = None) -> list:
         if d:
             data = _json.loads(d["data"] or "{}")
             tried = set(_json.loads(d["tried"] or "[]"))
-            if data.get("value") or data.get("disc_low") is not None:
+            stale = (d["parser_version"] or 0) < VAL_VERSION
+            if (data.get("value") or data.get("disc_low") is not None) and not (stale and data.get("multiple") is None):
                 if data.get("src") == order[0] or order[0] in tried:
                     continue
                 order = order[:1]
-            elif (d["parser_version"] or 0) >= VAL_VERSION and all(no in tried for no in order):
+            elif stale:
+                pass      # 규칙이 바뀌었고 배수를 못 읽은 건은 같은 원문을 다시 읽습니다
+            elif all(no in tried for no in order):
                 continue
-            elif (d["parser_version"] or 0) < VAL_VERSION:
-                pass
             else:
                 order = [no for no in order if no not in tried]
         plan.append((deal_id, c["corp_code"], order))

@@ -477,7 +477,7 @@ def extract_listing_info(text: str) -> dict:
 
 
 # ---------------------------------------------------------------- 공모가 산정(밸류에이션)
-VAL_VERSION = 1
+VAL_VERSION = 2
 _VAL_METHODS = ("EV/EBITDA", "EV/Sales", "PER", "PSR", "PBR", "DCF")
 _VM = r"(EV\s*/\s*EBITDA|EV\s*/\s*Sales|PER|PSR|PBR|P/E|DCF)"
 
@@ -503,9 +503,13 @@ def extract_valuation(text: str) -> dict:
     m = list(re.finditer(r"\[\s*" + _VM + r"\s*(?:배수)?\s*에\s*의한", t))
     if m:
         out["method"] = _method_norm(m[-1].group(1))
-    mm = list(re.finditer(r"적용\s*" + _VM + r"\s*(?:거래\s*)?(?:배수|멀티플)?\s*\|\s*(?:\(?[A-Z]\)?\s*\|\s*)?([\d,]+(?:\.\d+)?)\s*(?:배)?\s*\|", t))
+    mm = list(re.finditer(r"적용\s*" + _VM + r"\s*(?:\(\s*배\s*\))?\s*(?:거래\s*)?(?:배수|멀티플)?\s*(?:\(\s*배\s*\))?\s*\|\s*"
+                          r"(?:(?:\(?[A-Z]\)?|평균|적용|산술평균)\s*\|\s*)?([\d,]+(?:\.\d+)?)\s*(?:배|[xX])?\s*\|", t))
+    if not mm:   # '평균 PER(배) (B) | 21.70', '평균 EV/EBITDA Multiple | 11.64', '평균 PER(26.68배)'
+        mm = list(re.finditer(r"평균\s*" + _VM + r"\s*(?:Multiple|멀티플|배수)?\s*(?:\(\s*배\s*\))?\s*(?:\(?[A-Z]\)?|\(?주\s*\d\)?)?\s*"
+                              r"(?:\|\s*|\(\s*)([\d,]+(?:\.\d+)?)\s*(?:배|[xX])?\s*[|)]", t))
     if mm:
-        # 참고용(조정 실적 등) 배수가 뒤에 붙는 서식이 있어 가장 자주 나온 값을 씁니다(같으면 마지막).
+        # 참고용(조정 실적·연환산 등) 배수가 뒤에 붙는 서식이 있어 가장 자주 나온 값을 씁니다(같으면 앞의 것).
         vals = []
         for x in mm:
             try:
@@ -519,7 +523,7 @@ def extract_valuation(text: str) -> dict:
             for v, _ in vals:
                 freq[v] = freq.get(v, 0) + 1
             top = max(freq.values())
-            v, x = [vx for vx in vals if freq[vx[0]] == top][-1]
+            v, x = [vx for vx in vals if freq[vx[0]] == top][0]
             out["multiple"] = round(v, 2)
             out["method"] = out["method"] or _method_norm(x.group(1))
             ev.append(re.sub(r"\s+", " ", x.group(0))[:80])
@@ -528,7 +532,7 @@ def extract_valuation(text: str) -> dict:
         best = max(cnt, key=cnt.get)
         if cnt[best] >= 3:
             out["method"] = best
-    vv = list(re.finditer(r"주당\s*평가\s*가액\s*\|\s*(?:\(?[A-Z]\)?\s*=?[^|]{0,30}\|\s*)?([\d,]{3,})\s*원", t))
+    vv = list(re.finditer(r"주당\s*평가\s*가액\s*(?:\([^)|]{0,20}\))?\s*\|\s*(?:\(?[A-Z]\)?\s*=?[^|]{0,30}\|\s*)?([\d,]{3,})\s*(?:원\s*)?(?=\||$)", t))
     if vv:
         out["value"] = int(vv[-1].group(1).replace(",", ""))
         ev.append(re.sub(r"\s+", " ", vv[-1].group(0))[:80])

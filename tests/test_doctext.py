@@ -26,3 +26,22 @@ class RowValuesTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ValuationTest(unittest.TestCase):
+    def test_per_table(self):
+        t = ("[PER에 의한 ㈜가나의 평가가치] | 구분 | 내용 | 적용 PER | (D) | 11.55배 | - | 주당 평가가액 | 4,470원 | - |\n"
+             "주당 평가가액을 기초로 하여 31.00% ~ 20.00%의 할인율을 적용하여")
+        v = doctext.extract_valuation(t)
+        self.assertEqual((v["method"], v["multiple"], v["value"], v["disc_low"], v["disc_high"]), ("PER", 11.55, 4470, 20.0, 31.0))
+
+    def test_ev_ebitda_mode(self):
+        t = ("적용 EV/EBITDA 거래배수 | 51.4 | 자료 |\n적용 EV/EBITDA 거래배수 | 51.4 | 자료 |\n"
+             "[참고] 적용 EV/EBITDA 거래배수 | 82.5 | 자료 |\n주당 평가가액 | (G) = (A) / (F) | 479,514원 |")
+        v = doctext.extract_valuation(t)
+        self.assertEqual((v["method"], v["multiple"], v["value"]), ("EV/EBITDA", 51.4, 479514))
+
+    def test_future_earnings(self):
+        t = ("2027년 추정 순이익 | 11,972백만원 | 연할인율 | 20.0% | B |\n적용 PER(배) | 평균 | 27.49 | 주1)")
+        v = doctext.extract_valuation(t)
+        self.assertEqual((v["basis"], v["pv_rate"], v["multiple"]), ("2027년 추정 순이익", 20.0, 27.49))

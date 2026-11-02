@@ -1467,7 +1467,7 @@
     var posTot = {}; POS.forEach(function (p) { posTot[p] = pc.reduce(function (a, o) { return a + o[p]; }, 0); });
     var legend3 = '<div class="legend">' + POS.map(function (p) { return '<span><i style="background:var(--pos-' + POS_KEY[p] + ')"></i>' + p + " " + posTot[p] + "</span>"; }).join("") + "</div>";
 
-    var techPanel = "", leaguePanel = "", sectorPanel = "";
+    var techPanel = "", leaguePanel = "", sectorPanel = "", valPanel = "";
     if (!statFast) (function () {   // 기술특례·주관사 표는 제스처가 끝난 뒤에만 다시 계산
     // ---- 4) 기술특례 분석
     var tech = deals.filter(function (d) { return d.board === "KOSDAQ_TECH" && !isSpac(d); });
@@ -1521,6 +1521,33 @@
       '<div class="pbody">' + (skeys.length ? '<div class="scroll"><table class="mini sect"><thead><tr><th>업종</th><th class="num">건수</th><th class="bar-cell"><span class="sr">막대</span></th><th class="num">공모액(억)</th><th class="num">수요예측</th><th class="num">확약비율</th><th class="num">상단 이상</th></tr></thead><tbody>' + sectorRows + "</tbody></table></div>"
         : '<div class="empty">선택한 조건에 상장 건이 없습니다.</div>') + "</div></section>";
 
+    // ---- 4-3) 공모가 산정 근거(밸류에이션)
+    var vds = deals.filter(function (d) { return !isSpac(d) && d.val && (d.val.disc_low != null || d.val.value); });
+    var nAll = deals.filter(function (d) { return !isSpac(d); }).length;
+    var avg = function (xs) { xs = xs.filter(function (v) { return v != null; }); return xs.length ? xs.reduce(function (a, b) { return a + b; }, 0) / xs.length : null; };
+    var f1 = function (v, u) { return v == null ? "-" : v.toLocaleString("ko-KR", { maximumFractionDigits: 1, minimumFractionDigits: 1 }) + (u || ""); };
+    var valRow = function (label, ds, showMul) {
+      var lo = avg(ds.map(function (d) { return d.val.disc_low; })), hi = avg(ds.map(function (d) { return d.val.disc_high; }));
+      var fd = median(ds.map(function (d) { return d.val.final_disc; })), mu = median(ds.map(function (d) { return d.val.multiple; }));
+      return "<tr><td>" + label + '</td><td class="num">' + ds.length + '</td><td class="num">' + (lo != null ? f1(lo) + "~" + f1(hi, "%") : "-") +
+        '</td><td class="num">' + (fd == null ? "-" : fd < 0 ? "할증 " + f1(-fd, "%") : f1(fd, "%")) + '</td><td class="num">' + (showMul && mu != null ? f1(mu, "배") : "-") + "</td></tr>";
+    };
+    var VM = ["PER", "EV/EBITDA", "PSR"];
+    var mRows = VM.map(function (m) { return [m, vds.filter(function (d) { return d.val.method === m; })]; })
+      .concat([["기타", vds.filter(function (d) { return VM.indexOf(d.val.method) < 0; })]])
+      .filter(function (r) { return r[1].length; }).map(function (r) { return valRow(esc(r[0]), r[1], r[0] !== "기타"); }).join("");
+    var tRows = [["코스닥 기술특례", vds.filter(function (d) { return d.board === "KOSDAQ_TECH"; })], ["코스닥 일반", vds.filter(function (d) { return d.board === "KOSDAQ"; })], ["유가증권", vds.filter(function (d) { return d.board === "KOSPI"; })]]
+      .filter(function (r) { return r[1].length; }).map(function (r) { return valRow(esc(r[0]), r[1], false); }).join("");
+    var per = vds.filter(function (d) { return d.val.method === "PER" && d.sector; }), ps = {};
+    per.forEach(function (d) { (ps[d.sector] = ps[d.sector] || []).push(d); });
+    var sRows = Object.keys(ps).filter(function (k) { return ps[k].length >= 3; }).sort(function (a, b) { return ps[b].length - ps[a].length; })
+      .map(function (k) { return valRow(esc(k), ps[k], true); }).join("");
+    var vHead = '<thead><tr><th>구분</th><th class="num">건수</th><th class="num">밴드 할인율(평균)</th><th class="num">확정가 할인율</th><th class="num">적용 배수</th></tr></thead>';
+    valPanel = '<section class="panel valp"><header><div><h2>공모가 산정 근거</h2><p>' + periodText + " 상장 기준(스팩 제외). 증권신고서 &lsquo;공모가격에 대한 의견&rsquo;에서 읽은 " + vds.length + "건 / " + nAll + "건. 밴드 할인율은 주당 평가가액 대비 희망 밴드 상단~하단의 할인율 평균, 확정가 할인율·적용 배수는 중앙값입니다.</p></div></header>" +
+      '<div class="pbody">' + (vds.length ? '<div class="scroll"><table class="mini sect">' + vHead + "<tbody>" + mRows + '<tr class="gap"><td colspan="5"></td></tr>' + tRows + "</tbody></table></div>" +
+        (sRows ? '<h3 class="minih">업종별 PER 적용 (3건 이상)</h3><div class="scroll"><table class="mini sect">' + vHead + "<tbody>" + sRows + "</tbody></table></div>" : "")
+        : '<div class="empty">선택한 조건에 산정 근거를 읽은 상장 건이 없습니다.</div>') + "</div></section>";
+
     // ---- 5) 대표주관사 순위
     var lg = {};
     deals.forEach(function (d) {
@@ -1558,7 +1585,7 @@
       '<div class="pbody chart zoomable">' + legend2 + svg2 + "</div></section>" +
       '<section class="panel"><header><div><h2>밴드 대비 확정가 위치</h2><p>' + unitWord + " 상장 건의 비중. 단일 희망가(스팩 등)는 제외. 위로 갈수록 높은 가격입니다.</p></div></header>" +
       '<div class="pbody chart zoomable">' + legend3 + svg3 + "</div></section></div>" +
-      (statFast ? '<div class="keep"></div>' : '<div class="stack"><div class="panels even">' + techPanel + leaguePanel + "</div>" + sectorPanel + "</div>") + "</div>");
+      (statFast ? '<div class="keep"></div>' : '<div class="stack"><div class="panels even">' + techPanel + leaguePanel + "</div>" + '<div class="panels even">' + sectorPanel + valPanel + "</div></div>") + "</div>");
     bindStats();
     bindChart();
   }
@@ -1882,11 +1909,7 @@
     if (!s) return '<span class="dim">-</span>';
     return s.split(/\s*,\s*/).map(function (x) { return x.indexOf(FOCUS_NAME) >= 0 ? '<b class="focus-t">' + esc(x) + "</b>" : esc(x); }).join(", ");
   }
-  function median(xs) {
-    if (!xs.length) return null;
-    var s = xs.slice().sort(function (a, b) { return a - b; }), h = s.length >> 1;
-    return s.length % 2 ? s[h] : Math.round((s[h - 1] + s[h]) / 2);
-  }
+  function medInt(xs) { var m = median(xs); return m == null ? null : Math.round(m); }
   function renderCal() {
     document.title = "일정 · IPO 데이터룸";
     view = "cal";
@@ -1958,7 +1981,7 @@
     var appr1 = decided.filter(function (r) { return r.d >= y1 && rvIpo(r) && rvKind(r) === "approved"; });
     var dec1 = decided.filter(function (r) { return r.d >= y1 && rvIpo(r); });
     var durs1 = appr1.map(function (r) { return daysBetween(r.f, r.d); });
-    var medDur = median(durs1);
+    var medDur = medInt(durs1);
     var pendAll = RV.filter(function (r) { return rvKind(r) === "pending"; });
     var pend = pendAll.filter(function (r) { return daysBetween(r.f, today) <= 365; }).sort(function (a, b) { return a.f < b.f ? -1 : 1; });
     var stale = pendAll.length - pend.length;
@@ -1999,7 +2022,7 @@
     var spHtml = spRows.map(function (o) {
       var foc = o.s.indexOf(FOCUS_NAME) >= 0;
       return "<tr" + (foc ? ' class="focus"' : "") + "><td>" + esc(o.s) + '</td><td class="num">' + o.n + '</td><td class="num">' + o.ok + '</td><td class="num">' + (o.wd || '<span class="dim">0</span>') + '</td><td class="num">' + (o.rej || '<span class="dim">0</span>') +
-        '</td><td class="num"><b>' + Math.round(o.ok / o.n * 100) + '%</b></td><td class="num">' + (o.durs.length ? median(o.durs) + "일" : "-") + "</td></tr>";
+        '</td><td class="num"><b>' + Math.round(o.ok / o.n * 100) + '%</b></td><td class="num">' + (o.durs.length ? medInt(o.durs) + "일" : "-") + "</td></tr>";
     }).join("");
     var spPanel = '<section class="panel"><header><div><h2>주관사별 예심 실적</h2><p>KIND 수록 결과(' + (minF ? esc(minF.slice(0, 7).replace("-", ".")) : "-") + " 이후) 중 신규상장 청구, 스팩 제외. 공동 주관은 각각 1건. 승인률 = 승인 ÷ (승인 + 철회 + 미승인). 전체 " + allN + "건 중 승인 " + allOk + "건(" + (allN ? Math.round(allOk / allN * 100) : 0) + "%).</p></div></header>" +
       '<div class="pbody"><div class="scroll"><table class="mini rv"><thead><tr><th>주관사</th><th class="num">결과</th><th class="num">승인</th><th class="num">철회</th><th class="num">미승인</th><th class="num">승인률</th><th class="num">심사기간</th></tr></thead><tbody>' + spHtml + "</tbody></table></div>" +
@@ -2013,9 +2036,9 @@
       o.n++; if (rvKind(r) === "approved") { o.ok++; o.durs.push(daysBetween(r.f, r.d)); }
     });
     var qList = Object.keys(qs).sort().map(function (k) { return qs[k]; });
-    var qMax = Math.max.apply(null, qList.map(function (o) { return median(o.durs) || 0; }).concat([1]));
+    var qMax = Math.max.apply(null, qList.map(function (o) { return medInt(o.durs) || 0; }).concat([1]));
     var qHtml = qList.map(function (o) {
-      var m = median(o.durs);
+      var m = medInt(o.durs);
       return "<tr><td>" + esc(o.q) + '</td><td class="num">' + o.n + '</td><td class="num">' + Math.round(o.ok / o.n * 100) + '%</td><td class="num">' + (m != null ? m + "일" : "-") +
         '</td><td class="bar-cell"><div class="hbar" style="width:' + (m ? Math.round(m / qMax * 100) : 0) + '%"></div></td></tr>';
     }).join("");
