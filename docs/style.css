@@ -954,3 +954,58 @@ table.deals tbody tr { content-visibility: auto; contain-intrinsic-size: auto 46
 header.top nav.tabs .ind { background: var(--accent); box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--accent) 65%, transparent); }
 header.top nav.tabs .tab { transition: color .25s; }
 header.top nav.tabs .tab[aria-current="true"] { color: var(--accent-ink); font-weight: 600; }
+
+/* 제목 옆 업데이트 기준일 */
+header.top .brand { flex-direction: row; align-items: baseline; gap: 8px; min-width: 0; }
+header.top .brand .upd { font-size: 12px; color: var(--faint); font-family: var(--f-mono); white-space: nowrap; }
+@media (max-width: 760px) { header.top .brand .upd { font-size: 11.5px; } }
+
+/* 일정 행(접어 쓰기): 날짜 | 종류·회사·배지 / 주관사·가격 */
+.ev, .cdl .ev { display: grid; grid-template-columns: 62px minmax(0, 1fr); grid-template-areas: "d m" "d u"; gap: 3px 10px; align-items: start; padding: 9px 8px; }
+.ev .ed { grid-area: d; font-size: 12px; line-height: 1.35; padding-top: 2px; white-space: normal; }
+.ev .em { grid-area: m; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-width: 0; }
+.ev .em .nm { font-weight: 600; white-space: normal; overflow-wrap: anywhere; }
+.ev .em .ek { font-size: 11.5px; font-weight: 600; padding: 2px 7px; border-radius: 6px; white-space: nowrap; }
+.ev .eu { grid-area: u; font-size: 12px; color: var(--muted); white-space: normal; overflow: visible; }
+@media (max-width: 760px) { .ev, .cdl .ev { grid-template-columns: 54px minmax(0, 1fr); padding: 9px 2px; } .cal .pbody { max-height: none; } }
+
+/* 공모 달력 */
+.calm .cnav { display: flex; align-items: center; gap: 6px; }
+.calm .cnav b { font-size: 15px; min-width: 64px; text-align: center; }
+.calm .cnav .xbtn { width: 32px; height: 32px; border-radius: 999px; border: 1px solid var(--edge); background: var(--surface); display: grid; place-items: center; cursor: pointer; }
+.calm .cnav .xbtn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.cal-lg i { border-radius: 999px; }
+.cal-lg i.k-0, .cdots i.k-0, .cgrid .ce.k-0 b { background: var(--info); }
+.cal-lg i.k-1, .cdots i.k-1, .cgrid .ce.k-1 b { background: var(--eosin); }
+.cal-lg i.k-2, .cdots i.k-2, .cgrid .ce.k-2 b { background: var(--neutral); }
+.cal-lg i.k-3, .cdots i.k-3, .cgrid .ce.k-3 b { background: var(--good); }
+.cgrid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.cgrid .cw { text-align: center; font-size: 11.5px; color: var(--muted); padding: 2px 0 4px; }
+.cgrid .sun, .cgrid .sun .dn { color: var(--bad); }
+.cgrid .sat, .cgrid .sat .dn { color: var(--info); }
+.cd { position: relative; min-width: 0; min-height: 92px; padding: 6px 5px; border: 1px solid var(--line2); border-radius: 10px; background: var(--surface); text-align: left; display: flex; flex-direction: column; gap: 3px; cursor: pointer; font: inherit; color: var(--ink); }
+.cd.out { opacity: .4; }
+.cd .dn { font-family: var(--f-mono); font-size: 12.5px; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 999px; }
+.cd.today .dn { background: var(--accent); color: var(--accent-ink) !important; font-weight: 600; }
+.cd.sel { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.cd.has { background: color-mix(in srgb, var(--accent-soft) 35%, var(--surface)); }
+.cchips { display: grid; gap: 2px; min-width: 0; }
+.ce { display: flex; align-items: center; gap: 4px; font-style: normal; font-size: 11px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ce b { flex: none; width: 15px; height: 15px; border-radius: 4px; color: #fff; font-size: 9.5px; display: grid; place-items: center; font-weight: 600; }
+.cchips .more { font-style: normal; font-size: 10.5px; color: var(--muted); }
+.cdots { display: none; }
+.cday { margin: 6px 0 0; font-size: 14px; }
+.cday .dim { font-weight: 400; font-size: 12.5px; }
+.cdl .ev + .ev { border-top: 1px solid var(--line2); border-radius: 0; }
+@media (max-width: 760px) {
+  .cgrid { gap: 3px; }
+  .cd { min-height: 50px; padding: 4px 0 5px; align-items: center; border-radius: 9px; }
+  .cchips { display: none; }
+  .cdots { display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; max-width: 100%; }
+  .cdots i { width: 6px; height: 6px; border-radius: 999px; }
+  .cdots em { font-style: normal; font-size: 9px; line-height: 6px; color: var(--muted); }
+  .calm .cnav b { min-width: 56px; }
+  .calm > header { gap: 8px; }
+}
+.ce { color: var(--ink); background: none; }
+.cd.out .ce { color: var(--muted); }
