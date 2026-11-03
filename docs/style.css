@@ -1204,3 +1204,9 @@ header.top nav.tabs, #app .srow .search {
   -webkit-backdrop-filter: blur(6px) saturate(1.8); backdrop-filter: blur(6px) saturate(1.8);
   border: 1px solid var(--gl-bd); box-shadow: inset 0 1px 0 var(--gl-spec), inset 0 -1px 0 rgba(255, 255, 255, .25), var(--gl-sh); }
 #app .srow .search:focus { border-color: var(--accent); box-shadow: inset 0 1px 0 var(--gl-spec), 0 0 0 3px var(--accent-soft), var(--gl-sh); }
+
+/* 공모 달력 아래 목록: 수요예측·청약 며칠차(D1 색 알약, 마지막 날은 빨강 "마감") */
+.cdl .dnth { font-style: normal; font-family: var(--f-body); font-size: 11px; font-weight: 700; color: #fff; background: var(--c); border-radius: 999px; padding: 1px 7px; margin-right: 6px; }
+.cdl .dnth.last { background: var(--bad); }
+:root[data-theme="dark"] .cdl .dnth { color: #0B1520; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .cdl .dnth { color: #0B1520; } }

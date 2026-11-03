@@ -2064,6 +2064,7 @@
   function dayEvents() {
     var m = {};
     calEvents().forEach(function (e) {
+      if (e.k === "납입") return;          // 공모 달력에서는 납입을 보여주지 않습니다
       var t = e.a, guard = 0;
       while (t <= e.b && guard++ < 40) {
         var w = dOf(t).getDay();
@@ -2085,20 +2086,31 @@
     return [p, d.offer_amount ? eok(d.offer_amount) + "억" : ""].filter(Boolean).join(" · ");
   }
   // 그날 일정: 종류별(수요예측·청약·상장·납입)로 묶은 목록
-  function dayList(evs) {
+  // 수요예측·청약이 그날 며칠째인지(주말 제외 영업일 기준) [n, 전체 일수]
+  function dayNth(e, day) {
+    var n = 0, tot = 0, t = e.a, g = 0;
+    while (t <= e.b && g++ < 40) { var w = dOf(t).getDay(); if (w !== 0 && w !== 6) { tot++; if (t <= day) n++; } t = addDays(t, 1); }
+    return tot > 1 ? [n, tot] : null;
+  }
+  function dayNthHtml(e, day) {
+    if (e.k !== "수요예측" && e.k !== "청약") return "";
+    var x = dayNth(e, day);
+    return x ? '<em class="dnth' + (x[0] === x[1] ? " last" : "") + '" data-n="' + x[0] + '" data-t="' + x[1] + '">' + x[0] + "일차" + (x[0] === x[1] ? " · 마감" : "") + "</em>" : "";
+  }
+  function dayList(evs, day) {
     if (!evs.length) return '<div class="empty">이날 확인된 공모 일정이 없습니다.</div>';
-    return ["수요예측", "청약", "상장", "납입"].map(function (k) {
+    return ["상장", "청약", "수요예측"].map(function (k) {
       var xs = evs.filter(function (e) { return e.k === k; });
       if (!xs.length) return "";
       return '<div class="dg g-' + EV_ORDER[k] + '"><h4>' + k + " · " + xs.length + "건</h4>" + xs.map(function (e) {
         var d = e.d;
         return '<a class="it' + (focusRole(d) ? " focus" : "") + '" href="#/deal/' + encodeURIComponent(d.deal_id) + '"><span class="nm">' + esc(name(d)) + "</span>" +
           boardTag(d) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + focusTag(d) +
-          '<span class="r mono">' + esc(rngT(e.a, e.b)) + (e.q ? ' <em class="lq">' + e.q + "</em>" : "") + '</span><span class="u">' + esc(uwShortStr(d.lead_underwriters) || "주관사 미확인") + (pxText(d) ? " · " + '<span class="mono">' + pxText(d) + "</span>" : "") + "</span></a>";
+          '<span class="r mono">' + dayNthHtml(e, day) + esc(rngT(e.a, e.b)) + (e.q ? ' <em class="lq">' + e.q + "</em>" : "") + '</span><span class="u">' + esc(uwShortStr(d.lead_underwriters) || "주관사 미확인") + (pxText(d) ? " · " + '<span class="mono">' + pxText(d) + "</span>" : "") + "</span></a>";
       }).join("") + "</div>";
     }).join("");
   }
-  // 공모 달력(S5): 칸에는 시작일만 개수 배지(수요예측 시작·청약 시작·상장), 누른 날은 진행 중인 일정까지 종류별로
+  // 공모 달력(S5): 점은 그날 진행 중인 일정 종류, 누른 날은 상장 → 청약 → 수요예측 순으로(납입 제외)
   function monthPanel(today) {
     if (!calMonth) calMonth = today.slice(0, 7);
     if (!calDay) calDay = today;
@@ -2122,7 +2134,7 @@
       '<b class="mono">' + y + "." + ("0" + mo).slice(-2) + '</b><button type="button" class="xbtn" data-mon="1" aria-label="다음 달"><svg viewBox="0 0 16 16"><path d="M6 3l5 5-5 5"/></svg></button>' +
       '<button type="button" class="linkbtn" data-mon="0">오늘</button></div></header>' +
       '<div class="pbody"><div class="legend cal-lg">' + ["수요예측", "청약", "상장"].map(function (k) { return '<span><i class="k-' + EV_ORDER[k] + '"></i>' + k + "</span>"; }).join("") + '</div><div class="cgrid">' + ["일", "월", "화", "수", "목", "금", "토"].map(function (x, i) { return '<span class="cw' + (i === 0 ? " sun" : i === 6 ? " sat" : "") + '">' + x + "</span>"; }).join("") + cells + "</div>" +
-      '<h3 class="cday">' + esc(mdw(calDay)) + ' <span class="dim">' + sel.length + "건</span></h3>" + '<div class="cdl">' + dayList(sel) + "</div></div></section>";
+      '<h3 class="cday">' + esc(mdw(calDay)) + ' <span class="dim">' + sel.length + "건</span></h3>" + '<div class="cdl">' + dayList(sel, calDay) + "</div></div></section>";
   }
   // 딜별 일정표(S1): 회사마다 수요예측·청약·상장 날짜를 나란히, 진행 중인 단계는 강조색
   function dealTable(today) {
