@@ -1195,12 +1195,12 @@ header.top { position: sticky; top: calc(env(safe-area-inset-top, 0px) - var(--n
 header.top nav.tabs, .search { background-image: none; background-color: var(--solid); }
 
 /* 리퀴드 글래스 G2: 탭 바·검색창 주변 배경 띠를 없애고, 탭 바와 검색창만 맑은 유리로 떠 있게 */
-:root { --gl-bg: rgba(255, 255, 255, .28); --gl-bd: rgba(255, 255, 255, .75); --gl-spec: rgba(255, 255, 255, 1); --gl-tint: linear-gradient(180deg, rgba(255, 255, 255, .55), rgba(255, 255, 255, .08) 60%); --gl-sh: 0 10px 28px -12px rgba(11, 40, 80, .35); }
-:root[data-theme="dark"] { --gl-bg: rgba(20, 32, 48, .38); --gl-bd: rgba(255, 255, 255, .12); --gl-spec: rgba(255, 255, 255, .18); --gl-tint: linear-gradient(180deg, rgba(255, 255, 255, .10), transparent 60%); --gl-sh: 0 10px 28px -12px rgba(0, 0, 0, .7); }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --gl-bg: rgba(20, 32, 48, .38); --gl-bd: rgba(255, 255, 255, .12); --gl-spec: rgba(255, 255, 255, .18); --gl-tint: linear-gradient(180deg, rgba(255, 255, 255, .10), transparent 60%); --gl-sh: 0 10px 28px -12px rgba(0, 0, 0, .7); } }
+:root { --gl-bg: rgba(255, 255, 255, .10); --gl-bd: rgba(255, 255, 255, .75); --gl-spec: rgba(255, 255, 255, 1); --gl-tint: linear-gradient(180deg, rgba(255, 255, 255, .30), rgba(255, 255, 255, 0) 60%); --gl-sh: 0 10px 28px -12px rgba(11, 40, 80, .35); }
+:root[data-theme="dark"] { --gl-bg: rgba(20, 32, 48, .18); --gl-bd: rgba(255, 255, 255, .12); --gl-spec: rgba(255, 255, 255, .18); --gl-tint: linear-gradient(180deg, rgba(255, 255, 255, .10), transparent 60%); --gl-sh: 0 10px 28px -12px rgba(0, 0, 0, .7); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --gl-bg: rgba(20, 32, 48, .18); --gl-bd: rgba(255, 255, 255, .12); --gl-spec: rgba(255, 255, 255, .18); --gl-tint: linear-gradient(180deg, rgba(255, 255, 255, .10), transparent 60%); --gl-sh: 0 10px 28px -12px rgba(0, 0, 0, .7); } }
 header.top, #app .srow { background: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
 header.top nav.tabs, #app .srow .search {
   background-color: var(--gl-bg); background-image: var(--gl-tint);
-  -webkit-backdrop-filter: blur(10px) saturate(1.8); backdrop-filter: blur(10px) saturate(1.8);
+  -webkit-backdrop-filter: blur(6px) saturate(1.8); backdrop-filter: blur(6px) saturate(1.8);
   border: 1px solid var(--gl-bd); box-shadow: inset 0 1px 0 var(--gl-spec), inset 0 -1px 0 rgba(255, 255, 255, .25), var(--gl-sh); }
 #app .srow .search:focus { border-color: var(--accent); box-shadow: inset 0 1px 0 var(--gl-spec), 0 0 0 3px var(--accent-soft), var(--gl-sh); }
