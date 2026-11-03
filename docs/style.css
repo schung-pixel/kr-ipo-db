@@ -1163,6 +1163,11 @@ header.top { position: sticky; top: calc(env(safe-area-inset-top, 0px) - var(--n
   content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 9px; pointer-events: none; opacity: var(--tho, 0); transition: opacity .2s;
   background: linear-gradient(var(--th-sh, rgba(11, 40, 80, .20)), transparent); }
 .is-scrolled { --tho: 1; }
+/* E1: 칸마다 끊기던 그림자를 첫 칸 하나로 표 너비만큼 잇고, 양 끝 40px에서 서서히 사라지게 */
+.cal-page .panel .pbody .scroll thead th:not(:first-child)::after, .cal .pbody thead th:not(:first-child)::after, .feed .pbody thead th:not(:first-child)::after, .bio-box thead th:not(:first-child)::after, .bio-boxw > .scroll thead th:not(:first-child)::after { display: none; }
+.cal-page .panel .pbody .scroll thead th:first-child::after, .cal .pbody thead th:first-child::after, .feed .pbody thead th:first-child::after, .bio-box thead th:first-child::after, .bio-boxw > .scroll thead th:first-child::after {
+  right: auto; width: var(--tw, 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent); }
 :root[data-theme="dark"] { --th-sh: rgba(0, 0, 0, .5); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --th-sh: rgba(0, 0, 0, .5); } }
 

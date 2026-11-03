@@ -2869,7 +2869,11 @@
   // 목록 상자 안을 내리면 머리행 아래 그림자(L3)
   document.addEventListener("scroll", function (e) {
     var el = e.target;
-    if (el && el.classList && el.querySelector && el.querySelector(":scope > table > thead")) el.classList.toggle("is-scrolled", el.scrollTop > 2);
+    var tb = el && el.querySelector && el.querySelector(":scope > table");
+    if (!tb || !tb.tHead) return;
+    var on = el.scrollTop > 2;
+    if (on) el.style.setProperty("--tw", tb.offsetWidth + "px");
+    el.classList.toggle("is-scrolled", on);
   }, true);
   var lastSY = window.scrollY || 0, stTick = false;
   function setNavUp(on) { if (ROOT.classList.contains("nav-up") !== on) ROOT.classList.toggle("nav-up", on); }
