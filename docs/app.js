@@ -222,12 +222,97 @@
     }
     return -1;
   }
+  // 비슷한 이름 찾기: 한글을 자음·모음으로 풀고(ㅐ=ㅔ, ㅒ=ㅖ, ㅙ=ㅞ=ㅚ), 자주 섞이는 영문 표기(LG=엘지 등)를
+  // 맞춘 뒤, 검색어와 이름의 일부 구간이 자음·모음 1~2개 차이 안에 들면 비슷한 이름으로 봅니다.
+  var JUNG = ["ㅏ", "ㅐ", "ㅑ", "ㅒ", "ㅓ", "ㅔ", "ㅕ", "ㅖ", "ㅗ", "ㅘ", "ㅙ", "ㅚ", "ㅛ", "ㅜ", "ㅝ", "ㅞ", "ㅟ", "ㅠ", "ㅡ", "ㅢ", "ㅣ"];
+  var JONG = ["", "ㄱ", "ㄲ", "ㄳ", "ㄴ", "ㄵ", "ㄶ", "ㄷ", "ㄹ", "ㄺ", "ㄻ", "ㄼ", "ㄽ", "ㄾ", "ㄿ", "ㅀ", "ㅁ", "ㅂ", "ㅄ", "ㅅ", "ㅆ", "ㅇ", "ㅈ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ"];
+  var VOWEL_EQ = { "ㅐ": "ㅔ", "ㅒ": "ㅖ", "ㅙ": "ㅚ", "ㅞ": "ㅚ" };
+  var LATIN_KO = [["에이치디", "hd"], ["엘지", "lg"], ["에스케이", "sk"], ["케이비", "kb"], ["엔에이치", "nh"], ["씨제이", "cj"], ["지에스", "gs"],
+    ["케이티", "kt"], ["디비", "db"], ["아이비케이", "ibk"], ["비엔케이", "bnk"], ["에이아이", "ai"], ["아이엠", "im"], ["케이", "k"]];
+  function latinize(t) {
+    t = t.toLowerCase().replace(/\(주\)|㈜|주식회사|\s+/g, "");
+    LATIN_KO.forEach(function (p) { t = t.split(p[0]).join(p[1]); });
+    return t;
+  }
+  // 글자(음절) 단위로 쪼개고, 한글 음절은 자음·모음 배열로 둡니다(모음은 ㅐ=ㅔ 등으로 맞춤).
+  function units(t) {
+    var out = [];
+    for (var i = 0; i < t.length; i++) {
+      var c = t.charCodeAt(i) - 0xac00;
+      if (c >= 0 && c < 11172) {
+        var j = JUNG[Math.floor((c % 588) / 28)], jo = JONG[c % 28];
+        out.push(jo ? [CHO[Math.floor(c / 588)], VOWEL_EQ[j] || j, jo] : [CHO[Math.floor(c / 588)], VOWEL_EQ[j] || j]);
+      } else out.push([VOWEL_EQ[t[i]] || t[i]]);
+    }
+    return out;
+  }
+  var UNIT_CACHE = {};
+  function unitsOf(t) { return UNIT_CACHE[t] || (UNIT_CACHE[t] = units(latinize(t))); }
+  function jdist(x, y) {        // 음절 하나의 자음·모음 편집 거리(최대 3칸)
+    if (x.length === y.length && x.join("") === y.join("")) return 0;
+    var p = [], i, j;
+    for (j = 0; j <= y.length; j++) p[j] = j;
+    for (i = 1; i <= x.length; i++) {
+      var c = [i];
+      for (j = 1; j <= y.length; j++) c[j] = Math.min(p[j] + 1, c[j - 1] + 1, p[j - 1] + (x[i - 1] === y[j - 1] ? 0 : 1));
+      p = c;
+    }
+    return p[y.length];
+  }
+  // 검색어와 같은 글자 수의 이름 구간을 하나씩 대 보며, 자음·모음 차이 합과 틀린 글자 수가 기준 안인 구간 중 가장 가까운 것
+  function fzWin(a, b, lim) {
+    var m = b.length, best = null;
+    for (var s0 = 0; s0 + m <= a.length; s0++) {
+      var tot = 0, diff = [];
+      for (var k = 0; k < m && tot <= lim; k++) {
+        var d = jdist(a[s0 + k], b[k]);
+        if (d) { tot += d; diff.push(k); }
+      }
+      if (tot <= lim && diff.length <= lim && (!best || tot < best.tot)) { best = { s: s0, diff: diff, tot: tot }; if (!tot) break; }
+    }
+    return best;
+  }
+  function fuzzyHit(text, q, lim) { return !!fzWin(unitsOf(text), units(latinize(q)), lim); }
+  // 허용 기준: 검색어 길이(영문 약칭 변환 후 글자 수) 2~5글자는 자음·모음 1개, 6글자 이상은 2개까지.
+  // 한 글자, 초성 검색은 정확히 일치하는 것만 찾습니다.
+  function fuzzyLimit(q) {
+    var k = latinize(q.replace(/\s+/g, "")), syl = (k.match(/[가-힣]/g) || []).length;
+    if (/[ㄱ-ㅎ]/.test(k)) return 0;
+    if (k.length >= 6) return 2;
+    if (syl >= 2 || k.length >= 3) return 1;
+    return 0;
+  }
+  function fuzzyMatch(text, q) {
+    var lim = fuzzyLimit(q);
+    if (!lim || !text) return false;
+    return fuzzyHit(text, q, lim);
+  }
   function highlight(text, q) {
     var t = esc(text);
     var m = findMatch(text, q);
     if (m === -1) return t;
     return esc(text.slice(0, m.i)) + "<mark>" + esc(text.slice(m.i, m.i + m.n)) + "</mark>" + esc(text.slice(m.i + m.n));
+  }  // 비슷한 이름으로만 걸린 경우: 다른 글자에 점선 밑줄을 긋습니다(영문 약칭 변환으로 맞은 경우는 밑줄 없이).
+  function fuzzyMark(text, q) {
+    var idx = [], ch = [];
+    for (var i = 0; i < text.length; i++) if (!/\s/.test(text[i])) { idx.push(i); ch.push(text[i].toLowerCase()); }
+    var w = fzWin(units(ch.join("")), units(latinize(q)), fuzzyLimit(q));
+    if (!w) return esc(text);
+    var qc = latinize(q), on = {};
+    w.diff.forEach(function (k) { on[idx[w.s + k]] = 1; });
+    // ㅐ/ㅔ처럼 같은 소리로 본 글자도 실제 글자가 다르면 밑줄
+    for (var k = 0; k < qc.length && w.s + k < idx.length; k++) if (ch[w.s + k] !== qc[k]) on[idx[w.s + k]] = 1;
+    var out = "";
+    for (var j = 0; j < text.length; j++) out += on[j] ? "<u>" + esc(text[j]) + "</u>" : esc(text[j]);
+    return out;
   }
+  // 이름 표시: 정확히 맞으면 형광 표시, 비슷한 이름으로만 걸렸으면 점선 밑줄과 "비슷" 배지
+  function hlName(text, q) {
+    q = (q || "").trim();
+    if (!q || findMatch(text, q) !== -1 || !fuzzyMatch(text, q)) return highlight(text, q);
+    return fuzzyMark(text, q) + '<span class="fzb" title="검색어와 비슷한 이름">비슷</span>';
+  }
+
 
   var STATUS = {
     approved: { label: "예심 승인", tip: "상장예비심사 승인을 받았고 증권신고서는 아직 내지 않은 단계", icon: '<path d="M7 1.6l1.5 1.2 1.9-.2.6 1.8 1.6 1-.6 1.8.6 1.8-1.6 1-.6 1.8-1.9-.2L7 12.4l-1.5-1.2-1.9.2-.6-1.8-1.6-1 .6-1.8-.6-1.8 1.6-1 .6-1.8 1.9.2z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M4.8 7.1l1.5 1.5 2.9-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>' },
@@ -368,7 +453,7 @@
       if (secs.length && secs.indexOf(d.sector || "") < 0) return false;
       if (state.focus && !focusRole(d)) return false;
       if (state.focus === "lead" && focusRole(d) !== "대표") return false;
-      if (q && findMatch(name(d), q) === -1 && findMatch((d.lead_underwriters || "") + "," + uwSet(d).join(","), q) === -1) return false;
+      if (q && findMatch(name(d), q) === -1 && findMatch((d.lead_underwriters || "") + "," + uwSet(d).join(","), q) === -1 && !fuzzyMatch(name(d), q)) return false;
       return true;
     });
   }
@@ -734,7 +819,7 @@
       var href = "#/deal/" + encodeURIComponent(d.deal_id);
       html += '<tr data-id="' + esc(d.deal_id) + '">' +
         '<td class="c-date">' + (d.listing_dt ? esc(d.listing_dt) : d.demand_start && d.status !== "withdrawn" ? '<span class="dim">수요예측 </span>' + esc(demandText(d, true)) : '<span class="dim">' + (d.status === "approved" ? "승인 " : "신고 ") + esc(d.first_filing_dt) + "</span>") + "</td>" +
-        '<td class="c-name"><a class="nm" href="' + href + '">' + highlight(name(d), q) + "</a>" + tags + "</td>" +
+        '<td class="c-name"><a class="nm" href="' + href + '">' + hlName(name(d), q) + "</a>" + tags + "</td>" +
         '<td class="c-lead" title="' + esc(d.lead_underwriters || "") + '">' + (d.lead_underwriters ? highlight(d.lead_underwriters, q) : '<span class="dim">-</span>') + "</td>" +
         '<td class="c-status">' + chip(d) + "</td>" +
         '<td class="c-band n">' + bandCell + "</td>" +
@@ -749,7 +834,7 @@
         : '<span class="lbl">밴드</span><span class="b">' + bandCell + "</span>";
       var hasRatio = d.inst_demand_ratio != null || d.retail_ratio != null;
       cards += '<a class="card" href="' + href + '" data-id="' + esc(d.deal_id) + '">' +
-        '<div class="r1"><span class="nmw"><span class="nm">' + highlight(name(d), q) + '</span>' + (tags ? '<span class="tags">' + tags + "</span>" : "") + "</span>" + chip(d) + "</div>" +
+        '<div class="r1"><span class="nmw"><span class="nm">' + hlName(name(d), q) + '</span>' + (tags ? '<span class="tags">' + tags + "</span>" : "") + "</span>" + chip(d) + "</div>" +
         '<div class="r2">' + (d.listing_dt ? '상장 <span class="mono">' + esc(d.listing_dt) + "</span>" : d.demand_start && d.status !== "withdrawn" ? '수요예측 <span class="mono">' + esc(demandText(d, true)) + "</span>" : (d.status === "approved" ? "예심 승인 " : "신고 ") + '<span class="mono">' + esc(d.first_filing_dt) + "</span>") + " · " + (d.lead_underwriters ? highlight(d.lead_underwriters, q) : "주관사 미확인") + "</div>" +
         '<div class="r3"><span class="price">' + price + "</span>" + (!hasRatio && d.offer_amount != null ? '<span class="amt r3a">공모액<b>' + eok(d.offer_amount) + "억</b></span>" : "") + "</div>" +
         (hasRatio
@@ -2092,13 +2177,18 @@
   function gsearchHits(q) {
     q = q.trim().toLowerCase();
     if (!q) return [];
-    var xs = data.deals.filter(function (d) {
-      if (!candOk(d, "ipo")) return false;
-      return findMatch(name(d), q) !== -1 || findMatch((d.lead_underwriters || "") + "," + uwSet(d).join(","), q) !== -1;
+    var ex = [], fz = [];
+    data.deals.forEach(function (d) {
+      if (!candOk(d, "ipo")) return;
+      if (findMatch(name(d), q) !== -1 || findMatch((d.lead_underwriters || "") + "," + uwSet(d).join(","), q) !== -1) ex.push(d);
+      else if (fuzzyMatch(name(d), q)) fz.push(d);
     });
-    var f = SORTERS.date;
-    xs.sort(function (a, b) { var x = f(a) || "", y = f(b) || ""; return x < y ? 1 : x > y ? -1 : 0; });
-    return xs;
+    var f = SORTERS.date, by = function (a, b) { var x = f(a) || "", y = f(b) || ""; return x < y ? 1 : x > y ? -1 : 0; };
+    ex.sort(by); fz.sort(by);
+    // 정확히 맞는 것을 먼저 6건까지, 비슷한 이름은 그 뒤에 최대 3건
+    var shown = ex.slice(0, 6).concat(fz.slice(0, Math.max(3, 6 - Math.min(ex.length, 6))));
+    shown.total = ex.length + fz.length;
+    return shown;
   }
   function gsearchWhen(d) {
     var l = lstOf(d);
@@ -2113,12 +2203,12 @@
       var q = qi.value, hits = gsearchHits(q);
       qc.hidden = !q;
       if (!q.trim()) { dd.hidden = true; qi.setAttribute("aria-expanded", "false"); return; }
-      dd.innerHTML = (hits.length ? '<div class="gdh">기업 ' + hits.length + "</div>" + hits.slice(0, 6).map(function (d) {
-        return '<a class="gri" href="#/deal/' + encodeURIComponent(d.deal_id) + '"><span class="nm">' + highlight(name(d), q.trim()) + "</span>" + boardTag(d) +
+      dd.innerHTML = (hits.length ? '<div class="gdh">기업 ' + hits.total + "</div>" + hits.map(function (d) {
+        return '<a class="gri" href="#/deal/' + encodeURIComponent(d.deal_id) + '"><span class="nm">' + hlName(name(d), q.trim()) + "</span>" + boardTag(d) +
           (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + focusTag(d) + '<span class="gst">' + esc(statusLabel(d)) + "</span>" +
           '<span class="u">' + esc(gsearchWhen(d)) + " · " + esc(d.lead_underwriters || "주관사 미확인") + "</span></a>";
       }).join("") : '<div class="gdh">"' + esc(q.trim()) + '"에 맞는 공모가 없습니다.</div>') +
-        (hits.length > 0 ? '<button type="button" class="gall" id="g-all">목록에서 전체 결과 보기' + (hits.length > 6 ? " (" + hits.length + "건)" : "") + " ›</button>" : "");
+        (hits.length > 0 ? '<button type="button" class="gall" id="g-all">목록에서 전체 결과 보기' + (hits.total > hits.length ? " (" + hits.total + "건)" : "") + " ›</button>" : "");
       dd.hidden = false; qi.setAttribute("aria-expanded", "true");
       var all = document.getElementById("g-all");
       if (all) all.addEventListener("click", function () { state.q = q; persist(); goPath("/"); });
@@ -2302,13 +2392,13 @@
     var list = bioList();
     var coTxt = function (c) { return c.nco + '<span class="lo-n' + (c.nlo ? "" : " z") + '">(' + c.nlo + ")</span>"; };
     var rowsH = list.map(function (c) {
-      return '<tr class="go" tabindex="0" data-bio="' + esc(c.n) + '"><td class="c-date">' + esc(c.list_date) + '</td><td><span class="nm">' + highlight(c.n, q) + "</span>" +
+      return '<tr class="go" tabindex="0" data-bio="' + esc(c.n) + '"><td class="c-date">' + esc(c.list_date) + '</td><td><span class="nm">' + hlName(c.n, q) + "</span>" +
         (c.cat === "B" ? '<span class="tag b-etc" title="경계 분류: 개량신약·약물전달·세포치료, 또는 진단·분석 사업을 함께 하는 신약 개발사">경계</span>' : "") + (c.glo ? '<span class="tag b-tech" title="해외 상대방 L/O 포함">해외 L/O</span>' : "") + "</td>" +
         '<td class="hide-m">' + esc(c.desc || "") + '</td><td>' + esc(c.top || "-") + '</td><td class="num">' + coTxt(c) + '</td><td class="num hide-m">' + c.np + "</td></tr>";
     }).join("");
     var cardsH = list.map(function (c) {
       return '<a class="bcard" href="#/bio/' + encodeURIComponent(c.n) + '">' +
-        '<div class="b1"><span class="nm">' + highlight(c.n, q) + "</span>" + (c.cat === "B" ? '<span class="tag b-etc">경계</span>' : "") +
+        '<div class="b1"><span class="nm">' + hlName(c.n, q) + "</span>" + (c.cat === "B" ? '<span class="tag b-etc">경계</span>' : "") +
         (c.glo ? '<span class="tag b-tech">해외 L/O</span>' : "") + '<span class="stg">' + esc(c.top || "-") + "</span></div>" +
         '<div class="b2"><span class="mono">' + esc(c.list_date) + "</span>" + (c.desc ? " · " + esc(c.desc) : "") + "</div>" +
         '<div class="b3"><span>계약(L/O)<b>' + coTxt(c) + "</b></span><span>파이프라인<b>" + c.np + "</b></span></div></a>";
@@ -2425,7 +2515,7 @@
     var q = bioState.q.trim(), dir = +bioF.c.sort;
     return bio.companies.filter(function (c) {
       if (!bioPass("c", c)) return false;
-      if (q && findMatch(c.n, q) === -1 && findMatch((c.kind_name || "") + " " + (c.desc || ""), q) === -1) return false;
+      if (q && findMatch(c.n, q) === -1 && findMatch((c.kind_name || "") + " " + (c.desc || ""), q) === -1 && !fuzzyMatch(c.n, q)) return false;
       return true;
     }).sort(function (a, b) { return (a.list_date < b.list_date ? -1 : a.list_date > b.list_date ? 1 : a.n < b.n ? -1 : 1) * dir; });
   }

@@ -1121,3 +1121,10 @@ header.top .tgl button svg { width: 12px; height: 12px; }
 .gri .u { width: 100%; font-size: 12px; color: var(--muted); }
 .gall { display: block; width: 100%; text-align: left; border: 0; border-top: 1px solid var(--line2); background: none; padding: 10px 12px; font: 600 12.5px var(--f-body); color: var(--accent); cursor: pointer; border-radius: 0 0 12px 12px; }
 .stats-gs-gap { height: 0; }
+
+/* 비슷한 이름 검색 결과(H2): 다른 글자 점선 밑줄 + "비슷" 배지 */
+.nm u { text-decoration: none; border-bottom: 2px dotted #D97706; }
+.fzb { display: inline-block; margin-left: 5px; padding: 1px 6px; border-radius: 999px; font-size: 10.5px; font-weight: 600; line-height: 1.45; vertical-align: 2px; background: #FEF3C7; color: #92400E; }
+:root[data-theme="dark"] .fzb { background: rgba(251, 191, 36, .18); color: #FCD34D; }
+:root[data-theme="dark"] .nm u { border-bottom-color: #FBBF24; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .fzb { background: rgba(251, 191, 36, .18); color: #FCD34D; } :root:not([data-theme="light"]) .nm u { border-bottom-color: #FBBF24; } }
