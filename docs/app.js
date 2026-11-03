@@ -407,6 +407,7 @@
   }
   var routeSeq = 0;
   function route() {
+    if (typeof setNavUp === "function") setNavUp(false);
     var h = curPath();
     var m = h.match(/^\/deal\/(.+)$/), mb = h.match(/^\/bio\/(.+)$/);
     var tab = h.indexOf("/stats") === 0 ? "stats" : h === "/cal" ? "cal" : mb || h === "/bio" ? "bio" : m ? (view || "list") : "list";
@@ -2426,7 +2427,7 @@
         return inList ? '<a class="bcard" href="#/bio/' + encodeURIComponent(a.name) + '">' + head + "</a>" : '<div class="bcard">' + head + "</div>";
       }).join("") + "</div></div></section>";
 
-    app.innerHTML = '<div class="content">' +
+    app.innerHTML = '<div class="content">' + gsearchBox() +
       '<p class="notice">상장예비심사를 청구한 코스닥 신약개발사(2005~2026년, 경계 바이오 포함)의 결과와 청구 당시 프로필입니다. 치료제 파이프라인이 없는 소재·의료기기·분석 플랫폼 회사는 뺐습니다. 승인 건은 상장 당시 증권신고서, 철회·미승인 건은 언론·공시로 조사했습니다. 기술성평가에서 이미 떨어져 청구하지 못한 회사는 포함되지 않습니다.</p>' + kpi +
       '<section class="panel"><header><div><h2>연도별 상장예비심사 결과</h2><p>청구 연도 기준. 막대 위 숫자는 통과율이고, 막대에 마우스를 올리면 회사 이름이 나옵니다. 심사를 통과한 뒤 공모를 접은 건은 뺐습니다.</p></div></header>' +
       '<div class="pbody chart">' + bioLegend(BIO_RES, resItems) + svgRes + "</div></section>" +
@@ -2440,7 +2441,7 @@
       listPanel + failPanel +
       '<p class="note">' + esc(bio.note) + " 출처: " + esc(bio.sources) + ". 생성 " + esc(bio.generated) + ".</p></div>";
     bindChart();
-    bindBio();
+    bindBio(); bindGsearch();
   }
   // ---- 바이오 명단·철회 명단 필터 (딜 목록과 같은 필터 버튼·패널)
   var BIO_STAGES = ["탐색·연구", "전임상", "임상 1상", "임상 2상", "임상 3상·허가심사", "상용화", "기재 불명확"];
@@ -2842,12 +2843,38 @@
     var to = a.getAttribute("href").slice(1);
     e.preventDefault(); goPath(to);
   });
+  // 상단 고정(P5): 제목줄은 스크롤과 함께 올라가고 탭+검색창이 위에 붙습니다.
+  // 아래로 내리면 탭은 숨고 검색창만 남으며, 조금이라도 올리면 탭이 다시 내려옵니다.
+  var ROOT = document.documentElement;
   function syncTopH() {
-    var t = document.querySelector(".top");
-    if (t) document.documentElement.style.setProperty("--toph", t.offsetHeight + "px");
+    var t = document.querySelector("header.top"), nav = t && t.querySelector("nav.tabs");
+    if (!t) return;
+    ROOT.style.setProperty("--toph", t.offsetHeight + "px");
+    if (!nav) return;
+    var off = nav.offsetTop - 8;                       // 탭이 화면 위 8px에 붙도록 제목줄 높이만큼 위로
+    ROOT.style.setProperty("--navoff", off + "px");
+    ROOT.style.setProperty("--dock", (t.offsetHeight - off) + "px");
+    var sr = document.querySelector("#app .srow");
+    ROOT.style.setProperty("--srh", (sr ? sr.offsetHeight : 0) + "px");
   }
+  var lastSY = window.scrollY || 0, stTick = false;
+  function setNavUp(on) { if (ROOT.classList.contains("nav-up") !== on) ROOT.classList.toggle("nav-up", on); }
+  window.addEventListener("scroll", function () {
+    if (stTick) return;
+    stTick = true;
+    requestAnimationFrame(function () {
+      stTick = false;
+      var y = window.scrollY || 0, dy = y - lastSY, ae = document.activeElement;
+      var top = document.querySelector("header.top"), lim = top ? top.offsetHeight + 120 : 200;
+      if (y < lim) setNavUp(false);
+      else if (dy > 6 && !(ae && ae.classList && ae.classList.contains("search"))) setNavUp(true);
+      else if (dy < -4) setNavUp(false);
+      if (Math.abs(dy) > 4 || y < lim) lastSY = y;
+    });
+  }, { passive: true });
   syncTopH();
   window.addEventListener("resize", syncTopH);
+  if (window.MutationObserver) new MutationObserver(function () { requestAnimationFrame(syncTopH); }).observe(app, { childList: true });
   var lastW = window.innerWidth, rt;
   window.addEventListener("resize", function () {
     clearTimeout(rt);

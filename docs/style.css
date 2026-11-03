@@ -1128,3 +1128,15 @@ header.top .tgl button svg { width: 12px; height: 12px; }
 :root[data-theme="dark"] .fzb { background: rgba(251, 191, 36, .18); color: #FCD34D; }
 :root[data-theme="dark"] .nm u { border-bottom-color: #FBBF24; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .fzb { background: rgba(251, 191, 36, .18); color: #FCD34D; } :root:not([data-theme="light"]) .nm u { border-bottom-color: #FBBF24; } }
+
+/* 상단 고정(P5): 제목줄은 올라가고 탭+검색창이 위에 붙음. 아래로 내리면 탭은 숨고 검색창만, 올리면 탭이 다시 내려옴 */
+:root { --gut: max(24px, env(safe-area-inset-left, 0px)); --stk-bg: color-mix(in srgb, var(--bg) 92%, transparent); --stk-ease: cubic-bezier(.2, .7, .2, 1); }
+@media (max-width: 760px) { :root { --gut: max(16px, env(safe-area-inset-left, 0px)); } }
+header.top { position: sticky; top: calc(env(safe-area-inset-top, 0px) - var(--navoff, 40px)); z-index: 30; margin-inline: calc(-1 * var(--gut)); margin-bottom: 4px; padding: 0 var(--gut) 6px;
+  background: var(--stk-bg); -webkit-backdrop-filter: blur(16px) saturate(1.6); backdrop-filter: blur(16px) saturate(1.6); transition: transform .28s var(--stk-ease); }
+#app .srow { position: sticky; top: calc(env(safe-area-inset-top, 0px) + var(--dock, 56px)); z-index: 29; margin-inline: calc(-1 * var(--gut)); padding: 6px var(--gut) 8px;
+  background: var(--stk-bg); -webkit-backdrop-filter: blur(16px) saturate(1.6); backdrop-filter: blur(16px) saturate(1.6); transition: transform .28s var(--stk-ease); }
+.sfilters { top: calc(env(safe-area-inset-top, 0px) + var(--dock, 56px) + var(--srh, 60px) + 8px); transition: transform .28s var(--stk-ease); }
+.nav-up header.top { transform: translateY(calc(-1 * var(--dock, 56px) - 8px)); }
+.nav-up #app .srow, .nav-up .sfilters { transform: translateY(calc(-1 * var(--dock, 56px))); }
+@media (prefers-reduced-motion: reduce) { header.top, #app .srow, .sfilters { transition: none; } }
