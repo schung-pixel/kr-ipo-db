@@ -1158,9 +1158,13 @@ header.top { position: sticky; top: calc(env(safe-area-inset-top, 0px) - var(--n
 /* 목록 상자 머리행 고정(L3): 상자 안에서 스크롤해도 머리행이 붙어 있고, 내려가면 아래에 옅은 그림자 */
 .cal-page .panel .pbody .scroll thead th, .cal .pbody thead th, .feed .pbody thead th, .bio-box thead th, .bio-boxw > .scroll thead th {
   position: sticky; top: 0; z-index: 2; background: var(--surface); box-shadow: inset 0 -1px 0 var(--line2); transition: box-shadow .2s; }
-.is-scrolled thead th { box-shadow: 0 6px 10px -8px rgba(20, 30, 60, .45), inset 0 -1px 0 var(--line2); }
-:root[data-theme="dark"] .is-scrolled thead th { box-shadow: 0 6px 12px -8px rgba(0, 0, 0, .9), inset 0 -1px 0 var(--line2); }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .is-scrolled thead th { box-shadow: 0 6px 12px -8px rgba(0, 0, 0, .9), inset 0 -1px 0 var(--line2); } }
+/* S2: 맨 위에서는 그림자 없음, 상자 안을 내리기 시작하면 머리행 아래 9px 그림자 */
+.cal-page .panel .pbody .scroll thead th::after, .cal .pbody thead th::after, .feed .pbody thead th::after, .bio-box thead th::after, .bio-boxw > .scroll thead th::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 9px; pointer-events: none; opacity: var(--tho, 0); transition: opacity .2s;
+  background: linear-gradient(var(--th-sh, rgba(11, 40, 80, .20)), transparent); }
+.is-scrolled { --tho: 1; }
+:root[data-theme="dark"] { --th-sh: rgba(0, 0, 0, .5); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --th-sh: rgba(0, 0, 0, .5); } }
 
 /* 색상 C3: NH 블루 톤(모양은 그대로, 배경·강조·표 머리 색만 파랑 계열) */
 :root {
