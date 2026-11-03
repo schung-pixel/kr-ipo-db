@@ -1161,3 +1161,26 @@ header.top { position: sticky; top: calc(env(safe-area-inset-top, 0px) - var(--n
 .is-scrolled thead th { box-shadow: 0 6px 10px -8px rgba(20, 30, 60, .45), inset 0 -1px 0 var(--line2); }
 :root[data-theme="dark"] .is-scrolled thead th { box-shadow: 0 6px 12px -8px rgba(0, 0, 0, .9), inset 0 -1px 0 var(--line2); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .is-scrolled thead th { box-shadow: 0 6px 12px -8px rgba(0, 0, 0, .9), inset 0 -1px 0 var(--line2); } }
+
+/* 색상 C3: NH 블루 톤(모양은 그대로, 배경·강조·표 머리 색만 파랑 계열) */
+:root {
+  --bg: #EDF3FA; --surface2: #E7EFF9; --line: #D3DFEE; --line2: #E0E9F4;
+  --accent: #0B5CAD; --accent-soft: #E0ECF9; --track: rgba(11, 92, 173, .07); --edge: rgba(11, 60, 120, .14);
+  --sh1: 0 1px 3px rgba(11, 60, 120, .06); --g1: rgba(11, 92, 173, .16);
+  --head: #F6F9FD; --head-ink: #3B5573; --solid: #FFFFFF;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E1620; --surface: #142030; --surface2: #1A2839; --line: #273A50; --line2: #20303F;
+    --accent: #6CB0F5; --accent-ink: #0B1520; --accent-soft: #16304D; --track: rgba(108, 176, 245, .08); --edge: rgba(0, 0, 0, .5);
+    --g1: rgba(60, 130, 210, .18); --head: #172536; --head-ink: #9FB9D6; --solid: #142030; --thumb: #24364C;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E1620; --surface: #142030; --surface2: #1A2839; --line: #273A50; --line2: #20303F;
+  --accent: #6CB0F5; --accent-ink: #0B1520; --accent-soft: #16304D; --track: rgba(108, 176, 245, .08); --edge: rgba(0, 0, 0, .5);
+  --g1: rgba(60, 130, 210, .18); --head: #172536; --head-ink: #9FB9D6; --solid: #142030; --thumb: #24364C;
+}
+.panel > header, .ledger-top { background: var(--head); border-radius: 14px 14px 0 0; }
+.mini thead th, .cal-page .panel .pbody .scroll thead th, .bio-box thead th, .bio-boxw > .scroll thead th { background: var(--head); color: var(--head-ink); }
+header.top nav.tabs, .search { background-image: none; background-color: var(--solid); }
