@@ -1186,5 +1186,5 @@ header.top { position: sticky; top: calc(env(safe-area-inset-top, 0px) - var(--n
   --g1: rgba(60, 130, 210, .18); --head: #172536; --head-ink: #9FB9D6; --solid: #142030; --thumb: #24364C;
 }
 .panel > header, .ledger-top { background: var(--head); border-radius: 14px 14px 0 0; }
-.mini thead th, .cal-page .panel .pbody .scroll thead th, .bio-box thead th, .bio-boxw > .scroll thead th { background: var(--head); color: var(--head-ink); }
+.mini thead th, .cal-page .panel .pbody .scroll thead th, .bio-box thead th, .bio-boxw > .scroll thead th { background: var(--surface); color: var(--head-ink); }
 header.top nav.tabs, .search { background-image: none; background-color: var(--solid); }
