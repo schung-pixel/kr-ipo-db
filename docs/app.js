@@ -2866,6 +2866,59 @@
     var sr = document.querySelector("#app .srow");
     ROOT.style.setProperty("--srh", (sr ? sr.offsetHeight : 0) + "px");
   }
+  // 토글(.seg 세그먼트, .switch 스위치)이 누른 뒤 화면을 다시 그리면서 새 요소로 바뀌어도
+  // 순간이동하지 않도록, 누르기 직전 상태를 기억했다가 새 요소에서 이전 위치 → 새 위치로 움직입니다.
+  (function () {
+    function segKey(el) { return [].map.call(el.querySelectorAll("button"), function (b) { return b.textContent; }).join("|"); }
+    function swKey(el) { return "sw:" + (el.closest("label") || el).textContent.trim() + "#" + (el.className || ""); }
+    function findNth(sel, keyFn, key, n) {
+      var hit = [].filter.call(document.querySelectorAll(sel), function (x) { return keyFn(x) === key; });
+      return hit[n] || null;
+    }
+    function watch(sel, keyFn, orig, apply) {
+      var key = keyFn(orig), n = [].filter.call(document.querySelectorAll(sel), function (x) { return keyFn(x) === key; }).indexOf(orig);
+      // 다시 그려지는 순간(화면에 그리기 전)을 잡도록 DOM 변경 감시 + 몇 프레임 동안 확인
+      var done = false, tries = 0, mo = null;
+      var check = function () {
+        if (done) return;
+        var el = findNth(sel, keyFn, key, n);
+        if (el && el !== orig) { done = true; if (mo) mo.disconnect(); apply(el); return; }
+        if (++tries < 15) requestAnimationFrame(check); else if (mo) mo.disconnect();
+      };
+      if (window.MutationObserver) { mo = new MutationObserver(check); mo.observe(document.body, { childList: true, subtree: true }); }
+      Promise.resolve().then(check);
+    }
+    document.addEventListener("click", function (e) {
+      var t = e.target;
+      var btn = t.closest && t.closest(".seg button");
+      if (btn) {
+        var seg = btn.parentElement, oldI = seg.style.getPropertyValue("--i");
+        watch(".seg", segKey, seg, function (el) {
+          var newI = el.style.getPropertyValue("--i");
+          if (oldI === "" || newI === oldI) return;
+          if (!el.animate) return;
+          try {
+            el.animate([{ transform: "translateX(" + (+oldI * 100) + "%)" }, { transform: "translateX(" + (+newI * 100) + "%)" }],
+              { duration: 450, easing: "cubic-bezier(.34, 1.4, .5, 1)", pseudoElement: "::before" });
+          } catch (er) { /* 지원하지 않는 브라우저는 그대로 */ }
+        });
+        return;
+      }
+      var inp = t.closest && t.closest(".switch input");
+      if (inp) {
+        var was = !inp.checked;
+        watch(".switch input", swKey, inp, function (el) {
+          var now = el.checked;
+          if (now === was) return;
+          if (!el.animate) return;
+          try {
+            el.animate([{ transform: "translateX(" + (was ? 12 : 0) + "px)" }, { transform: "translateX(" + (now ? 12 : 0) + "px)" }],
+              { duration: 300, easing: "cubic-bezier(.34, 1.3, .5, 1)", pseudoElement: "::after" });
+          } catch (er) { /* 지원하지 않는 브라우저는 그대로 */ }
+        });
+      }
+    }, true);
+  })();
   // 목록 상자 안을 내리면 머리행 아래 그림자(L3)
   document.addEventListener("scroll", function (e) {
     var el = e.target;
