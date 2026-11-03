@@ -2265,13 +2265,16 @@
       var exp = addMonths(r.d, 6), d = r.id ? byId[r.id] : null;
       return { r: r, exp: exp, left: daysBetween(today, exp), d: d };
     }).filter(function (x) { return x.left >= -30; }).sort(function (a, b) { return a.exp < b.exp ? -1 : 1; });
+    // T4: 진행 상태는 색 점 + 짧은 글자, 효력 만료 45일 이내는 승인일을 붉게(남은 기간 열 없음)
+    var DOT = { filed: ["신고", "filed"], price_fixed: ["확정", "fixed"], completed: ["상장", "done"], upcoming: ["예정", "done"], withdrawn: ["철회", "off"] };
     var waitRows = waiting.map(function (x) {
-      var r = x.r, d = x.d, st = d && d.status !== "approved" ? chip(d) : '<span class="dim">신고서 전</span>';
-      return "<tr" + ((r.s || "").indexOf(FOCUS_NAME) >= 0 ? ' class="focus"' : "") + "><td>" + nmLink(r.id, r.n) + "</td><td>" + spText(r.s) + '</td><td class="num mono">' + esc(r.d.slice(2).replace(/-/g, ".")) +
-        '</td><td class="num mono' + (x.left <= 45 ? " warn" : "") + '">' + (x.left >= 0 ? x.left + "일" : "만료") + "</td><td>" + st + "</td></tr>";
+      var r = x.r, d = x.d, k = d && d.status !== "approved" ? stKey(d) : null, o = k ? (DOT[k] || DOT.filed) : x.left < 0 ? ["만료", "off"] : ["대기", "off"];
+      var tip = (k ? statusLabel(d) : "신고서 제출 전") + " · 효력 만료 " + x.exp + (x.left >= 0 ? " (" + x.left + "일 남음)" : " (만료)");
+      return "<tr" + ((r.s || "").indexOf(FOCUS_NAME) >= 0 ? ' class="focus"' : "") + "><td>" + nmLink(r.id, r.n) + "</td><td>" + spText(r.s) + '</td><td class="num mono' + (x.left <= 45 ? " warn" : "") + '" title="' + esc(tip) + '">' + esc(r.d.slice(2).replace(/-/g, ".")) +
+        '</td><td><span class="sdot s-' + o[1] + '" title="' + esc(tip) + '"><i></i>' + o[0] + "</span></td></tr>";
     }).join("");
-    var waitPanel = '<section class="panel"><header><div><h2>승인 후 상장 대기 <span class="cnt">' + waiting.length + "</span></h2><p>예심 승인 효력은 결과 통지일부터 6개월입니다. 남은 기간 45일 이하는 붉게 표시합니다(만료 기준일은 승인일 + 6개월로 계산).</p></div></header>" +
-      '<div class="pbody"><div class="scroll"><table class="mini rv"><thead><tr><th>회사</th><th>주관사</th><th class="num">승인일</th><th class="num">남은 기간</th><th>진행</th></tr></thead><tbody>' + waitRows + "</tbody></table></div></div></section>";
+    var waitPanel = '<section class="panel"><header><div><h2>승인 후 상장 대기 <span class="cnt">' + waiting.length + "</span></h2><p>예심 승인 효력은 결과 통지일부터 6개월입니다(승인일 + 6개월로 계산). 효력 만료가 45일 이내로 남은 건은 승인일을 붉게 표시합니다.</p></div></header>" +
+      '<div class="pbody"><div class="scroll"><table class="mini rv wait"><colgroup><col class="w-n"><col class="w-u"><col class="w-d"><col class="w-s"></colgroup><thead><tr><th>회사</th><th>주관사</th><th class="num">승인일</th><th>진행</th></tr></thead><tbody>' + waitRows + "</tbody></table></div></div></section>";
 
     // 주관사별 예심 실적 (KIND 수록 기간 전체, 신규상장·스팩 제외)
     var sp = {};
@@ -2863,6 +2866,11 @@
     var sr = document.querySelector("#app .srow");
     ROOT.style.setProperty("--srh", (sr ? sr.offsetHeight : 0) + "px");
   }
+  // 목록 상자 안을 내리면 머리행 아래 그림자(L3)
+  document.addEventListener("scroll", function (e) {
+    var el = e.target;
+    if (el && el.classList && el.querySelector && el.querySelector(":scope > table > thead")) el.classList.toggle("is-scrolled", el.scrollTop > 2);
+  }, true);
   var lastSY = window.scrollY || 0, stTick = false;
   function setNavUp(on) { if (ROOT.classList.contains("nav-up") !== on) ROOT.classList.toggle("nav-up", on); }
   window.addEventListener("scroll", function () {

@@ -1140,3 +1140,24 @@ header.top { position: sticky; top: calc(env(safe-area-inset-top, 0px) - var(--n
 .nav-up header.top { transform: translateY(calc(-1 * var(--dock, 56px) - 8px)); }
 .nav-up #app .srow, .nav-up .sfilters { transform: translateY(calc(-1 * var(--dock, 56px))); }
 @media (prefers-reduced-motion: reduce) { header.top, #app .srow, .sfilters { transition: none; } }
+
+/* 승인 후 상장 대기(T4): 4열 고정 폭, 진행은 색 점 + 짧은 글자 */
+.mini.rv.wait { table-layout: fixed; }
+.mini.rv.wait col.w-n { width: 40%; } .mini.rv.wait col.w-u { width: 17%; } .mini.rv.wait col.w-d { width: 23%; } .mini.rv.wait col.w-s { width: 20%; }
+.mini.rv.wait td:first-child { min-width: 0; }
+.mini.rv.wait td, .mini.rv.wait th { word-break: keep-all; overflow-wrap: anywhere; }
+.mini.rv.wait td.num, .mini.rv.wait td:last-child { white-space: nowrap; }
+.sdot { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; white-space: nowrap; color: var(--ink); }
+.sdot i { flex: none; width: 8px; height: 8px; border-radius: 99px; background: var(--faint); }
+.sdot.s-filed i { background: #2563EB; } .sdot.s-fixed i { background: #16A34A; } .sdot.s-done i { background: var(--accent); }
+.sdot.s-off { color: var(--muted); font-weight: 500; }
+:root[data-theme="dark"] .sdot.s-filed i { background: #60A5FA; } :root[data-theme="dark"] .sdot.s-fixed i { background: #4ADE80; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .sdot.s-filed i { background: #60A5FA; } :root:not([data-theme="light"]) .sdot.s-fixed i { background: #4ADE80; } }
+@media (min-width: 761px) { .mini.rv.wait col.w-n { width: 34%; } .mini.rv.wait col.w-u { width: 24%; } .mini.rv.wait col.w-d { width: 22%; } }
+
+/* 목록 상자 머리행 고정(L3): 상자 안에서 스크롤해도 머리행이 붙어 있고, 내려가면 아래에 옅은 그림자 */
+.cal-page .panel .pbody .scroll thead th, .cal .pbody thead th, .feed .pbody thead th, .bio-box thead th, .bio-boxw > .scroll thead th {
+  position: sticky; top: 0; z-index: 2; background: var(--surface); box-shadow: inset 0 -1px 0 var(--line2); transition: box-shadow .2s; }
+.is-scrolled thead th { box-shadow: 0 6px 10px -8px rgba(20, 30, 60, .45), inset 0 -1px 0 var(--line2); }
+:root[data-theme="dark"] .is-scrolled thead th { box-shadow: 0 6px 12px -8px rgba(0, 0, 0, .9), inset 0 -1px 0 var(--line2); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .is-scrolled thead th { box-shadow: 0 6px 12px -8px rgba(0, 0, 0, .9), inset 0 -1px 0 var(--line2); } }
