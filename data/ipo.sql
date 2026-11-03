@@ -52420,6 +52420,8 @@ INSERT INTO "kind_corp" VALUES('한화플러스제6호스팩','한화플러스�
 INSERT INTO "kind_corp" VALUES('영광','영광','359410','코스닥','구조용 금속제품, 탱크 및 증기발생기 제조업','조선 기자재, 플랜트 기자재','2026-11-02','2026-11-02T04:32:42+09:00');
 INSERT INTO "kind_corp" VALUES('래블업','래블업','0147B0','코스닥','소프트웨어 개발 및 공급업','Backend.AI(AI 인프라 운영플랫폼)','2026-11-03','2026-11-03T07:31:48+09:00');
 INSERT INTO "kind_corp" VALUES('타임xai','타임X AI','304840','코스닥','의료용품 및 기타 의약 관련제품 제조업','올리고머화 베타-아밀로이드 검사제품(알츠하이머병 진단)','2020-10-19','2026-11-03T07:31:48+09:00');
+INSERT INTO "kind_corp" VALUES('아이엠스팩1호','아이엠스팩1호','0222E0','코스닥','금융 지원 서비스업','기업인수합병','2026-11-04','2026-11-04T02:12:03+09:00');
+INSERT INTO "kind_corp" VALUES('이에스티','이에스티','495910','코스닥','특수 목적용 기계 제조업','디스플레이 및 반도체 제조공정용 정전척','2026-11-04','2026-11-04T02:12:03+09:00');
 CREATE TABLE kind_listing (
   name_key    TEXT PRIMARY KEY,
   corp_name   TEXT,
@@ -52821,9 +52823,9 @@ CREATE TABLE meta (
   key   TEXT PRIMARY KEY,
   value TEXT
 );
-INSERT INTO "meta" VALUES('last_list_date','2026-11-03');
+INSERT INTO "meta" VALUES('last_list_date','2026-11-04');
 INSERT INTO "meta" VALUES('schema_stage','2');
-INSERT INTO "meta" VALUES('kind_as_of','2026-11-03');
+INSERT INTO "meta" VALUES('kind_as_of','2026-11-04');
 CREATE TABLE review (
   deal_id               TEXT PRIMARY KEY,
   prelim_filed_dt       TEXT,
