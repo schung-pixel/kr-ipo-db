@@ -234,6 +234,7 @@ _DEMAND = re.compile(
 def extract_schedule(text: str) -> dict:
     """수요예측 시작·종료일. 못 찾으면 None 값과 status=no_match."""
     from datetime import date
+    found = []
     for m in _DEMAND.finditer(text):
         y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
         try:
@@ -247,9 +248,18 @@ def extract_schedule(text: str) -> dict:
             continue
         if not (0 <= (end - start).days <= 31):
             continue
-        return {"demand_start": start.isoformat(), "demand_end": end.isoformat(),
-                "demand_evidence": _evidence(text, m), "status": "ok"}
-    return {"demand_start": None, "demand_end": None, "demand_evidence": None, "status": "no_match"}
+        found.append((start, end, m))
+    if not found:
+        return {"demand_start": None, "demand_end": None, "demand_evidence": None, "status": "no_match"}
+    # 일정 변경 정정신고서는 '정정 전 | 정정 후' 표에 옛 일정이 먼저 나옵니다. 본문에 되풀이되는
+    # (가장 자주 나온) 일정을 쓰고, 같으면 더 늦은 일정(정정 후)을 씁니다.
+    freq = {}
+    for st, en, _ in found:
+        freq[(st, en)] = freq.get((st, en), 0) + 1
+    st, en = max(freq, key=lambda k: (freq[k], k[0]))
+    m = [x for x in found if (x[0], x[1]) == (st, en)][-1][2]
+    return {"demand_start": st.isoformat(), "demand_end": en.isoformat(),
+            "demand_evidence": _evidence(text, m), "status": "ok"}
 
 
 # ---------------------------------------------------------------- 상장 시장·기술특례 구분

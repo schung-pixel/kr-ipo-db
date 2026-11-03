@@ -59,3 +59,11 @@ class PeersTest(unittest.TestCase):
     def test_sentence(self):
         t = "동사는 고려제강, KOBELCO WIRE CO LTD, NIPPON SEISEN CO LTD 총 3개사를 최종 비교기업으로 선정하였습니다."
         self.assertEqual(doctext.extract_peers(t), ["고려제강", "KOBELCO WIRE CO LTD", "NIPPON SEISEN CO LTD"])
+
+
+class ScheduleTest(unittest.TestCase):
+    def test_corrected_schedule(self):
+        t = ("일정 변경에 따른 기재사항 정정 | 수요예측일 | 2026년 10월 16일(금) ~ 2026년 10월 22일(목) | 2026년 11월 02일(월) ~ 2026년 11월 06일(금) |\n"
+             "수요예측 일시 | 2026년 11월 02일(월) ~ 2026년 11월 06일(금) |\n수요예측 기간 | 2026년 11월 02일 ~ 11월 06일 |")
+        r = doctext.extract_schedule(t)
+        self.assertEqual((r["demand_start"], r["demand_end"]), ("2026-11-02", "2026-11-06"))

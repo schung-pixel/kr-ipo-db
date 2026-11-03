@@ -572,6 +572,12 @@ def schedule_plan(conn) -> list:
             # v7(단수평가·재평가)은 기술특례 관련 문서만 다시 읽습니다
             techy = bool(r["tech_track"]) or bool(r["tech_grades"])
             return pv >= 6 and not techy
+        # 가장 최근 신고서(정정 포함)를 아직 안 읽었으면 반드시 읽습니다. 일정 변경 정정이 나오면
+        # 예전 신고서의 수요예측 기일이 그대로 남는 문제를 막습니다.
+        if pre and not fresh(pre[0]):
+            todo = [no for no in pre if not fresh(no)]
+            plan.append((fl[0]["corp_code"], todo))
+            continue
         if any(fresh(no) and done[no]["status"] == "ok" for no in pre):
             continue
         todo = [no for no in pre if not fresh(no)]
