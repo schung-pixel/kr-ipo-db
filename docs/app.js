@@ -454,7 +454,7 @@
       if (secs.length && secs.indexOf(d.sector || "") < 0) return false;
       if (state.focus && !focusRole(d)) return false;
       if (state.focus === "lead" && focusRole(d) !== "대표") return false;
-      if (q && findMatch(name(d), q) === -1 && findMatch((d.lead_underwriters || "") + "," + uwSet(d).join(","), q) === -1 && !fuzzyMatch(name(d), q)) return false;
+      if (q && findMatch(name(d), q) === -1 && findMatch((d.lead_underwriters || "") + "," + uwSet(d).join(",") + "," + uwShortStr(d.lead_underwriters), q) === -1 && !fuzzyMatch(name(d), q)) return false;
       return true;
     });
   }
@@ -836,7 +836,7 @@
       var hasRatio = d.inst_demand_ratio != null || d.retail_ratio != null;
       cards += '<a class="card" href="' + href + '" data-id="' + esc(d.deal_id) + '">' +
         '<div class="r1"><span class="nmw"><span class="nm">' + hlName(name(d), q) + '</span>' + (tags ? '<span class="tags">' + tags + "</span>" : "") + "</span>" + chip(d) + "</div>" +
-        '<div class="r2">' + (d.listing_dt ? '상장 <span class="mono">' + esc(d.listing_dt) + "</span>" : d.demand_start && d.status !== "withdrawn" ? '수요예측 <span class="mono">' + esc(demandText(d, true)) + "</span>" : (d.status === "approved" ? "예심 승인 " : "신고 ") + '<span class="mono">' + esc(d.first_filing_dt) + "</span>") + " · " + (d.lead_underwriters ? highlight(d.lead_underwriters, q) : "주관사 미확인") + "</div>" +
+        '<div class="r2">' + (d.listing_dt ? '상장 <span class="mono">' + esc(d.listing_dt) + "</span>" : d.demand_start && d.status !== "withdrawn" ? '수요예측 <span class="mono">' + esc(demandText(d, true)) + "</span>" : (d.status === "approved" ? "예심 승인 " : "신고 ") + '<span class="mono">' + esc(d.first_filing_dt) + "</span>") + " · " + (d.lead_underwriters ? highlight(uwShortStr(d.lead_underwriters), q) : "주관사 미확인") + "</div>" +
         '<div class="r3"><span class="price">' + price + "</span>" + (!hasRatio && d.offer_amount != null ? '<span class="amt r3a">공모액<b>' + eok(d.offer_amount) + "억</b></span>" : "") + "</div>" +
         (hasRatio
           ? '<div class="r4">' + (d.inst_demand_ratio != null ? "<span>수요예측<b>" + ratio(d.inst_demand_ratio) + "</b></span>" : "") +
@@ -1277,6 +1277,12 @@
   function uwSet(d) {
     return splitNames(d.lead_underwriters).map(uwKey).filter(function (n, i, arr) { return arr.indexOf(n) === i; });
   }
+  // 좁은 목록용 증권사 약칭(한투, NH, 미래 …). 상세 화면과 주관사 순위표는 전체 사명을 씁니다.
+  var UW_SHORT = { "한국투자증권": "한투", "NH투자증권": "NH", "미래에셋증권": "미래", "미래에셋대우": "미래", "대우증권": "대우",
+    "KB투자증권": "KB", "하나금융투자": "하나", "신한금융투자": "신한", "DB금융투자": "DB", "유진투자증권": "유진",
+    "현대차투자증권": "현대차", "이베스트투자증권": "이베스트", "골든브릿지투자증권": "골든브릿지", "케이프투자증권": "케이프" };
+  function uwShort(n) { return UW_SHORT[n] || n.replace(/(금융투자|투자증권|증권)$/, "") || n; }
+  function uwShortStr(s) { return splitNames(s).map(uwShort).join(", "); }
   function median(a) {
     a = a.filter(function (v) { return v != null && !isNaN(v); }).sort(function (x, y) { return x - y; });
     if (!a.length) return null;
@@ -2037,13 +2043,13 @@
   function nmLink(id, nm) { return id ? '<a class="nm" href="#/deal/' + encodeURIComponent(id) + '">' + esc(nm) + "</a>" : '<span class="nm">' + esc(nm) + "</span>"; }
   function spText(s) {
     if (!s) return '<span class="dim">-</span>';
-    return s.split(/\s*,\s*/).map(function (x) { return x.indexOf(FOCUS_NAME) >= 0 ? '<b class="focus-t">' + esc(x) + "</b>" : esc(x); }).join(", ");
+    return s.split(/\s*,\s*/).map(function (x) { return x.indexOf(FOCUS_NAME) >= 0 ? '<b class="focus-t">' + esc(uwShort(x)) + "</b>" : esc(uwShort(x)); }).join(", ");
   }
   function medInt(xs) { var m = median(xs); return m == null ? null : Math.round(m); }
   // 일정 행: 날짜 | 종류·회사명·배지(줄바꿈 허용) / 주관사·가격(줄바꿈 허용). 휴대폰에서 좌우로 넘치지 않게 모두 접어 씁니다.
   function evRow(e, today) {
     var d = e.d, past = e.b < today, now = e.a <= today && e.b >= today;
-    var sub = [esc(d.lead_underwriters || "주관사 미확인")];
+    var sub = [esc(uwShortStr(d.lead_underwriters) || "주관사 미확인")];
     if (e.k === "수요예측" && d.offer_price_low) sub.push('<span class="mono">' + bandText(d) + "원</span>");
     if (e.k !== "수요예측" && d.final_price) sub.push('<span class="mono">' + int(d.final_price) + "원</span>");
     if (d.offer_amount && e.k !== "납입") sub.push('<span class="mono">' + eok(d.offer_amount) + "억</span>");
@@ -2088,7 +2094,7 @@
         var d = e.d;
         return '<a class="it' + (focusRole(d) ? " focus" : "") + '" href="#/deal/' + encodeURIComponent(d.deal_id) + '"><span class="nm">' + esc(name(d)) + "</span>" +
           boardTag(d) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + focusTag(d) +
-          '<span class="r mono">' + esc(rngT(e.a, e.b)) + (e.q ? ' <em class="lq">' + e.q + "</em>" : "") + '</span><span class="u">' + esc(d.lead_underwriters || "주관사 미확인") + (pxText(d) ? " · " + '<span class="mono">' + pxText(d) + "</span>" : "") + "</span></a>";
+          '<span class="r mono">' + esc(rngT(e.a, e.b)) + (e.q ? ' <em class="lq">' + e.q + "</em>" : "") + '</span><span class="u">' + esc(uwShortStr(d.lead_underwriters) || "주관사 미확인") + (pxText(d) ? " · " + '<span class="mono">' + pxText(d) + "</span>" : "") + "</span></a>";
       }).join("") + "</div>";
     }).join("");
   }
@@ -2139,7 +2145,7 @@
         return '<span class="dt' + (on ? " on" : done ? " done" : "") + '"><i>' + lab + '</i><b class="mono">' + esc(rngT(a, b)) + "</b></span>";
       };
       return '<a class="drow' + (focusRole(d) ? " focus" : "") + '" href="#/deal/' + encodeURIComponent(d.deal_id) + '"><span class="t1"><span class="nm">' + esc(name(d)) + "</span>" +
-        boardTag(d) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + focusTag(d) + '<span class="u">' + esc(d.lead_underwriters || "") + "</span></span>" +
+        boardTag(d) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + focusTag(d) + '<span class="u">' + esc(uwShortStr(d.lead_underwriters)) + "</span></span>" +
         '<span class="dts">' + box("수요예측", c.ds, c.de) + box("청약", c.ss, c.se) + box("상장" + (c.lq ? ' <em class="lq">' + c.lq + "</em>" : ""), c.lst, c.lst) + "</span>" +
         (pxText(d) ? '<span class="px mono">' + pxText(d) + "</span>" : "") + "</a>";
     };
@@ -2181,7 +2187,7 @@
     var ex = [], fz = [];
     data.deals.forEach(function (d) {
       if (!candOk(d, "ipo")) return;
-      if (findMatch(name(d), q) !== -1 || findMatch((d.lead_underwriters || "") + "," + uwSet(d).join(","), q) !== -1) ex.push(d);
+      if (findMatch(name(d), q) !== -1 || findMatch((d.lead_underwriters || "") + "," + uwSet(d).join(",") + "," + uwShortStr(d.lead_underwriters), q) !== -1) ex.push(d);
       else if (fuzzyMatch(name(d), q)) fz.push(d);
     });
     var f = SORTERS.date, by = function (a, b) { var x = f(a) || "", y = f(b) || ""; return x < y ? 1 : x > y ? -1 : 0; };
@@ -2207,7 +2213,7 @@
       dd.innerHTML = (hits.length ? '<div class="gdh">기업 ' + hits.total + "</div>" + hits.map(function (d) {
         return '<a class="gri" href="#/deal/' + encodeURIComponent(d.deal_id) + '"><span class="nm">' + hlName(name(d), q.trim()) + "</span>" + boardTag(d) +
           (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + focusTag(d) + '<span class="gst">' + esc(statusLabel(d)) + "</span>" +
-          '<span class="u">' + esc(gsearchWhen(d)) + " · " + esc(d.lead_underwriters || "주관사 미확인") + "</span></a>";
+          '<span class="u">' + esc(gsearchWhen(d)) + " · " + esc(uwShortStr(d.lead_underwriters) || "주관사 미확인") + "</span></a>";
       }).join("") : '<div class="gdh">"' + esc(q.trim()) + '"에 맞는 공모가 없습니다.</div>') +
         (hits.length > 0 ? '<button type="button" class="gall" id="g-all">목록에서 전체 결과 보기' + (hits.total > hits.length ? " (" + hits.total + "건)" : "") + " ›</button>" : "");
       dd.hidden = false; qi.setAttribute("aria-expanded", "true");
