@@ -1109,3 +1109,15 @@ header.top .tgl button svg { width: 12px; height: 12px; }
 @media (min-width: 761px) { .cd.m1 .mdots { gap: 4px; height: 8px; } .cd.m1 .mdots i { width: 8px; height: 8px; } }
 .lq { font-style: normal; font-size: 10px; font-weight: 600; padding: 0 4px; border-radius: 4px; margin-left: 3px; background: var(--warn-soft); color: var(--warn); vertical-align: 1px; }
 .drow .dt.on .lq { background: color-mix(in srgb, var(--accent-ink) 20%, transparent); color: var(--accent-ink); }
+/* 어느 화면에서나 검색(G1) */
+.gsr { position: relative; z-index: 35; }
+.gsr .sbox .search { padding-right: 44px; }
+.gdd { position: absolute; left: 0; right: 0; top: calc(100% + 6px); background: var(--surface); border: 1px solid var(--edge); border-radius: 16px; box-shadow: 0 18px 40px -12px rgba(20, 30, 60, .35); padding: 4px; max-height: 70vh; overflow: auto; }
+.gdh { font-size: 11.5px; color: var(--muted); padding: 8px 12px 4px; }
+.gri { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 6px; padding: 9px 12px; border-top: 1px solid var(--line2); text-decoration: none; color: inherit; border-radius: 10px; }
+.gri:hover, .gri:focus-visible { background: var(--surface2); }
+.gri .nm { font-weight: 600; font-size: 14px; }
+.gri .gst { margin-left: auto; font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.gri .u { width: 100%; font-size: 12px; color: var(--muted); }
+.gall { display: block; width: 100%; text-align: left; border: 0; border-top: 1px solid var(--line2); background: none; padding: 10px 12px; font: 600 12.5px var(--f-body); color: var(--accent); cursor: pointer; border-radius: 0 0 12px 12px; }
+.stats-gs-gap { height: 0; }

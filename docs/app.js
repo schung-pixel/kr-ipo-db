@@ -1337,7 +1337,7 @@
       '<div class="flabel"><span class="fl-t">단위</span>' + segBtns("data-u", [["year", "연"], ["quarter", "분기"], ["month", "월"]], unit) + "</div>" +
       boardSelect("s-board") + '<span class="sw-d">' + spacSw("s-spac") + "</span></div>" +
       '<div class="sopt-m">' + spacSw("s-spac-m") + "</div>";
-    if (!ys.length) { app.innerHTML = '<div class="content">' + head + '<div class="ledger"><div class="empty">상장 건이 없습니다.</div></div></div>'; bindStats(); return; }
+    if (!ys.length) { app.innerHTML = '<div class="content">' + gsearchBox() + head + '<div class="ledger"><div class="empty">상장 건이 없습니다.</div></div></div>'; bindStats(); return; }
     var wf = win[0], wt = win[1];
     statNow = { from: wf, to: wt, b0: bnd[0], b1: bnd[1] };
     var deals = all.filter(function (d) { var m = mIdx(listDate(d).slice(0, 7)); return m >= wf && m <= wt; });
@@ -1610,7 +1610,7 @@
 
     })();
     var unitWord = unit === "year" ? "연도별" : unit === "quarter" ? "분기별" : "월별";
-    setStatsHtml('<div class="content">' + head + kpi +
+    setStatsHtml('<div class="content">' + gsearchBox() + head + kpi +
       '<section class="panel"><header><div><h2>' + unitWord + " 상장 추이</h2><p>상장일 기준(상장 완료 건). 공모액은 확정 금액입니다." + (estN ? " 상장일을 원문에서 읽지 못한 " + estN + "건은 증권발행실적보고서 제출일로 추정했습니다." : "") + "</p></div>" +
       segBtns("data-m", [["count", "건수"], ["amount", "공모액"]], isAmt ? "amount" : "count") + '</header><div class="pbody chart zoomable">' + legend1 + svg1 +
       '<p class="zhint">' + (COARSE ? "두 손가락으로 벌리거나 모아 기간 조정 · 확대 후 좌우로 끌어 이동 · 두 번 탭하면 원래대로" : "트랙패드 핀치 또는 Ctrl+스크롤로 기간 조정 · 확대 후 드래그로 이동 · 더블클릭하면 원래대로") + "</p>" +
@@ -1652,6 +1652,7 @@
     return "year";
   }
   function bindStats() {
+    if (!(document.activeElement && document.activeElement.id === "g-q")) bindGsearch();
     enhanceSelects(app);
     var pe = document.getElementById("s-period");
     if (pe) pe.addEventListener("change", function (e) {
@@ -2080,6 +2081,61 @@
       window.scrollTo(0, y0);
     });
   }
+  // ---------------------------------------------------------------- 어느 화면에서나 검색(G1): 그 자리에서 결과
+  var SEARCH_ICON = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13.5 13.5L17 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+  function gsearchBox() {
+    return '<div class="srow gsr" role="search"><div class="sbox">' + SEARCH_ICON +
+      '<input class="search" id="g-q" type="search" autocomplete="off" placeholder="기업명·주관사 검색 (초성 가능)" aria-label="기업명·주관사 검색" aria-controls="g-dd" aria-expanded="false">' +
+      '<button type="button" class="sclear" id="g-clear" aria-label="검색어 지우기" hidden><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>' +
+      '</div><div class="gdd" id="g-dd" hidden></div></div>';
+  }
+  function gsearchHits(q) {
+    q = q.trim().toLowerCase();
+    if (!q) return [];
+    var xs = data.deals.filter(function (d) {
+      if (!candOk(d, "ipo")) return false;
+      return findMatch(name(d), q) !== -1 || findMatch((d.lead_underwriters || "") + "," + uwSet(d).join(","), q) !== -1;
+    });
+    var f = SORTERS.date;
+    xs.sort(function (a, b) { var x = f(a) || "", y = f(b) || ""; return x < y ? 1 : x > y ? -1 : 0; });
+    return xs;
+  }
+  function gsearchWhen(d) {
+    var l = lstOf(d);
+    if (l.dt) return "상장 " + l.dt.slice(2).replace(/-/g, ".") + (l.q ? " " + l.q : "");
+    if (d.demand_start && d.status !== "withdrawn") return "수요예측 " + demandText(d, true);
+    return (d.status === "approved" ? "예심 승인 " : d.status === "withdrawn" ? "철회 · 신고 " : "신고 ") + (d.first_filing_dt || "-");
+  }
+  function bindGsearch() {
+    var qi = document.getElementById("g-q"), dd = document.getElementById("g-dd"), qc = document.getElementById("g-clear");
+    if (!qi || !dd) return;
+    var draw = function () {
+      var q = qi.value, hits = gsearchHits(q);
+      qc.hidden = !q;
+      if (!q.trim()) { dd.hidden = true; qi.setAttribute("aria-expanded", "false"); return; }
+      dd.innerHTML = (hits.length ? '<div class="gdh">기업 ' + hits.length + "</div>" + hits.slice(0, 6).map(function (d) {
+        return '<a class="gri" href="#/deal/' + encodeURIComponent(d.deal_id) + '"><span class="nm">' + highlight(name(d), q.trim()) + "</span>" + boardTag(d) +
+          (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + focusTag(d) + '<span class="gst">' + esc(statusLabel(d)) + "</span>" +
+          '<span class="u">' + esc(gsearchWhen(d)) + " · " + esc(d.lead_underwriters || "주관사 미확인") + "</span></a>";
+      }).join("") : '<div class="gdh">"' + esc(q.trim()) + '"에 맞는 공모가 없습니다.</div>') +
+        (hits.length > 0 ? '<button type="button" class="gall" id="g-all">목록에서 전체 결과 보기' + (hits.length > 6 ? " (" + hits.length + "건)" : "") + " ›</button>" : "");
+      dd.hidden = false; qi.setAttribute("aria-expanded", "true");
+      var all = document.getElementById("g-all");
+      if (all) all.addEventListener("click", function () { state.q = q; persist(); goPath("/"); });
+    };
+    qi.addEventListener("input", draw);
+    qi.addEventListener("focus", function () { if (qi.value.trim()) draw(); });
+    qi.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") { dd.hidden = true; qi.blur(); }
+      if (e.key === "Enter") { var a = dd.querySelector(".gri"); if (a) { e.preventDefault(); goPath(a.getAttribute("href").slice(1)); } }
+    });
+    qc.addEventListener("click", function () { qi.value = ""; draw(); qi.focus(); });
+  }
+  // 검색 결과 밖을 누르면 닫습니다(화면마다 다시 그려지므로 리스너는 한 번만 둡니다).
+  document.addEventListener("pointerdown", function (e) {
+    var dd = document.getElementById("g-dd"), qi = document.getElementById("g-q");
+    if (dd && !dd.hidden && !(e.target.closest && e.target.closest(".gsr"))) { dd.hidden = true; if (qi) qi.setAttribute("aria-expanded", "false"); }
+  }, true);
   function renderCal() {
     document.title = "일정 · IPO 데이터룸";
     view = "cal";
@@ -2159,10 +2215,11 @@
     var qPanel = '<section class="panel"><header><div><h2>분기별 심사기간</h2><p>결과 통지일이 속한 분기 기준. 신규상장 청구, 스팩 제외.</p></div></header>' +
       '<div class="pbody"><div class="scroll"><table class="mini rv q"><thead><tr><th>분기</th><th class="num">결과</th><th class="num">승인률</th><th class="num">심사기간</th><th class="bar-cell"><span class="sr">막대</span></th></tr></thead><tbody>' + qHtml + "</tbody></table></div></div></section>";
 
-    app.innerHTML = '<div class="content cal-page">' + monthPanel(today) + dealTable(today) +
+    app.innerHTML = '<div class="content cal-page">' + gsearchBox() + monthPanel(today) + dealTable(today) +
       '<div class="panels even">' + pendPanel + waitPanel + "</div>" +
       '<div class="panels even">' + spPanel + qPanel + "</div></div>";
     bindCal();
+    bindGsearch();
   }
   function renderBio() {
     document.title = "기술특례 바이오 · IPO 데이터룸";
