@@ -1,11 +1,11 @@
 {
- "run_at": "2026-11-05T19:44:29+09:00",
+ "run_at": "2026-11-06T02:30:06+09:00",
  "fetch": "ok",
  "http_status": 200,
- "response_bytes": 197289,
- "rows": 334,
- "saved": 334,
- "approved": 214,
+ "response_bytes": 196703,
+ "rows": 333,
+ "saved": 333,
+ "approved": 213,
  "corp_list": 2765,
  "listing_sched": {
   "screens": {
