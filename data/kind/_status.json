@@ -1,5 +1,5 @@
 {
- "run_at": "2026-11-10T08:45:19+09:00",
+ "run_at": "2026-11-10T20:02:46+09:00",
  "fetch": "ok",
  "http_status": 200,
  "response_bytes": 195552,
@@ -9,9 +9,9 @@
  "corp_list": 2766,
  "listing_sched": {
   "screens": {
-   "pubofrprogcom": 35
+   "pubofrprogcom": 36
   },
-  "saved": 35
+  "saved": 36
  },
  "manual_rows": 0
 }
