@@ -52528,6 +52528,7 @@ INSERT INTO "kind_corp" VALUES('이에스티','이에스티','495910','코스닥
 INSERT INTO "kind_corp" VALUES('스퀘어텍','스퀘어텍','148250','코스닥','전자부품 제조업','이동통신부품(커플러), 의료기기용기판, 파우더','2016-06-22','2026-11-09T04:32:01+09:00');
 INSERT INTO "kind_corp" VALUES('다이나맥','다이나맥','000040','유가','그외 기타 운송장비 제조업','이륜차(오토바이) 제조,도매','1976-05-25','2026-11-09T04:32:01+09:00');
 INSERT INTO "kind_corp" VALUES('동원파츠','동원파츠','0162D0','코스닥','특수 목적용 기계 제조업','샤워헤드, 챔버부품 등','2026-11-10','2026-11-10T04:56:25+09:00');
+INSERT INTO "kind_corp" VALUES('바로팜','바로팜','0153R0','코스닥','기타 정보 서비스업','약국 통합 플랫폼','2026-11-11','2026-11-11T02:10:47+09:00');
 CREATE TABLE kind_listing (
   name_key    TEXT PRIMARY KEY,
   corp_name   TEXT,
@@ -52935,9 +52936,9 @@ CREATE TABLE meta (
   key   TEXT PRIMARY KEY,
   value TEXT
 );
-INSERT INTO "meta" VALUES('last_list_date','2026-11-10');
+INSERT INTO "meta" VALUES('last_list_date','2026-11-11');
 INSERT INTO "meta" VALUES('schema_stage','2');
-INSERT INTO "meta" VALUES('kind_as_of','2026-11-10');
+INSERT INTO "meta" VALUES('kind_as_of','2026-11-11');
 CREATE TABLE review (
   deal_id               TEXT PRIMARY KEY,
   prelim_filed_dt       TEXT,
