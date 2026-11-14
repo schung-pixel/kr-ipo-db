@@ -1272,3 +1272,7 @@ header.top nav.tabs, #app .srow .search {
 .ps .ps-side > div { background: color-mix(in srgb, var(--pt) 18%, var(--surface)); }
 .ps .ps-side .k, .ps .ps-side .s { color: color-mix(in srgb, var(--pt) 65%, var(--ink)); }
 .ps .ps-side .v { font-weight: 600; }
+/* 상세 카드 안의 박스는 중성 연회색으로 통일(회사 개요는 흰 바탕 유지) */
+#sbody { --surface2: #F6F6F7; }
+:root[data-theme="dark"] #sbody { --surface2: #23262B; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) #sbody { --surface2: #23262B; } }
