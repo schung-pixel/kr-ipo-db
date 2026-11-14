@@ -979,6 +979,15 @@
       '<span class="pp">' + posV + '</span><span class="s">' + (d.offer_price_low ? "희망 " + bandText(d) + "원" : "") + "</span></div>" +
       '<div class="ps-side">' + tile("수요예측 경쟁률", inst, instS) + tile("일반청약 경쟁률", ret, retS) + "</div></div></div>";
   }
+  // 상장 첫날 수익률: 공모가 대비 시초가·종가(38커뮤니케이션 신규상장 표)
+  function d1Pct(d, v) { return v && d.final_price ? (v / d.final_price - 1) * 100 : null; }
+  function d1Sign(x) { return x == null ? '<b class="dim">-</b>' : '<b class="' + (x > 0 ? "up" : x < 0 ? "dn" : "") + '">' + (x > 0 ? "+" : "") + x.toFixed(1) + "%</b>"; }
+  function d1Block(d) {
+    if ((!d.d1_open && !d.d1_close) || !d.final_price) return "";
+    var cell = function (k, v) { return "<div><span>" + k + "</span>" + d1Sign(d1Pct(d, v)) + "<small>" + (v ? int(v) + "원" : "-") + "</small></div>"; };
+    return '<div class="d1"><div class="d1h">상장 첫날 수익률 <small>공모가 ' + int(d.final_price) + "원 대비 · 38커뮤니케이션</small></div>" +
+      '<div class="d1g">' + cell("시초가", d.d1_open) + cell("종가", d.d1_close) + "</div></div>";
+  }
   function lockupBlock(d) {
     var L = d.lockup;
     if (!L || (!L.float0 && !L.schedule && !L.commit)) return "";
@@ -1245,6 +1254,7 @@
       term(shrLabel, d.shares_offered != null ? int(d.shares_offered) + "<small>주</small>" : "-", d.secondary_shares ? "구주 " + int(d.secondary_shares) + "주" : "") +
       term("대표주관", esc(d.lead_underwriters || "-"), d.co_underwriters ? "공동 " + esc(d.co_underwriters) : "", "txt") +
       "</div>";
+    html += d1Block(d);
     html += '<div id="bandviz-slot"></div>';
     html += structBlock(d);
     html += finBlock(d);
