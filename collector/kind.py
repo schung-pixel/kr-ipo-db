@@ -400,6 +400,29 @@ def pending_approvals(conn, deals: list, today: date) -> list:
     return out
 
 
+REVIEW_PENDING_DAYS = 365   # 청구 후 1년이 넘도록 결과가 없으면(목록 미갱신 등) 진행 중으로 보지 않음
+
+
+def pending_reviews(conn, deals: list, today: date) -> list:
+    """예비심사를 청구했고 아직 결과(승인·미승인·철회)가 없는 회사. 스팩 합병·재상장 제외, 청구 후 1년 이내."""
+    dart_keys = {}
+    for d in deals:
+        dart_keys.setdefault(name_key(d.get("corp_name") or ""), []).append(d)
+    out = []
+    for r in conn.execute("SELECT * FROM kind_review WHERE result LIKE '%청구%' ORDER BY filed_dt DESC"):
+        r = dict(r)
+        lt = r.get("listing_type") or ""
+        if "스팩" in lt or "재상장" in lt or r.get("decided_dt") or not r.get("filed_dt"):
+            continue
+        if (today - date.fromisoformat(r["filed_dt"])).days > REVIEW_PENDING_DAYS:
+            continue
+        k = r["name_key"] if r["name_key"] in dart_keys else find_key(list(dart_keys), r["corp_name"])
+        if any(d["first_filing_dt"] >= r["filed_dt"] for d in dart_keys.get(k, [])):
+            continue   # 청구 뒤 증권신고서가 나왔으면 이미 딜 목록에 있음
+        out.append(r)
+    return out
+
+
 def review_for(conn, corp_name: str, first_filing_dt: str) -> dict | None:
     """DART 딜에 붙일 예심 정보: 같은 회사의 청구 중 신고서 제출 이전 가장 최근 건."""
     q = ("SELECT * FROM kind_review WHERE name_key=? AND (filed_dt IS NULL OR filed_dt <= ?) "

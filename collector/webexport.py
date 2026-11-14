@@ -365,11 +365,13 @@ def build_payload(conn) -> dict:
         d["board"] = board(d.get("market"), d.get("tech_track"))
     asof = store.get_meta(conn, "last_list_date") or _date.today().isoformat()
     approvals = []
-    for r in kind.pending_approvals(conn, deals, _date.fromisoformat(asof)):
+    rows = [("approved", r) for r in kind.pending_approvals(conn, deals, _date.fromisoformat(asof))] + \
+           [("review", r) for r in kind.pending_reviews(conn, deals, _date.fromisoformat(asof))]
+    for st, r in rows:
         approvals.append({
             "deal_id": f"kind_{r['review_key']}", "corp_code": None, "corp_name": r["corp_name"],
-            "status": "approved", "is_ipo_candidate": 1, "doc_signal": None,
-            "first_filing_dt": r.get("decided_dt") or r.get("filed_dt"), "first_rcept_no": "",
+            "status": st, "is_ipo_candidate": 1, "doc_signal": None,
+            "first_filing_dt": (r.get("decided_dt") if st == "approved" else None) or r.get("filed_dt"), "first_rcept_no": "",
             "lead_underwriters": uw_display(r.get("sponsor")), "market": _KIND_MARKET.get(r.get("market") or "", r.get("market")),
             "board": board(_KIND_MARKET.get(r.get("market") or ""), None), "tech_unknown": True,
             "listing_type": r.get("listing_type"),

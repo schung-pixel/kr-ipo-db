@@ -315,6 +315,7 @@
 
 
   var STATUS = {
+    review: { label: "예심 청구", tip: "상장예비심사를 청구했고 결과가 아직 나오지 않은 단계(한국거래소 KIND 기준)", icon: '<path d="M3.5 1.8h7M3.5 12.2h7M4.5 1.8c0 3 5 3.4 5 5.2s-5 2.2-5 5.2M9.5 1.8c0 3-5 3.4-5 5.2s5 2.2 5 5.2" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>' },
     approved: { label: "예심 승인", tip: "상장예비심사 승인을 받았고 증권신고서는 아직 내지 않은 단계", icon: '<path d="M7 1.6l1.5 1.2 1.9-.2.6 1.8 1.6 1-.6 1.8.6 1.8-1.6 1-.6 1.8-1.9-.2L7 12.4l-1.5-1.2-1.9.2-.6-1.8-1.6-1 .6-1.8-.6-1.8 1.6-1 .6-1.8 1.9.2z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M4.8 7.1l1.5 1.5 2.9-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>' },
     filed: { label: "신고서 제출", tip: "증권신고서를 냈고 공모가는 아직 정해지지 않은 단계(수요예측 전·중)", icon: '<circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.8"/>' },
     price_fixed: { label: "가격 확정", tip: "발행조건확정 신고서로 공모가가 정해졌고 증권발행실적보고서는 아직인 단계(청약·납입)", icon: '<path d="M2.5 7.4l3 3 6-6.4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>' },
@@ -441,6 +442,17 @@
   function baseView() { return view === "stats" ? "/stats" : view === "bio" ? "/bio" : view === "cal" ? "/cal" : "/"; }
 
   // ---------------------------------------------------------------- 목록
+  // 예심 청구 건: 청구 후 경과일과 최근 1년 승인 건의 청구→승인 소요일 중앙값(진행 정도 비교용)
+  var _rvMed = null;
+  function rvMedDays() {
+    if (_rvMed != null) return _rvMed;
+    var y1 = addDays(asOf(), -365), xs = (data.reviews || []).filter(function (r) { return r.f && r.d && r.d >= y1 && rvIpo(r) && rvKind(r) === "approved"; })
+      .map(function (r) { return daysBetween(r.f, r.d); });
+    _rvMed = medInt(xs) || 0;
+    return _rvMed;
+  }
+  function rvElapsed(d) { return d.first_filing_dt ? daysBetween(d.first_filing_dt, asOf()) : null; }
+  function isPre(d) { return d.status === "review" || d.status === "approved"; }
   function baseRows(ignoreStatus) {
     var q = state.q.trim().toLowerCase();
     return data.deals.filter(function (d) {
@@ -616,9 +628,9 @@
     if (ddOpen && !ddOpen.mobile && !(e.target.closest && e.target.closest(".dd-panel"))) ddClose(false);
   }, true);
 
-  var ST_LABEL = { all: "전체", approved: "예심 승인", filed: "신고서 제출", price_fixed: "가격 확정", upcoming: "상장 예정", completed: "상장 완료", withdrawn: "철회" };
+  var ST_LABEL = { all: "전체", review: "예심 청구", approved: "예심 승인", filed: "신고서 제출", price_fixed: "가격 확정", upcoming: "상장 예정", completed: "상장 완료", withdrawn: "철회" };
   // 진행 상태·신고 연도는 여러 개를 고를 수 있습니다. 값은 "filed,price_fixed"처럼 쉼표로 이은 문자열("all"·""는 전체)
-  var MULTI = { status: ["approved", "filed", "price_fixed", "upcoming", "completed", "withdrawn"], sector: SECTORS };
+  var MULTI = { status: ["review", "approved", "filed", "price_fixed", "upcoming", "completed", "withdrawn"], sector: SECTORS };
   function multi(k) {
     var v = state[k];
     return !v || v === "all" ? [] : String(v).split(",").filter(Boolean);
@@ -681,7 +693,7 @@
   // ---- 필터 패널: PC는 버튼 아래 팝오버, 휴대폰은 아래에서 올라오는 시트
   var fpOpen = null;
   function fpBody() {
-    var counts = { all: 0, approved: 0, filed: 0, price_fixed: 0, upcoming: 0, completed: 0, withdrawn: 0 };
+    var counts = { all: 0, review: 0, approved: 0, filed: 0, price_fixed: 0, upcoming: 0, completed: 0, withdrawn: 0 };
     baseRows(true).forEach(function (d) { var k = stKey(d); counts.all++; counts[k] = (counts[k] || 0) + 1; });
     var secCounts = {};
     data.deals.forEach(function (d) { if (candOk(d, state.cand) && (state.spac || !isSpac(d)) && d.sector) secCounts[d.sector] = (secCounts[d.sector] || 0) + 1; });
@@ -690,7 +702,7 @@
       return '<button type="button" class="fo" data-k="' + k + '" data-v="' + esc(v) + '" aria-pressed="' + on + '">' + esc(label) +
         (n != null ? '<span class="n">' + n + "</span>" : "") + "</button>";
     };
-    var st = ["all", "approved", "filed", "price_fixed", "upcoming", "completed", "withdrawn"].filter(function (k) { return (k !== "approved" && k !== "upcoming") || counts[k] || multi("status").indexOf(k) >= 0; });
+    var st = ["all", "review", "approved", "filed", "price_fixed", "upcoming", "completed", "withdrawn"].filter(function (k) { return (k !== "review" && k !== "approved" && k !== "upcoming") || counts[k] || multi("status").indexOf(k) >= 0; });
     return '<div class="fp-sec"><div class="fp-h">진행 상태<small>여러 개 선택</small></div><div class="fp-opts">' + st.map(function (k) { return opt2("status", k, ST_LABEL[k], counts[k]); }).join("") + "</div></div>" +
       '<div class="fp-sec"><div class="fp-h">상장 시장</div><div class="fp-opts">' + opt2("board", "", "전체") +
       Object.keys(BOARDS).map(function (k) { return opt2("board", k, BOARDS[k]); }).join("") + "</div></div>" +
@@ -796,7 +808,13 @@
     { key: "amount", label: "공모액(억원)", cls: "c-amt n" }
   ];
   function renderRows() {
-    var rows = filtered();
+    // 예심 단계(청구·승인) 회사는 목록 위 묶음 표로 따로 보여 줍니다. 진행 상태 필터로 예심 단계를 직접 고르면 일반 카드로 보입니다.
+    var rows = filtered(), rvGroup = [];
+    var pick = multi("status"), preOnly = pick.indexOf("review") >= 0 || pick.indexOf("approved") >= 0;
+    if (!preOnly) {
+      rvGroup = rows.filter(isPre);
+      rows = rows.filter(function (d) { return !isPre(d); });
+    }
     var amt = rows.reduce(function (s, d) { return s + (d.offer_amount || 0); }, 0);
     document.getElementById("ledger-top").innerHTML = '<h2>IPO 딜 <span class="cnt">' + rows.length + "</span></h2>" +
       (rows.length ? '<span class="hint">공모액 합계 <b>' + eok(amt) + "</b>억원</span>" : "");
@@ -819,7 +837,7 @@
       var bandCell = d.offer_price_low ? bandText(d) : (d.filed_price ? '<span class="dim" title="신고서 기재 기준가">' + int(d.filed_price) + "*</span>" : "-");
       var href = "#/deal/" + encodeURIComponent(d.deal_id);
       html += '<tr data-id="' + esc(d.deal_id) + '">' +
-        '<td class="c-date">' + (d.listing_dt ? esc(d.listing_dt) : d.demand_start && d.status !== "withdrawn" ? '<span class="dim">수요예측 </span>' + esc(demandText(d, true)) : '<span class="dim">' + (d.status === "approved" ? "승인 " : "신고 ") + esc(d.first_filing_dt) + "</span>") + "</td>" +
+        '<td class="c-date">' + (d.listing_dt ? esc(d.listing_dt) : d.demand_start && d.status !== "withdrawn" ? '<span class="dim">수요예측 </span>' + esc(demandText(d, true)) : '<span class="dim">' + (d.status === "approved" ? "승인 " : d.status === "review" ? "청구 " : "신고 ") + esc(d.first_filing_dt) + "</span>") + "</td>" +
         '<td class="c-name"><a class="nm" href="' + href + '">' + hlName(name(d), q) + "</a>" + tags + "</td>" +
         '<td class="c-lead" title="' + esc(d.lead_underwriters || "") + '">' + (d.lead_underwriters ? highlight(d.lead_underwriters, q) : '<span class="dim">-</span>') + "</td>" +
         '<td class="c-status">' + chip(d) + "</td>" +
@@ -828,7 +846,10 @@
         '<td class="c-inst n">' + (d.inst_demand_ratio != null ? ratio(d.inst_demand_ratio) : '<span class="dim">-</span>') + "</td>" +
         '<td class="c-retail n">' + (d.retail_ratio != null ? ratio(d.retail_ratio) : '<span class="dim">-</span>') + "</td>" +
         '<td class="c-amt n">' + eok(d.offer_amount) + "</td></tr>";
-      var price = d.status === "approved"
+      var el = d.status === "review" ? rvElapsed(d) : null;
+      var price = d.status === "review"
+        ? '<span class="lbl">시장</span><span class="b">' + esc((d.prelim && d.prelim.market) || d.market || "-") + '</span><span class="lbl">심사</span><span class="b">' + el + "일째</span>"
+        : d.status === "approved"
         ? '<span class="lbl">시장</span><span class="b">' + esc((d.prelim && d.prelim.market) || d.market || "-") + '</span><span class="lbl">청구</span><span class="b">' + esc((d.prelim && d.prelim.filed_dt) || "-") + "</span>"
         : d.final_price
         ? '<span class="b">' + bandCell + '</span><span class="arrow" aria-label="확정">→</span><b>' + int(d.final_price) + "</b>" + (p ? pill(p) : "")
@@ -836,7 +857,7 @@
       var hasRatio = d.inst_demand_ratio != null || d.retail_ratio != null;
       cards += '<a class="card" href="' + href + '" data-id="' + esc(d.deal_id) + '">' +
         '<div class="r1"><span class="nmw"><span class="nm">' + hlName(name(d), q) + '</span>' + (tags ? '<span class="tags">' + tags + "</span>" : "") + "</span>" + chip(d) + "</div>" +
-        '<div class="r2">' + (d.listing_dt ? '상장 <span class="mono">' + esc(d.listing_dt) + "</span>" : d.demand_start && d.status !== "withdrawn" ? '수요예측 <span class="mono">' + esc(demandText(d, true)) + "</span>" : (d.status === "approved" ? "예심 승인 " : "신고 ") + '<span class="mono">' + esc(d.first_filing_dt) + "</span>") + " · " + (d.lead_underwriters ? highlight(uwShortStr(d.lead_underwriters), q) : "주관사 미확인") + "</div>" +
+        '<div class="r2">' + (d.listing_dt ? '상장 <span class="mono">' + esc(d.listing_dt) + "</span>" : d.demand_start && d.status !== "withdrawn" ? '수요예측 <span class="mono">' + esc(demandText(d, true)) + "</span>" : (d.status === "approved" ? "예심 승인 " : d.status === "review" ? "예심 청구 " : "신고 ") + '<span class="mono">' + esc(d.first_filing_dt) + "</span>") + " · " + (d.lead_underwriters ? highlight(uwShortStr(d.lead_underwriters), q) : "주관사 미확인") + "</div>" +
         '<div class="r3"><span class="price">' + price + "</span>" + (!hasRatio && d.offer_amount != null ? '<span class="amt r3a">공모액<b>' + eok(d.offer_amount) + "억</b></span>" : "") + "</div>" +
         (hasRatio
           ? '<div class="r4">' + (d.inst_demand_ratio != null ? "<span>수요예측<b>" + ratio(d.inst_demand_ratio) + "</b></span>" : "") +
@@ -844,7 +865,44 @@
             (d.offer_amount != null ? '<span class="amt">공모액<b>' + eok(d.offer_amount) + "억</b></span>" : "") + "</div>" : "") + "</a>";
     });
     cards += "</div>";
-    box.innerHTML = html + "</tbody></table></div>" + cards;
+    var grp = "";
+    if (rvGroup.length) {
+      var med = rvMedDays();
+      var bar = function (pct, cls) { return '<span class="rvb' + (cls ? " " + cls : "") + '"><i style="width:' + Math.max(3, Math.min(100, Math.round(pct))) + '%"></i></span>'; };
+      var md = function (iso) { return iso ? iso.slice(5).replace("-", ".") : "-"; };
+      // 한 회사 한 줄: 회사명 | 경과(글자) | 막대 | 주관사. 구역(승인·심사 중)으로 나눠 '승인'·'청구' 단어는 줄마다 쓰지 않음
+      var row = function (d) {
+        var txt, b;
+        if (d.status === "review") {
+          var el = rvElapsed(d), over = med && el > med;
+          txt = '<span class="rvt' + (over ? " over" : "") + '">' + el + "일</span>";
+          b = med ? bar(el / med * 100, over ? "over" : "") : "";
+        } else {   // 승인: 승인 후 경과일과 효력(6개월) 만료일, 막대는 효력 기간 소진 정도
+          var ad = (d.prelim || {}).decided_dt || d.first_filing_dt, since = ad ? daysBetween(ad, asOf()) : 0;
+          txt = '<span class="rvt ok">' + since + "일 · ~" + md(ad ? addDays(ad, 183) : null) + "</span>";
+          b = bar(since / 183 * 100, since > 150 ? "warn" : "ok");
+        }
+        return '<li class="' + d.status + '"><a href="#/deal/' + encodeURIComponent(d.deal_id) + '"><span class="nm">' + esc(name(d)) + "</span>" + txt + b +
+          '<span class="uw">' + esc(uwShortStr(d.lead_underwriters || "")) + "</span></a></li>";
+      };
+      var ap = rvGroup.filter(function (d) { return d.status === "approved"; }),
+        rv = rvGroup.filter(function (d) { return d.status === "review"; }).sort(function (a, b) { return a.first_filing_dt > b.first_filing_dt ? -1 : 1; });
+      var SHOW = 8;
+      grp = '<details class="rvgrp" open><summary>예심 단계 <b>' + rvGroup.length + "곳</b></summary>" +
+        (ap.length ? '<div class="rvsec"><div class="rvh">승인 · 신고서 대기 <b>' + ap.length + "</b><small>승인 후 경과 · 효력 만료(6개월)</small></div><ul>" + ap.map(row).join("") + "</ul></div>" : "") +
+        (rv.length ? '<div class="rvsec"><div class="rvh">심사 중 <b>' + rv.length + "</b><small>청구 후 경과" + (med ? " · 막대 기준 최근 1년 승인 중앙값 " + med + "일(넘으면 빨강)" : "") + "</small></div>" +
+          '<ul data-rest="' + esc(JSON.stringify(rv.slice(SHOW).map(function (d) { return d.deal_id; }))) + '">' + rv.slice(0, SHOW).map(row).join("") +
+          (rv.length > SHOW ? '<li class="more"><button type="button" id="rv-more">나머지 ' + (rv.length - SHOW) + "곳 더 보기</button></li>" : "") + "</ul></div>" : "") +
+        "</details>";
+      renderRows._rvRow = row;
+    }
+    box.innerHTML = grp + html + "</tbody></table></div>" + cards;
+    var rvm = document.getElementById("rv-more");
+    if (rvm) rvm.addEventListener("click", function () {
+      var ul = rvm.closest("ul"), ids = JSON.parse(ul.dataset.rest || "[]"), by = {};
+      rvGroup.forEach(function (d) { by[d.deal_id] = d; });
+      rvm.closest("li").outerHTML = ids.map(function (id) { return renderRows._rvRow(by[id]); }).join("");
+    });
     box.querySelectorAll("th .sort").forEach(function (b) {
       b.addEventListener("click", function () {
         var k = b.dataset.key;
@@ -1186,7 +1244,10 @@
     titleEl.textContent = name(d);
     chipEl.innerHTML = chip(d) + boardTag(d) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + refileTag(d) + focusTag(d) + (bc ? bioChips(bc) : "");
     var tlEl = document.getElementById("sheet-tl");
-    if (d.status === "approved") {
+    if (d.status === "review") {
+      subEl.textContent = "예심 청구 " + (d.first_filing_dt || "-") + (d.prelim && d.prelim.market ? " · " + d.prelim.market : "") + (d.lead_underwriters ? " · " + d.lead_underwriters : "");
+      tlEl.hidden = true; tlEl.innerHTML = "";
+    } else if (d.status === "approved") {
       subEl.textContent = "예심 승인 " + (d.first_filing_dt || "-") + (d.prelim && d.prelim.market ? " · " + d.prelim.market : "") + (d.lead_underwriters ? " · " + d.lead_underwriters : "");
       tlEl.hidden = true; tlEl.innerHTML = "";
     } else {
@@ -1213,6 +1274,19 @@
     else setNav(idx, list.length, prev && function () { goPath("/deal/" + encodeURIComponent(prev.deal_id)); }, next && function () { goPath("/deal/" + encodeURIComponent(next.deal_id)); });
 
     var html = "";
+    if (d.status === "review") {
+      var pr2 = d.prelim || {}, el2 = rvElapsed(d), md2 = rvMedDays();
+      var tm2 = function (k, v, sub) { return '<div><span class="k">' + k + '</span><span class="v">' + v + "</span>" + (sub ? '<span class="s">' + sub + "</span>" : "") + "</div>"; };
+      var txt = function (v, w) { return '<span style="font-family:var(--f-body);font-size:15px' + (w ? ";font-weight:600" : "") + '">' + esc(v || "-") + "</span>"; };
+      sbody.innerHTML = '<p class="notice">상장예비심사를 청구했고 아직 결과가 나오지 않은 회사입니다. 승인되면 \'예심 승인\', 증권신고서를 내면 일반 공모 건으로 바뀝니다. 기술특례 여부는 증권신고서가 나와야 알 수 있습니다.</p>' +
+        '<div class="terms">' + tm2("예심 청구일", esc(pr2.filed_dt || "-")) + tm2("심사 경과", el2 + "<small>일째</small>", md2 ? "최근 1년 승인 중앙값 " + md2 + "일" : "") +
+        tm2("시장", txt(pr2.market)) + tm2("상장유형", txt(pr2.listing_type)) +
+        tm2("상장주선인", txt(pr2.sponsor, true)) + tm2("승인 예상 시점(추정)", md2 ? esc(addDays(pr2.filed_dt, md2)) : "-", "청구일 + 중앙값") + "</div>" +
+        '<p class="snote">출처: 한국거래소 KIND 상장예비심사 현황' + (data.kind_as_of ? " (" + esc(data.kind_as_of) + " 기준)" : "") + ". KRX의 사전 허락 없이 외부에 배포하지 마십시오.</p>";
+      sbody.scrollTop = 0;
+      if (!wasOpen) focusSheet();
+      return;
+    }
     if (d.status === "approved") {
       var pr = d.prelim || {}, exp = null;
       if (pr.decided_dt) { var t = new Date(pr.decided_dt + "T00:00:00"); t.setDate(t.getDate() + 183); exp = t.toISOString().slice(0, 10); }

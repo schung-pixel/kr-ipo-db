@@ -1289,3 +1289,31 @@ header.top nav.tabs, #app .srow .search {
 .d1 .d1g small { font-size: 11.5px; color: var(--faint); font-family: var(--f-mono); }
 :root[data-theme="dark"] .d1 .d1g b.up { color: #F87171; } :root[data-theme="dark"] .d1 .d1g b.dn { color: #7FA1EA; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .d1 .d1g b.up { color: #F87171; } :root:not([data-theme="light"]) .d1 .d1g b.dn { color: #7FA1EA; } }
+
+/* 예심 단계 묶음 표(목록 위): 승인·심사 중 구역, 한 회사 한 줄 */
+.chip.review { color: var(--muted); background: transparent; border: 1px dashed var(--line); line-height: calc(var(--badge-h) - 2px); }
+.rvgrp { margin: 0 0 10px; border-radius: 14px; background: var(--surface2); padding: 6px 12px 8px; font-size: 13px; }
+.rvgrp summary { cursor: pointer; padding: 3px 0; color: var(--muted); font-weight: 600; }
+.rvgrp summary b { color: var(--ink); margin-left: 4px; }
+.rvgrp .rvsec { margin-top: 4px; }
+.rvgrp .rvh { font-size: 11.5px; font-weight: 600; color: var(--muted); padding: 5px 0 3px; border-top: 1px solid var(--line); }
+.rvgrp .rvh b { color: var(--ink); margin-left: 3px; } .rvgrp .rvh small { font-weight: 400; color: var(--faint); margin-left: 6px; }
+.rvgrp ul { list-style: none; margin: 0; padding: 0; }
+.rvgrp li a { display: grid; gap: 6px; align-items: center; padding: 4px 0; border-top: 1px solid var(--line2); color: var(--ink); text-decoration: none; white-space: nowrap; line-height: 1.35; }
+.rvgrp li.review a { grid-template-columns: minmax(0, 1fr) 36px 70px minmax(0, .45fr); }
+.rvgrp li.approved a { grid-template-columns: minmax(0, 1fr) 84px 50px minmax(0, .45fr); }
+.rvgrp li .nm { overflow: hidden; text-overflow: ellipsis; }
+.rvgrp li .uw { color: var(--muted); text-align: right; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
+.rvgrp li.more { border-top: 1px solid var(--line2); }
+.rvgrp li.more button { background: none; border: 0; padding: 4px 0 0; font: inherit; font-size: 12px; color: var(--accent); cursor: pointer; }
+.rvt { font-size: 12px; text-align: right; font-family: var(--f-mono); letter-spacing: -.02em; } .rvt.over { color: #D92D20; font-weight: 600; } .rvt.ok { color: #15803D; text-align: left; font-family: var(--f-body); letter-spacing: 0; }
+.rvb { display: block; height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.rvb i { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
+.rvb.over i { background: #D92D20; } .rvb.ok i { background: #16A34A; } .rvb.warn i { background: #D97706; }
+:root[data-theme="dark"] .rvt.over { color: #F87171; } :root[data-theme="dark"] .rvt.ok { color: #4ADE80; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .rvt.over { color: #F87171; } :root:not([data-theme="light"]) .rvt.ok { color: #4ADE80; } }
+@media (min-width: 761px) {
+  .rvgrp li.review a { grid-template-columns: minmax(0, 220px) 44px 120px minmax(0, 1fr); gap: 10px; }
+  .rvgrp li.approved a { grid-template-columns: minmax(0, 220px) 96px 68px minmax(0, 1fr); gap: 10px; }
+  .rvgrp li .uw { text-align: left; }
+}
