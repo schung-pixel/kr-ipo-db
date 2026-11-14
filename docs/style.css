@@ -1300,20 +1300,17 @@ header.top nav.tabs, #app .srow .search {
 .rvgrp .rvh b { color: var(--ink); margin-left: 3px; } .rvgrp .rvh small { font-weight: 400; color: var(--faint); margin-left: 6px; }
 .rvgrp ul { list-style: none; margin: 0; padding: 0; }
 .rvgrp li a { display: grid; gap: 6px; align-items: center; padding: 4px 0; border-top: 1px solid var(--line2); color: var(--ink); text-decoration: none; white-space: nowrap; line-height: 1.35; }
-.rvgrp li.review a { grid-template-columns: minmax(0, 1fr) 36px 70px minmax(0, .45fr); }
-.rvgrp li.approved a { grid-template-columns: minmax(0, 1fr) 84px 50px minmax(0, .45fr); }
+.rvgrp li.review a, .rvgrp li.approved a { grid-template-columns: minmax(0, 1fr) 36px 70px minmax(0, .5fr); }
 .rvgrp li .nm { overflow: hidden; text-overflow: ellipsis; }
-.rvgrp li .uw { color: var(--muted); text-align: right; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
+.rvgrp li .uw { color: var(--muted); text-align: left; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
 .rvgrp li.more { border-top: 1px solid var(--line2); }
 .rvgrp li.more button { background: none; border: 0; padding: 4px 0 0; font: inherit; font-size: 12px; color: var(--accent); cursor: pointer; }
-.rvt { font-size: 12px; text-align: right; font-family: var(--f-mono); letter-spacing: -.02em; } .rvt.over { color: #D92D20; font-weight: 600; } .rvt.ok { color: #15803D; text-align: left; font-family: var(--f-body); letter-spacing: 0; }
+.rvt { font-size: 12px; text-align: right; font-family: var(--f-mono); letter-spacing: -.02em; } .rvt.over { color: #D92D20; font-weight: 600; } .rvt.ok { color: #15803D; }
 .rvb { display: block; height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
 .rvb i { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
 .rvb.over i { background: #D92D20; } .rvb.ok i { background: #16A34A; } .rvb.warn i { background: #D97706; }
 :root[data-theme="dark"] .rvt.over { color: #F87171; } :root[data-theme="dark"] .rvt.ok { color: #4ADE80; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .rvt.over { color: #F87171; } :root:not([data-theme="light"]) .rvt.ok { color: #4ADE80; } }
 @media (min-width: 761px) {
-  .rvgrp li.review a { grid-template-columns: minmax(0, 220px) 44px 120px minmax(0, 1fr); gap: 10px; }
-  .rvgrp li.approved a { grid-template-columns: minmax(0, 220px) 96px 68px minmax(0, 1fr); gap: 10px; }
-  .rvgrp li .uw { text-align: left; }
+  .rvgrp li.review a, .rvgrp li.approved a { grid-template-columns: minmax(0, 220px) 44px 120px minmax(0, 1fr); gap: 10px; }
 }

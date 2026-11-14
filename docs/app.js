@@ -877,19 +877,19 @@
           var el = rvElapsed(d), over = med && el > med;
           txt = '<span class="rvt' + (over ? " over" : "") + '">' + el + "일</span>";
           b = med ? bar(el / med * 100, over ? "over" : "") : "";
-        } else {   // 승인: 승인 후 경과일과 효력(6개월) 만료일, 막대는 효력 기간 소진 정도
+        } else {
           var ad = (d.prelim || {}).decided_dt || d.first_filing_dt, since = ad ? daysBetween(ad, asOf()) : 0;
-          txt = '<span class="rvt ok">' + since + "일 · ~" + md(ad ? addDays(ad, 183) : null) + "</span>";
+          txt = '<span class="rvt ok">' + since + "일</span>";   // 승인 후 경과, 막대는 효력 6개월 중 경과
           b = bar(since / 183 * 100, since > 150 ? "warn" : "ok");
         }
-        return '<li class="' + d.status + '"><a href="#/deal/' + encodeURIComponent(d.deal_id) + '"><span class="nm">' + esc(name(d)) + "</span>" + txt + b +
-          '<span class="uw">' + esc(uwShortStr(d.lead_underwriters || "")) + "</span></a></li>";
+        return '<li class="' + d.status + '"><a href="#/deal/' + encodeURIComponent(d.deal_id) + '"><span class="nm">' + esc(name(d)) + "</span>" +
+          txt + b + '<span class="uw">' + esc(uwShortStr(d.lead_underwriters || "")) + "</span></a></li>";
       };
       var ap = rvGroup.filter(function (d) { return d.status === "approved"; }),
         rv = rvGroup.filter(function (d) { return d.status === "review"; }).sort(function (a, b) { return a.first_filing_dt > b.first_filing_dt ? -1 : 1; });
       var SHOW = 8;
       grp = '<details class="rvgrp" open><summary>예심 단계 <b>' + rvGroup.length + "곳</b></summary>" +
-        (ap.length ? '<div class="rvsec"><div class="rvh">승인 · 신고서 대기 <b>' + ap.length + "</b><small>승인 후 경과 · 효력 만료(6개월)</small></div><ul>" + ap.map(row).join("") + "</ul></div>" : "") +
+        (ap.length ? '<div class="rvsec"><div class="rvh">승인 · 신고서 대기 <b>' + ap.length + "</b><small>승인 후 경과 · 막대: 효력 6개월 중</small></div><ul>" + ap.map(row).join("") + "</ul></div>" : "") +
         (rv.length ? '<div class="rvsec"><div class="rvh">심사 중 <b>' + rv.length + "</b><small>청구 후 경과" + (med ? " · 막대 기준 최근 1년 승인 중앙값 " + med + "일(넘으면 빨강)" : "") + "</small></div>" +
           '<ul data-rest="' + esc(JSON.stringify(rv.slice(SHOW).map(function (d) { return d.deal_id; }))) + '">' + rv.slice(0, SHOW).map(row).join("") +
           (rv.length > SHOW ? '<li class="more"><button type="button" id="rv-more">나머지 ' + (rv.length - SHOW) + "곳 더 보기</button></li>" : "") + "</ul></div>" : "") +
