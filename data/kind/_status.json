@@ -1,5 +1,5 @@
 {
- "run_at": "2026-11-14T19:08:33+09:00",
+ "run_at": "2026-11-14T22:22:08+09:00",
  "fetch": "ok",
  "http_status": 200,
  "response_bytes": 196090,
@@ -12,6 +12,13 @@
    "pubofrprogcom": 36
   },
   "saved": 36
+ },
+ "src38": {
+  "screens": {
+   "nw": 20,
+   "k": 30
+  },
+  "saved": 34
  },
  "manual_rows": 0
 }
