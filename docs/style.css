@@ -1267,3 +1267,8 @@ header.top nav.tabs, #app .srow .search {
 :root[data-theme="dark"] .ps-hd b { color: color-mix(in srgb, var(--pt) 55%, #fff); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ps-hd b { color: color-mix(in srgb, var(--pt) 55%, #fff); } }
 @media (min-width: 761px) { .ps-body { grid-template-columns: 1.3fr 1fr 1fr; } .ps-side { display: contents; } .ps-hero { padding: 14px 18px; } }
+/* 공모가 확정 요약 우측 칸: 좌측과 같은 색 계열 */
+.ps .ps-body { background: color-mix(in srgb, var(--pt) 40%, var(--surface)); }
+.ps .ps-side > div { background: color-mix(in srgb, var(--pt) 18%, var(--surface)); }
+.ps .ps-side .k, .ps .ps-side .s { color: color-mix(in srgb, var(--pt) 65%, var(--ink)); }
+.ps .ps-side .v { font-weight: 600; }
