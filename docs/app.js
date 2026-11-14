@@ -459,7 +459,7 @@
     });
   }
   var SORTERS = {
-    // 상장일(확정) → KIND 상장예정일 → 예상 상장일(납입일+4영업일) → 없으면 최초 신고일
+    // 상장일(확정) → 예정일(38커뮤니케이션·KIND) → 예상 상장일(납입일+N영업일) → 없으면 최초 신고일
     date: function (d) { return d.listing_dt || d.listing_sched || d.listing_est || d.first_filing_dt; },
     inst: function (d) { return d.inst_demand_ratio; },
     retail: function (d) { return d.retail_ratio; },
@@ -970,7 +970,7 @@
     var instS = [d.inst_demand_count ? int(d.inst_demand_count) + "건 참여" : "", c ? "확약 " + pct1(c.ratio) : ""].filter(Boolean).join(" · ");
     var subStarted = sd && asOf().slice(5).replace("-", ".") >= sd.slice(0, 5);
     var ret = d.retail_ratio != null ? ratio(d.retail_ratio) : '<span class="dim">' + (subStarted ? "집계 전" : "청약 전") + "</span>";
-    var retS = d.retail_ratio != null ? (d.retail_count ? int(d.retail_count) + "건" : "") : (sd ? "청약 " + sd : "");
+    var retS = d.retail_ratio != null ? retailNote(d) : (sd ? "청약 " + sd : "");
     var gap = p === "미달" || p === "하단" ? (d.final_price / d.offer_price_low - 1) * 100 : vt;
     var gapT = gap != null && p && p !== "상단" && p !== "하단" ? (p === "미달" ? "하단 " : "상단 ") + (gap > 0 ? "+" : "") + (Math.round(gap * 10) / 10).toFixed(1) + "%" : "";
     var posV = p ? pill(p) + (gapT ? " <small>" + gapT + "</small>" : "") : '<span class="pill">' + (d.offer_price_low && d.offer_price_low === d.offer_price_high ? "단일 희망가" : "밴드 정보 없음") + "</span>";
@@ -1190,7 +1190,7 @@
         ["가격 확정", pricingDate(d), md(pricingDate(d)), pricingDate(d)],
         wd ? ["철회", "0000", "-", "철회신고서 제출"] : (function () {
           var l = lstOf(d);
-          return [l.q ? "상장(" + l.q + ")" : "상장", d.listing_dt, md(l.dt), l.dt ? l.dt + (l.q ? " (" + (l.q === "예상" ? "예상 · 납입일 + 4영업일" : "KIND 신규상장 예정") + ")" : "") : ""];
+          return [l.q ? "상장(" + l.q + ")" : "상장", d.listing_dt, md(l.dt), l.dt ? l.dt + (l.q ? " (" + lstNote(d) + ")" : "") : ""];
         })()
       ];
       tlEl.innerHTML = steps.map(function (t) {
@@ -1238,9 +1238,9 @@
       term("확정 공모가", d.final_price ? int(d.final_price) + "<small>원</small>" + (p ? pill(p) : "") : '<span class="dim">' + (d.status === "price_fixed" ? "확인 필요" : "미확정") + "</span>", d.final_price ? capText(d.listed_shares, d.final_price, d.final_price) : "", d.final_price ? "hl" : "") +
       term("희망 밴드", d.offer_price_low ? bandText(d) + "<small>원</small>" : "-", bandCap(d)) +
       term("수요예측 경쟁률", d.inst_demand_ratio != null ? ratio(d.inst_demand_ratio) : '<span class="dim">-</span>', [demandText(d, true), d.inst_demand_count ? int(d.inst_demand_count) + "건 참여" : ""].filter(Boolean).join(" · ")) +
-      term("일반청약 경쟁률", d.retail_ratio != null ? ratio(d.retail_ratio) : '<span class="dim">-</span>', d.retail_count ? int(d.retail_count) + "건" : "") +
+      term("일반청약 경쟁률", d.retail_ratio != null ? ratio(d.retail_ratio) : '<span class="dim">-</span>', retailNote(d)) +
       term("상장일", d.listing_dt ? esc(d.listing_dt) : lstOf(d).dt ? esc(lstOf(d).dt) : '<span class="dim">-</span>',
-        d.listing_dt ? (d.listing_dt > asOf() ? "예정" : "") : d.listing_sched ? "KIND 신규상장 예정" : d.listing_est ? "예상 · 납입일 + 4영업일" : "") +
+        d.listing_dt ? (d.listing_dt > asOf() ? "예정" : "") : lstNote(d)) +
       term(amtLabel, d.offer_amount != null ? eok(d.offer_amount) + "<small>억원</small>" : "-") +
       term(shrLabel, d.shares_offered != null ? int(d.shares_offered) + "<small>주</small>" : "-", d.secondary_shares ? "구주 " + int(d.secondary_shares) + "주" : "") +
       term("대표주관", esc(d.lead_underwriters || "-"), d.co_underwriters ? "공동 " + esc(d.co_underwriters) : "", "txt") +
@@ -2201,7 +2201,14 @@
     return isoOf(t);
   }
   var EV_ORDER = { "수요예측": 0, "청약": 1, "납입": 2, "상장": 3 };
-  // 상장일: 실적보고서 확정 > KIND 신규상장 예정 > 납입일+4영업일 예상
+  // 상장일: 실적보고서 확정 > 예정일(38커뮤니케이션·KIND) > 납입일+N영업일 예상
+  // 상장일 출처 설명: 예정(38커뮤니케이션·KIND) 또는 예상(납입일 + N영업일)
+  function lstNote(d) {
+    if (d.listing_sched) return (d.listing_src === "KIND" ? "KIND 공모기업 진행현황" : "38커뮤니케이션") + " 예정일";
+    if (d.listing_est) return "예상 · 납입일 + " + (d.listing_est_days || 4) + "영업일";
+    return "";
+  }
+  function retailNote(d) { return d.retail_src === "38" ? "38커뮤니케이션 집계" : (d.retail_count ? int(d.retail_count) + "건" : ""); }
   function lstOf(d) {
     if (d.listing_dt) return { dt: d.listing_dt, q: "" };
     if (d.listing_sched) return { dt: d.listing_sched, q: "예정" };

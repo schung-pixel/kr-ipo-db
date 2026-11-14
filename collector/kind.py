@@ -410,7 +410,7 @@ def fetch_listing_sched(session=None, today: date | None = None, timeout: int = 
             resp.encoding = resp.encoding or "utf-8"
             got = parse_listing_sched(resp.text)
             status[key] = len(got)
-            if not got:   # 표를 못 읽으면 원문을 남깁니다
+            if True:      # 진단용: 최근 응답 원문을 늘 남깁니다(작은 화면, 누락·날짜 차이 확인)
                 Path("data/kind").mkdir(parents=True, exist_ok=True)
                 (Path("data/kind") / f"_{key}_last.html").write_text(resp.text, encoding="utf-8")
             rows += got

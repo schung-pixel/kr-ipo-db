@@ -231,6 +231,17 @@ CREATE TABLE IF NOT EXISTS kind_listing (
   fetched_at  TEXT
 );
 
+-- 38커뮤니케이션 공모주 화면(신규상장일·청약경쟁률): DART 공시(실적보고서) 전 빈칸을 채우는 보조 출처
+CREATE TABLE IF NOT EXISTS src38 (
+  name_key     TEXT PRIMARY KEY,
+  corp_name    TEXT,
+  listing_dt   TEXT,
+  sub_start    TEXT,
+  sub_end      TEXT,
+  retail_ratio REAL,
+  fetched_at   TEXT
+);
+
 CREATE TABLE IF NOT EXISTS kind_corp (
   name_key    TEXT PRIMARY KEY,
   corp_name   TEXT,

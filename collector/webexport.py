@@ -202,6 +202,34 @@ def _add_bizdays(iso: str, n: int) -> str:
     return t.isoformat()
 
 
+def _bizdays_between(a: str, b: str) -> int:
+    from datetime import date as _d, timedelta as _td
+    t, end, n = _d.fromisoformat(a), _d.fromisoformat(b), 0
+    while t < end:
+        t += _td(days=1)
+        if t.weekday() < 5 and t.isoformat() not in KRX_HOLIDAYS:
+            n += 1
+    return n
+
+
+def _listing_offset(deals: list, years: int = 2, default: int = 5) -> int:
+    """납입일 → 상장일 영업일 수의 최근 최빈값(동률이면 큰 값). 상장 완료 건이 30건 미만이면 기본값."""
+    from collections import Counter
+    from datetime import date as _d
+    since = f"{_d.today().year - years:04d}{_d.today().isoformat()[4:]}"
+    c = Counter()
+    for d in deals:
+        p, l = _first_date(d.get("payment_raw")), d.get("listing_dt")
+        if p and l and l > p and l >= since and d.get("status") == "completed":
+            n = _bizdays_between(p, l)
+            if 2 <= n <= 10:
+                c[n] += 1
+    if sum(c.values()) < 30:
+        return default
+    top = max(c.values())
+    return max(n for n, v in c.items() if v == top)
+
+
 def _val_view(v: dict, d: dict):
     """공모가 산정 근거: 할인율·평가가액이 희망 밴드와 맞는지(밴드 상단 ≈ 평가가액 × (1 − 최저 할인율)) 함께 표시합니다."""
     if not v or not (v.get("value") or v.get("disc_low") is not None):
@@ -295,7 +323,7 @@ def build_payload(conn) -> dict:
 
     # KIND 예비심사: DART 딜에 예심 청구·승인일을 붙이고, 승인 후 아직 신고서가 없는 회사를 따로 담습니다.
     from datetime import date as _date
-    from . import kind
+    from . import kind, src38
     summaries = load_summaries()
     for d in deals:
         rv = kind.review_for(conn, d.get("corp_name") or "", d["first_filing_dt"])
@@ -349,21 +377,39 @@ def build_payload(conn) -> dict:
             "filings": [], "underwriters": [], "securities": [], "use_of_proceeds": [], "sellers": [], "sources": [],
         })
 
-    # 상장일이 공시되기 전: KIND 신규상장 예정일(listing_sched), 없으면 납입일 + 4영업일(listing_est, 예상)
+    # 상장일이 공시되기 전(증권발행실적보고서 전): 38커뮤니케이션 신규상장일 → KIND 공모기업 진행현황 상장일
+    # → 둘 다 없으면 납입일 + N영업일(listing_est, 예상). N은 최근 2년 실제 상장 건의 최빈값입니다.
+    # 일반청약 경쟁률도 실적보고서 전에는 38커뮤니케이션 청약경쟁률(청약 시작일이 같은 건만)로 채웁니다.
+    off = _listing_offset(deals)
     for d in deals:
-        if d.get("listing_dt") or d.get("status") == "withdrawn" or d.get("is_ipo_candidate") != 1:
+        if d.get("status") == "withdrawn" or d.get("is_ipo_candidate") != 1:
+            continue
+        nk = kind.name_key(d.get("corp_name") or "")
+        s38 = None
+        try:
+            s38 = conn.execute("SELECT * FROM src38 WHERE name_key=?", (src38.name_key(d.get("corp_name") or ""),)).fetchone()
+        except Exception:
+            s38 = None
+        sub0 = _first_date(d.get("subscription_raw"))
+        if d.get("retail_ratio") is None and s38 and s38["retail_ratio"] and sub0 and s38["sub_start"] == sub0:
+            d["retail_ratio"], d["retail_count"], d["retail_src"] = s38["retail_ratio"], None, "38"
+        if d.get("listing_dt"):
+            continue
+        floor = max(d.get("first_filing_dt") or "", _first_date(d.get("payment_raw")) or "")
+        if s38 and s38["listing_dt"] and s38["listing_dt"] >= floor:
+            d["listing_sched"], d["listing_src"] = s38["listing_dt"], "38"
             continue
         ks = None
         try:
-            ks = conn.execute("SELECT listing_dt FROM kind_listing WHERE name_key=?", (kind.name_key(d.get("corp_name") or ""),)).fetchone()
+            ks = conn.execute("SELECT listing_dt FROM kind_listing WHERE name_key=?", (nk,)).fetchone()
         except Exception:
             ks = None
-        if ks and ks["listing_dt"] and ks["listing_dt"] >= (d.get("first_filing_dt") or ""):
-            d["listing_sched"] = ks["listing_dt"]
+        if ks and ks["listing_dt"] and ks["listing_dt"] >= floor:
+            d["listing_sched"], d["listing_src"] = ks["listing_dt"], "KIND"
             continue
         pay = _first_date(d.get("payment_raw"))
         if pay and pay >= (_date.today() - __import__("datetime").timedelta(days=14)).isoformat():
-            d["listing_est"] = _add_bizdays(pay, 4)
+            d["listing_est"], d["listing_est_days"] = _add_bizdays(pay, off), off
 
     # 예심 이력(KIND): 청구·승인·철회 전체. 같은 회사의 이후 DART 딜이 있으면 연결합니다.
     by_key = {}
