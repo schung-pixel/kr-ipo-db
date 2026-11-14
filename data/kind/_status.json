@@ -1,11 +1,12 @@
 {
- "run_at": "2026-11-14T22:22:08+09:00",
+ "run_at": "2026-11-14T23:18:25+09:00",
  "fetch": "ok",
  "http_status": 200,
  "response_bytes": 196090,
  "rows": 332,
  "saved": 332,
  "approved": 208,
+ "review_history": 1741,
  "corp_list": 2768,
  "listing_sched": {
   "screens": {
@@ -15,10 +16,10 @@
  },
  "src38": {
   "screens": {
-   "nw": 20,
-   "k": 30
+   "nw": 40,
+   "k": 60
   },
-  "saved": 34
+  "saved": 60
  },
  "manual_rows": 0
 }
