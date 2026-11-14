@@ -77,17 +77,17 @@
   })();
 
   var DEFAULTS = { status: "all", cand: "ipo", spac: false, year: "", board: "", sector: "", focus: "", q: "", sortKey: "date", sortDir: -1 };
-  var state = Object.assign({}, DEFAULTS, { sYear: "", sPeriod: "all", sUnit: "year", sWin: null, metric: "count", league: "count", listScroll: 0 });
+  var state = Object.assign({}, DEFAULTS, { sYear: "", sPeriod: "all", sUnit: "year", sWin: null, metric: "count", league: "count", fSeg: "all", fKey: "inst_demand_ratio", listScroll: 0 });
   try {
     var saved = JSON.parse(localStorage.getItem("ipo-db-view") || "null");
-    if (saved) ["status", "spac", "year", "board", "sector", "focus", "sortKey", "sortDir", "sPeriod", "sUnit", "sWin", "metric", "league"].forEach(function (k) {
+    if (saved) ["status", "spac", "year", "board", "sector", "focus", "sortKey", "sortDir", "sPeriod", "sUnit", "sWin", "metric", "league", "fSeg", "fKey"].forEach(function (k) {
       if (k in saved) state[k] = saved[k];
     });
   } catch (e) { /* 저장소를 쓸 수 없으면 기본값으로 시작 */ }
   function persist() {
     try {
       var o = {};
-      ["status", "cand", "spac", "year", "board", "sector", "focus", "sortKey", "sortDir", "sPeriod", "sUnit", "sWin", "metric", "league"].forEach(function (k) { o[k] = state[k]; });
+      ["status", "cand", "spac", "year", "board", "sector", "focus", "sortKey", "sortDir", "sPeriod", "sUnit", "sWin", "metric", "league", "fSeg", "fKey"].forEach(function (k) { o[k] = state[k]; });
       localStorage.setItem("ipo-db-view", JSON.stringify(o));
     } catch (e) { /* 무시 */ }
   }
@@ -1456,6 +1456,114 @@
     }).join("") + "</div>";
   }
 
+  // ---- 상장일 유통물량 통계: 연도별 유통가능 비율, 유통물량과 경쟁률의 관계(스팩 제외, 상장 완료 건)
+  function spearman(xs, ys) {
+    var n = xs.length;
+    if (n < 5) return null;
+    var rank = function (a) {
+      var o = a.map(function (v, i) { return [v, i]; }).sort(function (p, q) { return p[0] - q[0]; }), r = new Array(n);
+      for (var i = 0; i < n;) { var j = i; while (j + 1 < n && o[j + 1][0] === o[i][0]) j++; for (var k = i; k <= j; k++) r[o[k][1]] = (i + j) / 2; i = j + 1; }
+      return r;
+    };
+    var a = rank(xs), b = rank(ys), ma = (n - 1) / 2, sab = 0, saa = 0, sbb = 0;
+    for (var i = 0; i < n; i++) { sab += (a[i] - ma) * (b[i] - ma); saa += (a[i] - ma) * (a[i] - ma); sbb += (b[i] - ma) * (b[i] - ma); }
+    var r = saa && sbb ? sab / Math.sqrt(saa * sbb) : 0;
+    // 유의성(근사): t = r√((n−2)/(1−r²)), |t| > 1.97 이면 5% 수준
+    var t = Math.abs(r) < 1 ? r * Math.sqrt((n - 2) / (1 - r * r)) : 99;
+    return { r: r, n: n, sig: Math.abs(t) > 1.97 };
+  }
+  function quant(a, q) {
+    a = a.filter(function (v) { return v != null; }).sort(function (x, y) { return x - y; });
+    if (!a.length) return null;
+    var p = (a.length - 1) * q, i = Math.floor(p);
+    return a[i] + (a[Math.min(i + 1, a.length - 1)] - a[i]) * (p - i);
+  }
+  var FSEG = [["all", "전체"], ["KOSDAQ", "코스닥 일반"], ["KOSDAQ_TECH", "기술특례"]];
+  var FBUCK = [[0, 25, "25% 미만"], [25, 30, "25~30%"], [30, 35, "30~35%"], [35, 40, "35~40%"], [40, 101, "40% 이상"]];
+  function rhoTxt(c) { return c ? '<span class="rho' + (c.sig ? " sig" : "") + '">' + (c.r >= 0 ? "+" : "−") + Math.abs(c.r).toFixed(2) + "</span>" : '<span class="dim">-</span>'; }
+  function floatPanel(deals, periodText, W, halfW, H) {
+    var f0 = function (d) { return d.lockup && d.lockup.float0 ? d.lockup.float0.pct : null; };
+    var ds = deals.filter(function (d) { return !isSpac(d) && f0(d) != null; });
+    var seg = state.fSeg || "all", key = state.fKey === "retail_ratio" ? "retail_ratio" : "inst_demand_ratio", keyLabel = key === "retail_ratio" ? "일반청약" : "수요예측";
+    var inSeg = function (d) { return seg === "all" || seriesOf(d) === seg; };
+    var years = Array.from(new Set(ds.map(function (d) { return listDate(d).slice(0, 4); }))).sort();
+    var byY = {}; ds.forEach(function (d) { var y = listDate(d).slice(0, 4); (byY[y] = byY[y] || []).push(d); });
+    var boards = [["KOSPI", "유가", "var(--mk-ks)"], ["KOSDAQ", "코스닥 일반", "var(--mk-kq)"], ["KOSDAQ_TECH", "기술특례", "var(--mk-tech)"]];
+    if (state.board) boards = boards.filter(function (b) { return b[0] === state.board; });
+    var medOf = function (xs, b) { return median(xs.filter(function (d) { return !b || seriesOf(d) === b; }).map(f0)); };
+    var corrOf = function (xs) { xs = xs.filter(function (d) { return inSeg(d) && d[key] > 0; }); return spearman(xs.map(f0), xs.map(function (d) { return d[key]; })); };
+    var all = ds.filter(inSeg), cAll = corrOf(ds);
+    var ctrl = '<div class="fctl">' + segBtns("data-fs", FSEG, seg) + segBtns("data-fk", [["inst_demand_ratio", "수요예측"], ["retail_ratio", "일반청약"]], key) + "</div>";
+    var hd = '<header><div><h2>상장일 유통물량</h2><p>' + periodText + " 상장 기준(스팩 제외). 상장일 유통가능 비율은 증권신고서·투자설명서의 공모 후 기준이며 기관 확약분은 반영하지 않습니다. " +
+      "상관은 순위상관(Spearman)이고 굵게 표시한 값은 5% 수준에서 유의합니다.</p></div>" + ctrl + "</header>";
+    if (!ds.length) return '<section class="panel fpanel">' + hd + '<div class="pbody"><div class="empty">유통물량을 읽은 상장 건이 없습니다.</div></div></section>';
+    var kpi = '<div class="cmp f4">' +
+      '<div><span class="k">상장일 유통가능 중앙값</span><span class="v">' + pct1(median(all.map(f0))) + '</span><span class="s">' + all.length + "건 · 가운데 50% " + pct1(quant(all.map(f0), .25)) + "~" + pct1(quant(all.map(f0), .75)) + "</span></div>" +
+      '<div><span class="k">유통물량과 ' + keyLabel + " 경쟁률</span><span class=\"v\">" + rhoTxt(cAll) + '</span><span class="s">' + (cAll ? cAll.n + "건 · " + (cAll.r < -0.1 ? "유통물량이 많을수록 경쟁률이 낮은 편" : cAll.r > 0.1 ? "유통물량이 많을수록 경쟁률이 높은 편" : "뚜렷한 관계 없음") : "표본 부족") + "</span></div></div>";
+    // 유통 구간별 경쟁률 중앙값
+    var bk = FBUCK.map(function (b) {
+      var xs = all.filter(function (d) { var x = f0(d); return x >= b[0] && x < b[1] && d[key] > 0; });
+      return { label: b[2], n: xs.length, med: median(xs.map(function (d) { return d[key]; })) };
+    });
+    var bmax = Math.max.apply(null, bk.map(function (b) { return b.med || 0; }).concat([1]));
+    var bucketTbl = '<table class="mini fbk"><thead><tr><th>상장일 유통가능</th><th class="num">건수</th><th class="num">' + keyLabel + ' 경쟁률 중앙값</th><th class="bar-cell"><span class="sr">막대</span></th></tr></thead><tbody>' +
+      bk.map(function (b) { return "<tr><td>" + b.label + '</td><td class="num">' + b.n + '</td><td class="num">' + (b.med != null && b.n >= 3 ? ratio(b.med, 0) : "-") + '</td><td class="bar-cell"><div class="hbar" style="width:' + (b.n >= 3 && b.med ? b.med / bmax * 100 : 0).toFixed(1) + '%"></div></td></tr>'; }).join("") + "</tbody></table>";
+    // 연도별 표
+    var yearTbl = '<table class="mini fyr"><thead><tr><th>연도</th><th class="num">건수</th><th class="num">유통가능 중앙값</th>' +
+      boards.map(function (b) { return '<th class="num">' + b[1] + "</th>"; }).join("") + '<th class="num">가운데 50%</th><th class="num">상관 · ' + keyLabel + "</th></tr></thead><tbody>" +
+      years.slice().reverse().map(function (y) {
+        var xs = byY[y], sx = xs.filter(inSeg);
+        return "<tr><td>" + y + '</td><td class="num">' + sx.length + '</td><td class="num"><b>' + pct1(median(sx.map(f0))) + "</b></td>" +
+          boards.map(function (b) { var m = medOf(xs, b[0]); return '<td class="num">' + (m != null ? pct1(m) : "-") + "</td>"; }).join("") +
+          '<td class="num">' + pct1(quant(sx.map(f0), .25)) + "~" + pct1(quant(sx.map(f0), .75)) + '</td><td class="num">' + rhoTxt(corrOf(xs)) + "</td></tr>";
+      }).join("") + "</tbody></table>";
+    var Lp = 44, Rp = 10, Tp = 20, Bp = 28;
+    // 연도별 중앙값 선 그래프(시장별)
+    var lineChart = function (w, h) {
+      var ih = h - Tp - Bp, band = (w - Lp - Rp) / years.length, top = Math.max(60, Math.ceil(Math.max.apply(null, years.map(function (y) { return Math.max(medOf(byY[y]) || 0, quant(byY[y].filter(inSeg).map(f0), .75) || 0, Math.max.apply(null, boards.map(function (b) { return medOf(byY[y], b[0]) || 0; }))); })) / 20) * 20);
+      var svg = '<svg data-w="' + w + '" viewBox="0 0 ' + w + " " + h + '" role="img" aria-label="연도별 상장일 유통가능 비율 중앙값">' + frame(w, h, Lp, Rp, Tp, Bp, top, years.map(function (y) { return years.length > 8 ? "'" + y.slice(2) : y; }), function (x) { return Math.round(x) + "%"; });
+      var px = function (i) { return Lp + band * i + band / 2; }, py = function (x) { return Tp + ih - Math.min(x, top) / top * ih; };
+      var q1 = years.map(function (y) { return quant(byY[y].filter(inSeg).map(f0), .25); }), q3 = years.map(function (y) { return quant(byY[y].filter(inSeg).map(f0), .75); });
+      // 가운데 50% 띠: 값이 있는 연도끼리 이어진 구간마다 따로 그립니다(표본 3건 미만 연도는 끊음)
+      var runs = [], cur = [];
+      years.forEach(function (y, i) { if (q1[i] != null && byY[y].filter(inSeg).length >= 3) cur.push(i); else if (cur.length) { runs.push(cur); cur = []; } });
+      if (cur.length) runs.push(cur);
+      runs.forEach(function (r) {
+        if (r.length < 2) return;
+        svg += '<path class="iqr" d="M' + r.map(function (i) { return px(i) + "," + py(q3[i]); }).join("L") + "L" + r.slice().reverse().map(function (i) { return px(i) + "," + py(q1[i]); }).join("L") + 'Z"/>';
+      });
+      boards.forEach(function (b) {
+        var d = "", pen = false;
+        years.forEach(function (y, i) { var m = medOf(byY[y], b[0]); if (m == null) { pen = false; return; } d += (pen ? "L" : "M") + px(i).toFixed(1) + "," + py(m).toFixed(1); pen = true; });
+        svg += '<path class="ln" style="stroke:' + b[2] + '" d="' + d + '"/>';
+      });
+      years.forEach(function (y, i) {
+        var tip = "<b>" + y + "년 상장일 유통가능 중앙값</b>" + boards.map(function (b) { var m = medOf(byY[y], b[0]); return tipRow(b[2], b[1], m != null ? pct1(m) : "-"); }).join("") + tipRow("", "가운데 50%", pct1(q1[i]) + "~" + pct1(q3[i]));
+        svg += colHit(Lp + band * i, Tp, band, ih, tip, y + "년") + boards.map(function (b) { var m = medOf(byY[y], b[0]); return m == null ? "" : '<circle class="dot" style="fill:' + b[2] + '" cx="' + px(i) + '" cy="' + py(m) + '" r="3.5"/>'; }).join("") + "</g>";
+      });
+      return svg + "</svg>";
+    };
+    var legendB = '<div class="legend">' + boards.map(function (b) { return '<span><i class="ln-key" style="background:' + b[2] + '"></i>' + b[1] + "</span>"; }).join("") + '<span><i class="iqr-key"></i>가운데 50%(' + FSEG.filter(function (f) { return f[0] === seg; })[0][1] + ")</span></div>";
+    // 연도별 상관 막대(0 기준)
+    var rhoBars = function (w, h) {
+      var ih = h - Tp - Bp, band = (w - Lp - Rp) / years.length, mid = Tp + ih / 2, svg = '<svg data-w="' + w + '" viewBox="0 0 ' + w + " " + h + '" role="img" aria-label="연도별 순위상관">';
+      [-1, -0.5, 0, 0.5, 1].forEach(function (t) { var y = mid - t * ih / 2; svg += '<line class="' + (t === 0 ? "axis" : "grid") + '" x1="' + Lp + '" x2="' + (w - Rp) + '" y1="' + y + '" y2="' + y + '"/><text x="' + (Lp - 6) + '" y="' + (y + 4) + '" text-anchor="end">' + (t > 0 ? "+" : "") + t + "</text>"; });
+      years.forEach(function (y, i) {
+        var c = corrOf(byY[y]), bw = Math.min(26, band * .6), x = Lp + band * i + (band - bw) / 2;
+        svg += '<text x="' + (Lp + band * i + band / 2) + '" y="' + (h - 8) + '" text-anchor="middle">' + (years.length > 8 ? "'" + y.slice(2) : y) + "</text>";
+        if (!c) return;
+        var hh = Math.abs(c.r) * ih / 2;
+        svg += colHit(Lp + band * i, Tp, band, ih, "<b>" + y + "년</b>" + tipRow("", "순위상관", (c.r >= 0 ? "+" : "") + c.r.toFixed(2) + (c.sig ? " (유의)" : "")) + tipRow("", "표본", c.n + "건"), y + "년") +
+          '<rect class="rb' + (c.sig ? " sig" : "") + '" x="' + x + '" y="' + (c.r >= 0 ? mid - hh : mid) + '" width="' + bw + '" height="' + Math.max(1, hh) + '" rx="3"/></g>';
+      });
+      return svg + "</svg>";
+    };
+    var body = kpi + '<div class="fgrid"><div><h3 class="minih">연도별 유통가능 비율 중앙값</h3>' + legendB + '<div class="chart">' + lineChart(halfW, H - 30) + '</div></div>' +
+      '<div><h3 class="minih">연도별 순위상관 · ' + keyLabel + " 경쟁률</h3>" + '<div class="chart">' + rhoBars(halfW, H - 30) + "</div>" +
+      '<h3 class="minih">유통 구간별 ' + keyLabel + " 경쟁률</h3>" + bucketTbl + "</div></div>" +
+      '<details class="tv"><summary>연도별 표로 보기</summary><div class="scroll">' + yearTbl + "</div></details>";
+    return '<section class="panel fpanel">' + hd + '<div class="pbody">' + body + "</div></section>";
+  }
   function renderStats() {
     document.title = "통계 · IPO 데이터룸";
     view = "stats";
@@ -1618,8 +1726,9 @@
     var posTot = {}; POS.forEach(function (p) { posTot[p] = pc.reduce(function (a, o) { return a + o[p]; }, 0); });
     var legend3 = '<div class="legend">' + POS.map(function (p) { return '<span><i style="background:var(--pos-' + POS_KEY[p] + ')"></i>' + p + " " + posTot[p] + "</span>"; }).join("") + "</div>";
 
-    var techPanel = "", leaguePanel = "", sectorPanel = "", valPanel = "", uwPanel = "";
-    if (!statFast) (function () {   // 기술특례·주관사 표는 제스처가 끝난 뒤에만 다시 계산
+    var techPanel = "", leaguePanel = "", sectorPanel = "", valPanel = "", uwPanel = "", floatP = "";
+    if (!statFast) (function () {
+    floatP = floatPanel(deals, periodText, W, halfW, H);   // 기술특례·주관사 표는 제스처가 끝난 뒤에만 다시 계산
     // ---- 4) 기술특례 분석
     var tech = deals.filter(function (d) { return d.board === "KOSDAQ_TECH" && !isSpac(d); });
     var grp = {};
@@ -1758,7 +1867,7 @@
       '<div class="pbody chart zoomable">' + legend2 + svg2 + "</div></section>" +
       '<section class="panel"><header><div><h2>밴드 대비 확정가 위치</h2><p>' + unitWord + " 상장 건의 비중. 단일 희망가(스팩 등)는 제외. 위로 갈수록 높은 가격입니다.</p></div></header>" +
       '<div class="pbody chart zoomable">' + legend3 + svg3 + "</div></section></div>" +
-      (statFast ? '<div class="keep"></div>' : '<div class="stack"><div class="panels even">' + techPanel + leaguePanel + "</div>" + '<div class="panels even">' + sectorPanel + valPanel + "</div>" + uwPanel + "</div>") + "</div>");
+      (statFast ? '<div class="keep"></div>' : '<div class="stack">' + floatP + '<div class="panels even">' + techPanel + leaguePanel + "</div>" + '<div class="panels even">' + sectorPanel + valPanel + "</div>" + uwPanel + "</div>") + "</div>");
     bindStats();
     bindChart();
   }
@@ -1813,6 +1922,12 @@
     if (statFast) return;   // 기술특례·주관사 표는 그대로 두었으므로 다시 묶지 않음
     app.querySelectorAll("[data-l]").forEach(function (b) {
       b.addEventListener("click", function () { state.league = b.dataset.l; persist(); renderStats(); });
+    });
+    app.querySelectorAll("[data-fs]").forEach(function (b) {
+      b.addEventListener("click", function () { state.fSeg = b.dataset.fs; persist(); renderStats(); });
+    });
+    app.querySelectorAll("[data-fk]").forEach(function (b) {
+      b.addEventListener("click", function () { state.fKey = b.dataset.fk; persist(); renderStats(); });
     });
     // 주관사 행 → 딜 목록(주관사 검색, 상장 건)
     app.querySelectorAll("tr[data-uw]").forEach(function (tr) {
