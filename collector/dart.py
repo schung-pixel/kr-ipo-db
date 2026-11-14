@@ -4,6 +4,7 @@
 - 공시검색  list.json   : page_count 최대 100, corp_code 없이 조회하면 기간 3개월 제한
 - 기업개황  company.json
 - 증권신고서 주요정보(지분증권) estkRs.json : corp_code, bgn_de, end_de 모두 필수
+- 증권신고서 주요정보(증권예탁증권) stkdpRs.json : 해외기업 KDR 공모. 응답 구조는 estkRs와 같음
 - status: 000 정상 / 013 데이터 없음 / 020 요청 제한 초과 / 010·011·012·901 키 문제
 """
 from __future__ import annotations
@@ -69,7 +70,17 @@ class DartClient:
         raise DartError(status, data.get("message", ""))
 
     def document(self, rcept_no: str) -> bytes:
-        """공시 원문(document.xml). 정상이면 zip 바이트, 오류면 DartError를 냅니다."""
+        """공시 원문(document.xml). 정상이면 zip 바이트, 오류면 DartError를 냅니다.
+
+        환경변수 DART_DOC_CACHE에 폴더를 주면 받은 원문(zip)을 접수번호별로 보관하고 다음부터는 다시 받지 않습니다.
+        공시 원문은 접수 뒤 바뀌지 않으므로(정정은 새 접수번호) 보관본을 그대로 써도 됩니다. 같은 실행 안에서 여러
+        추출 단계가 같은 원문을 쓰는 경우와, 추출 규칙을 바꿔 과거 원문을 다시 읽는 경우의 DART 호출을 없앱니다."""
+        import os
+        from pathlib import Path
+        cache = os.environ.get("DART_DOC_CACHE")
+        cpath = Path(cache) / rcept_no[:6] / f"{rcept_no}.zip" if cache else None
+        if cpath and cpath.exists():
+            return cpath.read_bytes()
         data = None
         for attempt in range(self.retries):
             try:
@@ -85,6 +96,12 @@ class DartClient:
                 time.sleep(2 ** attempt)
         time.sleep(self.pause)
         if data[:2] == b"PK":
+            if cpath:
+                try:
+                    cpath.parent.mkdir(parents=True, exist_ok=True)
+                    cpath.write_bytes(data)
+                except OSError:
+                    pass
             return data
         # 오류 시에는 zip이 아니라 <result><status>..</status><message>..</message> 형태의 XML이 옵니다.
         import re
@@ -174,4 +191,9 @@ class DartClient:
     def equity_registration(self, corp_code: str, bgn: date, end: date) -> dict:
         """증권신고서 주요정보(지분증권). 응답은 {'group': [{'title', 'list'}]} 구조입니다."""
         return self._get("estkRs", corp_code=corp_code, bgn_de=self._ymd(bgn),
+                         end_de=self._ymd(end))
+
+    def dr_registration(self, corp_code: str, bgn: date, end: date) -> dict:
+        """증권신고서 주요정보(증권예탁증권, 해외기업 KDR). 응답 구조는 equity_registration과 같습니다."""
+        return self._get("stkdpRs", corp_code=corp_code, bgn_de=self._ymd(bgn),
                          end_de=self._ymd(end))

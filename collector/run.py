@@ -83,6 +83,21 @@ def cmd_kind(conn, args) -> None:
                 except Exception:
                     pass
             print(f"주의: KIND 조회 실패({type(exc).__name__}: {str(exc)[:200]}). 수동 파일과 기존 값으로 진행합니다.")
+    if not args.no_fetch and not store.get_meta(conn, "kind_review_history"):
+        # 예심 이력 과거분(한 번만): 평소 조회는 최근 850일이라 그 이전 청구·승인일이 비어 있습니다. 연 단위로 나눠 받습니다.
+        try:
+            got, end = 0, now_kst().date() - timedelta(days=800)
+            while end.year >= 2015:
+                rows, _ = kind.fetch(today=end, from_date=end - timedelta(days=370))
+                got += kind.save_rows(conn, rows, "kind", now)
+                end -= timedelta(days=365)
+            status["review_history"] = got
+            if got:
+                store.set_meta(conn, "kind_review_history", now[:10])
+            print(f"KIND 예비심사 과거 이력 {got}건 반영")
+        except Exception as exc:
+            status["review_history_error"] = f"{type(exc).__name__}: {str(exc)[:200]}"
+            print(f"주의: KIND 예비심사 과거 이력 조회 실패({type(exc).__name__})")
     if not args.no_fetch:   # 상장법인 목록(업종·주요제품): 실패해도 계속
         try:
             status["corp_list"] = kind.save_corp_list(conn, kind.fetch_corp_list(), now)
@@ -101,7 +116,7 @@ def cmd_kind(conn, args) -> None:
     if not args.no_fetch:   # 38커뮤니케이션 신규상장일·청약경쟁률(보조 출처): 실패해도 계속
         try:
             from . import src38
-            rows, st = src38.fetch()
+            rows, st = src38.fetch(pages=2)
             status["src38"] = {"screens": st, "saved": src38.save(conn, rows, now)}
             print(f"38커뮤니케이션 상장일·청약경쟁률 {status['src38']['saved']}건 반영 {st}")
         except Exception as exc:
@@ -118,6 +133,12 @@ def cmd_kind(conn, args) -> None:
     store.export_sql(conn, args.sql)
     changed = webexport.export_json(conn, args.json, now)
     print(f"{args.json} {'갱신' if changed else '변경 없음'}")
+    try:   # 품질 점검(실패해도 수집 결과는 그대로 커밋)
+        from . import quality
+        q = quality.write(conn, args.json, status, now_kst().date())
+        print(f"품질 점검: 알림 {len(q['alerts'])}건, 출처 간 차이 {len(q['mismatch'])}건")
+    except Exception as exc:
+        print(f"주의: 품질 점검 실패({type(exc).__name__}: {str(exc)[:200]})")
 
 
 def cmd_queue(conn, args) -> int:

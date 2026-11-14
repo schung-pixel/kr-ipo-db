@@ -325,6 +325,7 @@ def build_payload(conn) -> dict:
     from datetime import date as _date
     from . import kind, src38
     summaries = load_summaries()
+    stock_codes = {r["corp_code"]: (r["stock_code"] or "").strip() for r in conn.execute("SELECT corp_code, stock_code FROM company")}
     for d in deals:
         rv = kind.review_for(conn, d.get("corp_name") or "", d["first_filing_dt"])
         d["prelim"] = {k: rv.get(k) for k in ("filed_dt", "decided_dt", "result", "market", "listing_type", "sponsor")} if rv else None
@@ -346,7 +347,7 @@ def build_payload(conn) -> dict:
             d["fin"] = None     # 스팩의 설립일·제출 전일 재무는 의미가 없어 싣지 않습니다
         if d["is_spac"]:
             biz = None
-        ci = kind.corp_info(conn, d.get("corp_name") or "")
+        ci = kind.corp_info(conn, d.get("corp_name") or "", stock_codes.get(d.get("corp_code")))
         sm = None if d["is_spac"] else summaries.get(d.get("corp_code") or "")
         d["company"] = {
             "summary": sm.get("summary") if sm else None,
@@ -384,24 +385,41 @@ def build_payload(conn) -> dict:
     for d in deals:
         if d.get("status") == "withdrawn" or d.get("is_ipo_candidate") != 1:
             continue
-        nk = kind.name_key(d.get("corp_name") or "")
+        f0 = d.get("first_filing_dt") or ""
+        lim = (_date.fromisoformat(f0) + __import__("datetime").timedelta(days=300)).isoformat() if f0 else "9999"
+
+        def near(tbl, col):   # 별칭·접두 매칭은 신고 후 300일 안의 날짜가 있는 행만(동명이사 오연결 방지)
+            return lambda k: bool(conn.execute(f"SELECT 1 FROM {tbl} WHERE name_key=? AND {col} >= ? AND {col} <= ?",
+                                               (k, f0, lim)).fetchone())
         s38 = None
         try:
-            s38 = conn.execute("SELECT * FROM src38 WHERE name_key=?", (src38.name_key(d.get("corp_name") or ""),)).fetchone()
+            k38 = kind.find_key(kind._keys(conn, "src38"), d.get("corp_name") or "", near("src38", "COALESCE(listing_dt, sub_start)"))
+            s38 = src38.lookup(conn, [k38], _first_date(d.get("subscription_raw")), f0, lim) if k38 else None
         except Exception:
             s38 = None
         sub0 = _first_date(d.get("subscription_raw"))
+        # 실적보고서 값이 1:1 안팎인데 38 집계가 크게 다르면(실권 재배정 행을 읽은 경우 등) 38 값을 씁니다.
+        if s38 and s38["retail_ratio"] and sub0 and s38["sub_start"] == sub0 and d.get("retail_ratio") is not None \
+                and d["retail_ratio"] < 1.5 and s38["retail_ratio"] > 5:
+            d["retail_ratio"] = None
         if d.get("retail_ratio") is None and s38 and s38["retail_ratio"] and sub0 and s38["sub_start"] == sub0:
             d["retail_ratio"], d["retail_count"], d["retail_src"] = s38["retail_ratio"], None, "38"
+        # 상장일 시초가·종가(38커뮤니케이션 신규상장 표): 상장일이 같은 행만
+        if s38 and d.get("listing_dt") and s38["listing_dt"] == d["listing_dt"] and (s38["open_price"] or s38["close_d1"]):
+            d["d1_open"], d["d1_close"] = s38["open_price"], s38["close_d1"]
         if d.get("listing_dt"):
             continue
         floor = max(d.get("first_filing_dt") or "", _first_date(d.get("payment_raw")) or "")
         if s38 and s38["listing_dt"] and s38["listing_dt"] >= floor:
-            d["listing_sched"], d["listing_src"] = s38["listing_dt"], "38"
+            if d.get("status") == "completed" and s38["listing_dt"] <= _date.today().isoformat():
+                d["listing_dt"], d["listing_src"] = s38["listing_dt"], "38"   # 실적보고서에서 못 읽은 과거 상장일
+            else:
+                d["listing_sched"], d["listing_src"] = s38["listing_dt"], "38"
             continue
         ks = None
         try:
-            ks = conn.execute("SELECT listing_dt FROM kind_listing WHERE name_key=?", (nk,)).fetchone()
+            kk = kind.find_key(kind._keys(conn, "kind_listing"), d.get("corp_name") or "", near("kind_listing", "listing_dt"))
+            ks = conn.execute("SELECT listing_dt FROM kind_listing WHERE name_key=?", (kk,)).fetchone() if kk else None
         except Exception:
             ks = None
         if ks and ks["listing_dt"] and ks["listing_dt"] >= floor:

@@ -16,7 +16,8 @@ def classify(report_nm: str | None) -> dict:
     m = _PREFIX.match(name)
     tags = re.findall(r"\[([^\]]+)\]", m.group(1)) if m else []
     base = name[m.end():].strip() if m else name
-    if base.startswith("증권신고서(지분증권)"):
+    # 해외기업 상장은 주식예탁증서(KDR)로 공모하므로 '증권신고서(증권예탁증권)'도 같은 공모 신고서로 봅니다.
+    if base.startswith("증권신고서(지분증권)") or base.startswith("증권신고서(증권예탁증권)"):
         kind = "reg_equity"
     elif "투자설명서" in base:
         kind = "prospectus"

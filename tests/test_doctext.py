@@ -20,8 +20,14 @@ class RowValuesTest(unittest.TestCase):
         t = ("청약 및 배정현황\n일반투자자 |\n10,625,000 |\n25.0 |\n4,424,470 |\n760,710,960 |\n"
              "228,213,288,000,000 |\n96.0 |\n4,105,303 |\n10,970,482 |\n3,291,144,600,000 |\n25.8 |\n계 |\n1 |")
         r = doctext.extract_result(t)
-        self.assertEqual(r["retail_ratio"], 71.6)
+        self.assertEqual(r["retail_ratio"], 69.34)    # 청약수량 ÷ 최종 배정수량(10,970,482)
         self.assertEqual(r["retail_count"], 4424470)
+
+    def test_retail_final_allocation(self):
+        # 우리사주 미청약분이 일반청약으로 넘어온 경우: 발표 경쟁률(1,305.46:1)은 최종 배정수량 기준
+        t = ("청약 및 배정현황\n일반투자자 | 1,525,000 | 25.0 | 449,169 | 2,389,006,950 | 22,217,764,635,000 | 99.8 |"
+             " 449,169 | 1,830,000 | 17,019,000,000 | 30.0 |\n계 | 6,100,000 |")
+        self.assertEqual(doctext.extract_result(t)["retail_ratio"], 1305.47)
 
 
 if __name__ == "__main__":

@@ -40,6 +40,38 @@ def name_key(name: str) -> str:
     return n.lower()
 
 
+_LETTER = dict(zip("abcdefghijklmnopqrstuvwxyz",
+                   ["에이", "비", "씨", "디", "이", "에프", "지", "에이치", "아이", "제이", "케이", "엘", "엠", "엔", "오",
+                    "피", "큐", "알", "에스", "티", "유", "브이", "더블유", "엑스", "와이", "지"]))
+
+
+def alias_key(name: str) -> str:
+    """영문 약칭을 한글 읽기로 바꾼 비교용 키(LG씨엔에스 ↔ 엘지씨엔에스, 뉴엔AI ↔ 뉴엔에이아이).
+    저장된 name_key는 그대로 두고, 이름이 정확히 맞지 않을 때 비교에만 씁니다."""
+    return "".join(_LETTER.get(ch, ch) for ch in name_key(name).replace("&", ""))
+
+
+def find_key(keys, corp_name: str, accept=None, prefix: bool = True) -> str | None:
+    """keys(저장된 name_key 목록)에서 corp_name과 같은 회사의 키를 찾습니다.
+    ① name_key 일치 → ② alias_key 일치 → ③ (prefix=True일 때) 한쪽이 다른 쪽으로 시작(3자 이상, 후보가 하나일 때만).
+    accept(key)가 주어지면 그 조건(날짜 정합성 등)을 통과한 키만 후보로 봅니다."""
+    keys = [k for k in keys if k]
+    ok = (lambda k: True) if accept is None else accept
+    nk, ak = name_key(corp_name or ""), alias_key(corp_name or "")
+    if not nk:
+        return None
+    if nk in keys and ok(nk):
+        return nk
+    hits = [k for k in keys if alias_key(k) == ak and ok(k)]
+    if len(hits) == 1:
+        return hits[0]
+    if prefix and len(ak) >= 3:
+        hits = [k for k in keys if len(alias_key(k)) >= 3 and (alias_key(k).startswith(ak) or ak.startswith(alias_key(k))) and ok(k)]
+        if len(hits) == 1:
+            return hits[0]
+    return None
+
+
 # ---------------------------------------------------------------- HTML 표 파서
 class _TableParser(HTMLParser):
     def __init__(self):
@@ -213,7 +245,8 @@ def _xlsx_rows(raw: bytes) -> list:
 
 
 # ---------------------------------------------------------------- 수집
-def fetch(session=None, today: date | None = None, lookback_days: int = 850, timeout: int = 30) -> tuple[list, str]:
+def fetch(session=None, today: date | None = None, lookback_days: int = 850, timeout: int = 30,
+          from_date: date | None = None) -> tuple[list, str]:
     """KIND 예비심사 목록(최근 lookback_days 청구분)을 한 번에 받아 (행 목록, 원문)을 돌려줍니다.
     기본 850일: DART 수집 시작(2025-01) 이전에 청구한 건까지 예심 일정을 붙이기 위함."""
     import requests
@@ -223,7 +256,7 @@ def fetch(session=None, today: date | None = None, lookback_days: int = 850, tim
         "method": "searchListInvstgCorpSub", "forward": "listinvstgcom_sub",
         "currentPageSize": "3000", "pageIndex": "1", "orderMode": "1", "orderStat": "D",
         "searchMode": "", "searchCorpName": "", "marketType": "",
-        "fromDate": (today - timedelta(days=lookback_days)).isoformat(), "toDate": today.isoformat(),
+        "fromDate": (from_date or today - timedelta(days=lookback_days)).isoformat(), "toDate": today.isoformat(),
     }
     headers = {"User-Agent": USER_AGENT, "Referer": f"{BASE}/{PATH}?method=searchListInvstgCorpMain"}
     if session is None:   # 목록 화면을 먼저 열어 세션 쿠키를 받습니다.
@@ -284,10 +317,28 @@ def save_corp_list(conn, rows: list, now: str) -> int:
     return len(rows)
 
 
-def corp_info(conn, corp_name: str) -> dict | None:
-    row = conn.execute("SELECT industry, products, market, listed_dt FROM kind_corp WHERE name_key=?",
-                       (name_key(corp_name),)).fetchone()
+def corp_info(conn, corp_name: str, stock_code: str | None = None) -> dict | None:
+    """KIND 상장법인 목록의 업종·주요제품. 종목코드가 있으면 종목코드로, 없으면 회사명(별칭 포함)으로 찾습니다."""
+    cols = "industry, products, market, listed_dt"
+    sc = (stock_code or "").strip()
+    row = conn.execute(f"SELECT {cols} FROM kind_corp WHERE stock_code=?", (sc,)).fetchone() if sc else None
+    if not row:
+        row = conn.execute(f"SELECT {cols} FROM kind_corp WHERE name_key=?", (name_key(corp_name),)).fetchone()
+    if not row and not sc:
+        k = find_key(_keys(conn, "kind_corp"), corp_name, prefix=False)   # 접두 매칭은 동명이사 위험(KTE→케이티)
+        row = conn.execute(f"SELECT {cols} FROM kind_corp WHERE name_key=?", (k,)).fetchone() if k else None
     return dict(row) if row else None
+
+
+_KEYS = {}
+
+
+def _keys(conn, table: str) -> list:
+    """테이블의 name_key 목록(연결마다 한 번 읽어 둠)."""
+    ck = (id(conn), table)
+    if ck not in _KEYS:
+        _KEYS[ck] = [r[0] for r in conn.execute(f"SELECT DISTINCT name_key FROM {table}")]
+    return _KEYS[ck]
 
 
 def is_approved(row: dict) -> bool:
@@ -341,7 +392,8 @@ def pending_approvals(conn, deals: list, today: date) -> list:
         if not ref or (today - date.fromisoformat(ref)).days > APPROVAL_VALID_DAYS:
             continue
         # 승인(또는 청구) 이후 같은 회사의 증권신고서가 있으면 이미 딜 목록에 있으므로 제외
-        later = [d for d in dart_keys.get(r["name_key"], []) if d["first_filing_dt"] >= (r.get("filed_dt") or ref)]
+        k = r["name_key"] if r["name_key"] in dart_keys else find_key(list(dart_keys), r["corp_name"])
+        later = [d for d in dart_keys.get(k, []) if d["first_filing_dt"] >= (r.get("filed_dt") or ref)]
         if later:
             continue
         out.append(r)
@@ -350,10 +402,15 @@ def pending_approvals(conn, deals: list, today: date) -> list:
 
 def review_for(conn, corp_name: str, first_filing_dt: str) -> dict | None:
     """DART 딜에 붙일 예심 정보: 같은 회사의 청구 중 신고서 제출 이전 가장 최근 건."""
-    k = name_key(corp_name)
-    row = conn.execute(
-        "SELECT * FROM kind_review WHERE name_key=? AND (filed_dt IS NULL OR filed_dt <= ?) "
-        "ORDER BY filed_dt DESC LIMIT 1", (k, first_filing_dt)).fetchone()
+    q = ("SELECT * FROM kind_review WHERE name_key=? AND (filed_dt IS NULL OR filed_dt <= ?) "
+         "ORDER BY filed_dt DESC LIMIT 1")
+    row = conn.execute(q, (name_key(corp_name), first_filing_dt)).fetchone()
+    if not row:   # 영문 약칭·사명 꼬리표 차이(LG씨엔에스 ↔ 엘지씨엔에스): 신고 전 1년 안의 청구만 후보
+        def ok(k):
+            r = conn.execute(q, (k, first_filing_dt)).fetchone()
+            return bool(r and r["filed_dt"] and r["filed_dt"] >= f"{int(first_filing_dt[:4]) - 1}{first_filing_dt[4:]}")
+        k = find_key(_keys(conn, "kind_review"), corp_name, ok)
+        row = conn.execute(q, (k, first_filing_dt)).fetchone() if k else None
     return dict(row) if row else None
 
 

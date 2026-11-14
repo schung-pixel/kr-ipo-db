@@ -11,6 +11,7 @@ from .parse import windows
 
 KST = ZoneInfo("Asia/Seoul")
 DETAIL_TYPE_EQUITY_REG = "C001"  # 증권신고(지분증권)
+DETAIL_TYPE_OTHER_REG = "C005"   # 증권신고(기타): 해외기업 KDR 공모의 '증권신고서(증권예탁증권)'·투자설명서·실적보고서
 HISTORY_LOOKBACK_DAYS = 180      # 정정 건에서 최초 신고서를 찾을 때 되짚는 기간
 
 
@@ -268,6 +269,12 @@ def _kind(stats: dict, key: str) -> None:
     stats["error_kinds"][key] = stats["error_kinds"].get(key, 0) + 1
 
 
+def _kdr_corps(conn) -> set:
+    """증권예탁증권(KDR) 신고서를 낸 회사."""
+    return {r[0] for r in conn.execute(
+        "SELECT DISTINCT corp_code FROM filing WHERE doc_kind='reg_equity' AND report_nm LIKE '%증권예탁증권%'")}
+
+
 def now_kst() -> datetime:
     return datetime.now(KST)
 
@@ -281,11 +288,19 @@ def collect(client, conn, bgn: date, end: date, max_corps: int | None = None,
              "docs": 0, "doc_no_match": 0, "results": 0, "quota_hit": False, "errors": 0, "error_kinds": {},
              "unknown_groups": []}
 
-    # 1) 공시 목록 (기간을 80일 단위로 분할)
+    # 1) 공시 목록 (기간을 80일 단위로 분할). 해외기업 KDR 공모는 '증권신고(기타)'로 분류되므로 따로 받아
+    #    증권예탁증권 신고서를 낸 회사의 공시만 남깁니다.
+    kdr = _kdr_corps(conn)
     for w_bgn, w_end in windows(bgn, end):
         for row in client.list_filings(w_bgn, w_end, pblntf_detail_ty=DETAIL_TYPE_EQUITY_REG):
             store.save_filing(conn, row, now)
             stats["filings"] += 1
+        other = list(client.list_filings(w_bgn, w_end, pblntf_detail_ty=DETAIL_TYPE_OTHER_REG))
+        kdr |= {r["corp_code"] for r in other if "증권예탁증권" in (r.get("report_nm") or "")}
+        for row in other:
+            if row.get("corp_code") in kdr:
+                store.save_filing(conn, row, now)
+                stats["filings"] += 1
     conn.commit()
     log(f"공시 목록 {stats['filings']}건 반영 ({bgn} ~ {end})")
 
@@ -303,13 +318,15 @@ def collect(client, conn, bgn: date, end: date, max_corps: int | None = None,
                 "SELECT MIN(rcept_dt) d FROM filing WHERE corp_code=? AND doc_kind='reg_equity'",
                 (corp,)).fetchone()["d"]
             back = date.fromisoformat(known) - timedelta(days=HISTORY_LOOKBACK_DAYS)
-            for row in client.list_filings(back, end, pblntf_detail_ty=DETAIL_TYPE_EQUITY_REG,
-                                           corp_code=corp):
+            is_kdr = corp in kdr
+            for row in client.list_filings(back, end, corp_code=corp,
+                                           pblntf_detail_ty=DETAIL_TYPE_OTHER_REG if is_kdr else DETAIL_TYPE_EQUITY_REG):
                 store.save_filing(conn, row, now)
             first_dt = conn.execute(
                 "SELECT MIN(rcept_dt) d FROM filing WHERE corp_code=? AND doc_kind='reg_equity'",
                 (corp,)).fetchone()["d"]
-            payload = client.equity_registration(corp, date.fromisoformat(first_dt), end)
+            reg = client.dr_registration if is_kdr else client.equity_registration
+            payload = reg(corp, date.fromisoformat(first_dt), end)
             stats["estk_calls"] += 1
         except DartQuotaExceeded:
             stats["quota_hit"] = True
@@ -321,7 +338,7 @@ def collect(client, conn, bgn: date, end: date, max_corps: int | None = None,
             stats["errors"] += 1
             log(f"주요정보 조회 오류({corp}): {exc}")
             continue
-        seen, unknown = store.save_estk(conn, corp, payload, now)
+        seen, unknown = store.save_estk(conn, corp, payload, now, "stkdpRs" if is_kdr else "estkRs")
         stats["unknown_groups"] += [u for u in unknown if u not in stats["unknown_groups"]]
         marks = ",".join("?" for _ in seen) or "NULL"
         conn.execute(

@@ -1,0 +1,20 @@
+{
+ "checked_at": "2026-11-14",
+ "last_list_date": "2026-11-14",
+ "alerts": [],
+ "mismatch": [
+  "빅웨이브로보틱스(주): 일반청약 경쟁률 DART 1,307.78 / 38 1,375.34"
+ ],
+ "missing_pct_last_year": {
+  "final_price": 0.0,
+  "offer_band": 1.5,
+  "inst_demand_ratio": 0.0,
+  "retail_ratio": 0.0,
+  "listing_dt": 0.0,
+  "float0": 4.5,
+  "commit": 7.6,
+  "fin": 3.0,
+  "company_summary": 0.0
+ },
+ "n_last_year": 66
+}

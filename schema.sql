@@ -233,14 +233,19 @@ CREATE TABLE IF NOT EXISTS kind_listing (
 
 -- 38커뮤니케이션 공모주 화면(신규상장일·청약경쟁률): DART 공시(실적보고서) 전 빈칸을 채우는 보조 출처
 CREATE TABLE IF NOT EXISTS src38 (
-  name_key     TEXT PRIMARY KEY,
+  row_key      TEXT PRIMARY KEY,   -- name_key + 청약 시작일(없으면 상장일): 같은 이름의 다른 공모를 구분
+  name_key     TEXT,
   corp_name    TEXT,
   listing_dt   TEXT,
   sub_start    TEXT,
   sub_end      TEXT,
   retail_ratio REAL,
+  offer_price  INTEGER,
+  open_price   INTEGER,      -- 상장일 시초가
+  close_d1     INTEGER,      -- 상장일 종가
   fetched_at   TEXT
 );
+CREATE INDEX IF NOT EXISTS src38_name ON src38(name_key);
 
 CREATE TABLE IF NOT EXISTS kind_corp (
   name_key    TEXT PRIMARY KEY,

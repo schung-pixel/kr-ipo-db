@@ -16,6 +16,7 @@ class Src38Test(unittest.TestCase):
     def test_new_listing(self):
         rows = src38.parse_new_listing(NW)
         self.assertEqual(rows[0]["listing_dt"], "2026-11-24")
+        self.assertEqual(rows[0]["offer_price"], 7000)
         self.assertEqual(rows[1]["name_key"], "에스에프씨")      # '(유가)' 꼬리표 제거
 
     def test_subscription(self):
@@ -25,6 +26,13 @@ class Src38Test(unittest.TestCase):
         self.assertEqual(rows["엠비디"]["sub_start"], "2026-11-12")
         self.assertEqual(rows["제논"]["sub_end"], "2027-01-02")   # 연도 넘김
         self.assertIsNone(rows["제논"]["retail_ratio"])
+
+    def test_pair(self):
+        nw = src38.parse_new_listing(NW) + [{"name_key": "엠비디", "corp_name": "엠비디", "listing_dt": "2019-01-10",
+                                             "offer_price": 1, "open_price": None, "close_d1": None}]
+        rows = {r["row_key"]: r for r in src38.pair(nw, src38.parse_subscription(K))}
+        self.assertEqual(rows["엠비디_2026-11-12"]["listing_dt"], "2026-11-24")   # 청약 후 60일 안의 상장일과 짝
+        self.assertIn("엠비디_2019-01-10", rows)                                 # 같은 이름의 옛 공모는 따로
 
     def test_listing_offset(self):
         from datetime import date

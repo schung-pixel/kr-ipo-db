@@ -20,6 +20,10 @@ def connect(path: str) -> sqlite3.Connection:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
+    # src38 첫 구조(name_key 기본키)는 같은 이름의 다른 공모를 덮어써서 바꿨습니다. 보조 출처라 다시 받으면 됩니다.
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE name='src38'").fetchone() and \
+            "row_key" not in {r[1] for r in conn.execute("PRAGMA table_info(src38)")}:
+        conn.execute("DROP TABLE src38")
     conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
     _ensure_columns(conn)
     return conn
@@ -91,7 +95,7 @@ def save_filing(conn, row: dict, now: str) -> None:
 
 
 # ---------------------------------------------------------------- 증권신고서 주요정보
-def save_estk(conn, corp_code: str, payload: dict, now: str) -> tuple[set, list]:
+def save_estk(conn, corp_code: str, payload: dict, now: str, endpoint: str = "estkRs") -> tuple[set, list]:
     """estkRs 응답을 그룹별로 저장. (확인된 접수번호 집합, 알 수 없는 그룹 제목)을 반환."""
     seen, unknown = set(), []
     groups = payload.get("group") or []
@@ -130,7 +134,7 @@ def save_estk(conn, corp_code: str, payload: dict, now: str) -> tuple[set, list]
                         ("hdr", "rl_cmp", "bfsl_hdstk", "slstk", "atsl_hdstk"))
 
     upsert(conn, "dart_raw", "corp_code",
-           {"corp_code": corp_code, "endpoint": "estkRs",
+           {"corp_code": corp_code, "endpoint": endpoint,
             "payload": json.dumps(payload, ensure_ascii=False, sort_keys=True),
             "fetched_at": now}, volatile=("fetched_at",))
     return seen, unknown

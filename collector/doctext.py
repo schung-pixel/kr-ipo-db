@@ -182,7 +182,7 @@ _LISTING = re.compile(r"상장일\s*(?:\(\s*매매\s*개시일\s*\))?\s*[:：]?\
 
 
 def extract_result(text: str) -> dict:
-    """증권발행실적보고서: 상장(매매개시)일, 일반청약 경쟁률(청약수량 ÷ 최초 배정수량), 청약 건수."""
+    """증권발행실적보고서: 상장(매매개시)일, 일반청약 경쟁률(청약수량 ÷ 최종 배정수량), 청약 건수."""
     out = {"listing_dt": None, "listing_evidence": None, "retail_ratio": None,
            "retail_count": None, "retail_evidence": None}
     m = _LISTING.search(text)
@@ -208,12 +208,15 @@ def extract_result(text: str) -> dict:
                     return price is None and bool(q)
                 u = amt / q
                 return any(abs(u - p) <= p * 0.01 for p in (price, price / 2))
+            # 경쟁률 분모: 최종 배정수량(우리사주 미청약분 등이 넘어온 뒤의 일반청약 배정분). 주관사·언론 발표치와 같은
+            # 기준입니다. 최종 배정수량이 없거나 최초보다 작으면(표 오기) 최초 배정수량을 씁니다.
+            base = f_qty if f_qty and f_qty >= alloc else alloc
             if alloc and unit_ok(qty):
-                out["retail_ratio"] = round(qty / alloc, 2)
+                out["retail_ratio"] = round(qty / base, 2)
                 out["retail_count"] = int(cnt) if cnt else None
             elif alloc and unit_ok(cnt):
                 # 건수·수량 칸이 서로 바뀌어 기재된 공시: 금액으로 확인되는 칸을 청약수량으로 씁니다.
-                out["retail_ratio"] = round(cnt / alloc, 2)
+                out["retail_ratio"] = round(cnt / alloc, 2)   # 칸이 바뀐 서식은 최종 배정 칸도 믿기 어려워 최초 배정 기준
                 out["retail_count"] = int(v[6]) if v[6] else None
                 out["retail_evidence"] += " (건수·수량 칸 바뀜, 금액으로 확인)"
             else:
