@@ -183,7 +183,7 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual((a["shares_offered"], a["offer_amount"]), (1800000, 9900000000))  # 확정 건 첫머리 값
         self.assertEqual((a["estk_rcept_no"], a["estk_before_fixing"]), ("20250318000002", 1))
         self.assertEqual(a["secondary_shares"], 200000)
-        self.assertEqual(a["amendment_count"], 2)
+        self.assertEqual(a["amendment_count"], 1)   # [기재정정]만 셈(발행조건확정 제외)
         self.assertEqual(a["is_ipo_candidate"], 1)
         self.assertEqual((a["lead_underwriters"], a["co_underwriters"]), ("가증권", "나증권"))
         self.assertEqual(a["deal_id"], "00000001_20250310000001")
