@@ -966,10 +966,10 @@
     // 배경색: 하단 이하 파랑, 밴드 내 초록, 상단 이상(및 단일가) 빨강
     var tone = p === "하단" || p === "미달" ? "t-blue" : p === "밴드 내" ? "t-green" : "t-red";
     var tile = function (k, val, sub) { return '<div><span class="k">' + k + '</span><span class="v">' + val + "</span>" + (sub ? '<span class="s">' + sub + "</span>" : "") + "</div>"; };
-    var inst = d.inst_demand_ratio != null ? ratio(d.inst_demand_ratio, 2) : '<span class="dim">집계 전</span>';
+    var inst = d.inst_demand_ratio != null ? ratio(d.inst_demand_ratio) : '<span class="dim">집계 전</span>';
     var instS = [d.inst_demand_count ? int(d.inst_demand_count) + "건 참여" : "", c ? "확약 " + pct1(c.ratio) : ""].filter(Boolean).join(" · ");
     var subStarted = sd && asOf().slice(5).replace("-", ".") >= sd.slice(0, 5);
-    var ret = d.retail_ratio != null ? ratio(d.retail_ratio, 2) : '<span class="dim">' + (subStarted ? "집계 전" : "청약 전") + "</span>";
+    var ret = d.retail_ratio != null ? ratio(d.retail_ratio) : '<span class="dim">' + (subStarted ? "집계 전" : "청약 전") + "</span>";
     var retS = d.retail_ratio != null ? (d.retail_count ? int(d.retail_count) + "건" : "") : (sd ? "청약 " + sd : "");
     var gap = p === "미달" || p === "하단" ? (d.final_price / d.offer_price_low - 1) * 100 : vt;
     var gapT = gap != null && p && p !== "상단" && p !== "하단" ? (p === "미달" ? "하단 " : "상단 ") + (gap > 0 ? "+" : "") + (Math.round(gap * 10) / 10).toFixed(1) + "%" : "";
@@ -1237,8 +1237,8 @@
     html += '<div class="terms">' +
       term("확정 공모가", d.final_price ? int(d.final_price) + "<small>원</small>" + (p ? pill(p) : "") : '<span class="dim">' + (d.status === "price_fixed" ? "확인 필요" : "미확정") + "</span>", d.final_price ? capText(d.listed_shares, d.final_price, d.final_price) : "", d.final_price ? "hl" : "") +
       term("희망 밴드", d.offer_price_low ? bandText(d) + "<small>원</small>" : "-", bandCap(d)) +
-      term("수요예측 경쟁률", d.inst_demand_ratio != null ? ratio(d.inst_demand_ratio, 2) : '<span class="dim">-</span>', [demandText(d, true), d.inst_demand_count ? int(d.inst_demand_count) + "건 참여" : ""].filter(Boolean).join(" · ")) +
-      term("일반청약 경쟁률", d.retail_ratio != null ? ratio(d.retail_ratio, 2) : '<span class="dim">-</span>', d.retail_count ? int(d.retail_count) + "건" : "") +
+      term("수요예측 경쟁률", d.inst_demand_ratio != null ? ratio(d.inst_demand_ratio) : '<span class="dim">-</span>', [demandText(d, true), d.inst_demand_count ? int(d.inst_demand_count) + "건 참여" : ""].filter(Boolean).join(" · ")) +
+      term("일반청약 경쟁률", d.retail_ratio != null ? ratio(d.retail_ratio) : '<span class="dim">-</span>', d.retail_count ? int(d.retail_count) + "건" : "") +
       term("상장일", d.listing_dt ? esc(d.listing_dt) : lstOf(d).dt ? esc(lstOf(d).dt) : '<span class="dim">-</span>',
         d.listing_dt ? (d.listing_dt > asOf() ? "예정" : "") : d.listing_sched ? "KIND 신규상장 예정" : d.listing_est ? "예상 · 납입일 + 4영업일" : "") +
       term(amtLabel, d.offer_amount != null ? eok(d.offer_amount) + "<small>억원</small>" : "-") +
