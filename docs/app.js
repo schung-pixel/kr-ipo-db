@@ -945,12 +945,39 @@
       .sort(function (a, b) { return b.months - a.months; })[0];
     var in6 = rel.filter(function (x) { return x.months != null && x.months <= 6; }).pop();
     var tile = function (k, val, sub) { return '<div><span class="k">' + k + '</span><span class="v">' + val + "</span>" + (sub ? '<span class="s">' + sub + "</span>" : "") + "</div>"; };
-    return '<div class="lk-sum lk-a"><div class="lk-sum-hd">유통물량·보호예수</div><div class="terms t3">' +
+    return '<div class="lk-sum lk-a"><div class="lk-sum-hd">유통물량·보호예수 요약</div><div class="terms t3">' +
       tile("상장일 유통가능", pct1(f0.pct), int(f0.shares) + "주") +
       tile("첫 해제", first ? "+" + pct1(first.add) : '<span class="dim">-</span>', first ? lkWhen(first) + (first.date.dt ? " · " + lkDateHtml(first.date, true) : "") : "") +
       tile(top ? "최대주주 보호예수" : "6개월 내 누적", top ? periodText(top.months) : in6 ? pct1(in6.pct) : '<span class="dim">-</span>',
         top ? (base.dt ? "해제 " + lkDateHtml(lkDate(base, top), true) : pct1(top.pct) + " 보유") : in6 ? "상장일 대비 +" + pct1(in6.pct - f0.pct) : "") +
       "</div></div>";
+  }
+  // 상단 요약(가격 확정 단계): 확정 공모가가 나온 뒤 상장 전까지, 유통물량 요약 대신 공모 결과를 보여 줍니다
+  function priceStage(d) { return !!d.final_price && d.status !== "withdrawn" && !(d.listing_dt && d.listing_dt <= asOf()); }
+  function subDates(d) {
+    var m = (d.subscription_raw || "").match(/(\d{1,2})월\s*(\d{1,2})일(?:[^~]*~[^0-9]*(?:\d{4}년\s*)?(\d{1,2})월\s*(\d{1,2})일)?/);
+    if (!m) return "";
+    var f = function (a, b) { return ("0" + a).slice(-2) + "." + ("0" + b).slice(-2); };
+    return f(m[1], m[2]) + (m[3] ? "~" + f(m[3], m[4]) : "");
+  }
+  function priceSummary(d) {
+    if (!priceStage(d)) return "";
+    var p = position(d), vt = vsTop(d), c = d.lockup && d.lockup.commit, sd = subDates(d);
+    // 배경색: 하단 이하 파랑, 밴드 내 초록, 상단 이상(및 단일가) 빨강
+    var tone = p === "하단" || p === "미달" ? "t-blue" : p === "밴드 내" ? "t-green" : "t-red";
+    var tile = function (k, val, sub) { return '<div><span class="k">' + k + '</span><span class="v">' + val + "</span>" + (sub ? '<span class="s">' + sub + "</span>" : "") + "</div>"; };
+    var inst = d.inst_demand_ratio != null ? ratio(d.inst_demand_ratio, 2) : '<span class="dim">집계 전</span>';
+    var instS = [d.inst_demand_count ? int(d.inst_demand_count) + "건 참여" : "", c ? "확약 " + pct1(c.ratio) : ""].filter(Boolean).join(" · ");
+    var subStarted = sd && asOf().slice(5).replace("-", ".") >= sd.slice(0, 5);
+    var ret = d.retail_ratio != null ? ratio(d.retail_ratio, 2) : '<span class="dim">' + (subStarted ? "집계 전" : "청약 전") + "</span>";
+    var retS = d.retail_ratio != null ? (d.retail_count ? int(d.retail_count) + "건" : "") : (sd ? "청약 " + sd : "");
+    var gap = p === "미달" || p === "하단" ? (d.final_price / d.offer_price_low - 1) * 100 : vt;
+    var gapT = gap != null && p && p !== "상단" && p !== "하단" ? (p === "미달" ? "하단 " : "상단 ") + (gap > 0 ? "+" : "") + (Math.round(gap * 10) / 10).toFixed(1) + "%" : "";
+    var posV = p ? pill(p) + (gapT ? " <small>" + gapT + "</small>" : "") : '<span class="pill">' + (d.offer_price_low && d.offer_price_low === d.offer_price_high ? "단일 희망가" : "밴드 정보 없음") + "</span>";
+    return '<div class="ps ' + tone + '"><div class="ps-hd"><b>공모가 확정 요약</b><span>' + (pricingDate(d) ? esc(pricingDate(d).slice(5).replace("-", ".")) + " 확정" : "") + "</span></div>" +
+      '<div class="ps-body"><div class="ps-hero"><span class="k">확정 공모가</span><span class="v">' + int(d.final_price) + "<small>원</small></span>" +
+      '<span class="pp">' + posV + '</span><span class="s">' + (d.offer_price_low ? "희망 " + bandText(d) + "원" : "") + "</span></div>" +
+      '<div class="ps-side">' + tile("수요예측 경쟁률", inst, instS) + tile("일반청약 경쟁률", ret, retS) + "</div></div></div>";
   }
   function lockupBlock(d) {
     var L = d.lockup;
@@ -1161,11 +1188,14 @@
         ["신고", d.first_filing_dt, md(d.first_filing_dt), d.first_filing_dt],
         ["수요예측", d.demand_start, d.demand_start ? demandText(d, true) : "-", demandText(d)],
         ["가격 확정", pricingDate(d), md(pricingDate(d)), pricingDate(d)],
-        wd ? ["철회", "0000", "-", "철회신고서 제출"] : ["상장", d.listing_dt, md(d.listing_dt), d.listing_dt]
+        wd ? ["철회", "0000", "-", "철회신고서 제출"] : (function () {
+          var l = lstOf(d);
+          return [l.q ? "상장(" + l.q + ")" : "상장", d.listing_dt, md(l.dt), l.dt ? l.dt + (l.q ? " (" + (l.q === "예상" ? "예상 · 납입일 + 4영업일" : "KIND 신규상장 예정") + ")" : "") : ""];
+        })()
       ];
       tlEl.innerHTML = steps.map(function (t) {
         var done = !!t[1] && t[1].slice(0, 10) <= today;
-        return '<li class="' + (done ? "done" : "up") + (wd && t[0] === "철회" ? " wd" : "") + '"' + (t[3] ? ' title="' + esc(t[0] + " " + t[3]) + '"' : "") + "><b>" + esc(t[2]) + "</b><span>" + t[0] + "</span></li>";
+        return '<li class="' + (done ? "done" : "up") + (wd && t[0] === "철회" ? " wd" : "") + (t[0].indexOf("(") > 0 ? " est" : "") + '"' + (t[3] ? ' title="' + esc(t[0] + " " + t[3]) + '"' : "") + "><b>" + esc(t[2]) + "</b><span>" + t[0] + "</span></li>";
       }).join("");
       tlEl.hidden = false;
       subEl.textContent = (d.first_filing_dt || "").slice(0, 4) + "년 신고 · 정정 " + (d.amendment_count || 0) + "회" + (d.lead_underwriters ? " · " + d.lead_underwriters : "");
@@ -1199,6 +1229,7 @@
       '<a href="#/deal/' + encodeURIComponent(pv.deal_id) + '">철회된 공모 보기</a></p>';
 
     var p = position(d);
+    html += priceStage(d) ? priceSummary(d) : lkSummary(d);
     html += companyBlock(d);
     var amtLabel = srcMethod(d, "offer_amount") === "DOC" ? "공모액 · 확정" : "공모액 · 신고서 기재";
     var shrLabel = srcMethod(d, "shares_offered") === "DOC" ? "공모주식수 · 확정" : "공모주식수 · 신고서 기재";
@@ -1215,7 +1246,6 @@
       term("대표주관", esc(d.lead_underwriters || "-"), d.co_underwriters ? "공동 " + esc(d.co_underwriters) : "", "txt") +
       "</div>";
     html += '<div id="bandviz-slot"></div>';
-    html += lkSummary(d);
     html += structBlock(d);
     html += finBlock(d);
     html += lockupBlock(d);
