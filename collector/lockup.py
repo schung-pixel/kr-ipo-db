@@ -12,7 +12,7 @@ import zipfile
 
 from .doctext import _clean, _decode
 
-LOCKUP_VERSION = 6
+LOCKUP_VERSION = 7
 # 2019년 이전 원문을 공시 뷰어로 받을 때 읽을 목차(투자위험요소·공모 일반사항)
 VIEWER_SECTIONS = ("기타위험", "투자위험요소", "공모가격결정방법", "모집또는매출에관한일반사항", "공모개요", "유통")
 
@@ -78,6 +78,40 @@ def _months(label: str) -> float | None:
     return (int(y.group(1)) * 12 if y else 0) + (int(mo.group(1)) if mo else 0)
 
 
+_DATE = re.compile(r"(20\d\d)\s*(?:[.\-/]|년)\s*(\d{1,2})\s*(?:[.\-/]|월)\s*(\d{1,2})\s*일?")
+
+
+def _until(label: str) -> str | None:
+    """'예탁일로부터 1년(2027.09.01까지)', '2027년 09월 01일 이후' → '2027-09-01'(기간이 날짜로 정해진 경우)."""
+    m = _DATE.search(label or "")
+    if not m:
+        return None
+    y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+    if not (1 <= mo <= 12 and 1 <= d <= 31):
+        return None
+    return f"{y:04d}-{mo:02d}-{d:02d}"
+
+
+def _per(cell: str) -> dict | None:
+    """매각제한기간 칸 → {"months"} 또는 {"until"}(날짜로 정해진 기간) 또는 {"mixed", "label"}(여러 기간이 한 칸에)."""
+    c = (cell or "").strip()
+    if not c or _IS_PCT.match(c):
+        return None
+    mo = _months(c)
+    if mo is not None:
+        return {"months": mo}
+    u = _until(c)
+    if u:
+        # '예탁일로부터 1년(…까지)'처럼 기간도 함께 적힌 경우 기간을 같이 남깁니다(정렬용)
+        m2 = re.search(r"(\d+\s*년(?:\s*\d+\s*개월)?|\d+\s*개월)", c)
+        return {"until": u, "months": _months(m2.group(1)) if m2 else None}
+    parts = [p for p in re.split(r"\s*[,/·]\s*|\s+및\s+", c) if p]
+    if len(parts) >= 2 and all(_months(p) is not None for p in parts):
+        return {"mixed": True, "label": "·".join(re.sub(r"\s+", "", p) for p in parts),
+                "months": max(_months(p) for p in parts)}
+    return None
+
+
 def period_label(months: float) -> str:
     if months < 1:
         return f"{round(months * 30)}일"
@@ -95,8 +129,12 @@ _LISTED = [
 ]
 _FLOAT = [
     # 상장예정주식수 X주 중 (약) Y%에 해당하는 Z주는 상장 직후/상장일부터 …
-    (re.compile(r"상장\s*예정\s*주식\s*수\s*([\d,]{5,})\s*주[^.。]{0,80}?중\s*(?:약\s*)?([\d.]+)\s*%\s*에\s*해당하는\s*"
-                r"(?:약\s*)?([\d,]{3,})\s*주(?:는|은|가)?\s*(?:상장\s*(?:직후|일|당일)|유통)"), (1, 2, 3)),
+    # (상장예정주식수와 숫자 사이에 '는 희망공모가액 하단인 17,500원 기준' 같은 말이 끼어도 됨)
+    (re.compile(r"상장\s*예정\s*주식\s*수[^.。\d]{0,40}?(?:[\d,]+\s*원\s*기준\s*)?([\d,]{5,})\s*주[^.。]{0,80}?중\s*(?:약\s*)?"
+                r"([\d.]+)\s*%\s*에\s*해당하는\s*(?:약\s*)?([\d,]{3,})\s*주(?:는|은|가)?\s*(?:상장\s*(?:직후|일|당일)|유통)"), (1, 2, 3)),
+    # 상장 직후 유통가능주식수는 3,232,320주로 상장예정주식수의 38.84%
+    (re.compile(r"상장\s*(?:직후|일|당일)\s*유통\s*가능\s*(?:주식\s*수?|물량)\s*(?:은|는)\s*(?:약\s*)?([\d,]{3,})\s*주\s*(?:로|이며|으로)?\s*"
+                r"(?:상장\s*예정\s*주식\s*수|공모\s*후\s*발행\s*주식\s*총\s*수)\s*의\s*(?:약\s*)?([\d.]+)\s*%"), (None, 2, 1)),
     # … 4,112,879주(공모 후 지분율 34.56%)는 상장일부터 매도가 가능
     (re.compile(r"([\d,]{3,})\s*주\s*\(\s*[^()%]{0,25}?([\d.]+)\s*%\s*\)\s*(?:는|은|가|이)?\s*"
                 r"상장\s*(?:일부터|일로부터|직후|당일|일\s*당일)\s*(?:시장에서\s*|바로\s*|즉시\s*)*"
@@ -135,20 +173,33 @@ def _float0(text: str, listed: int | None = None) -> dict | None:
     for m in _FLOAT_ROW.finditer(text):
         sh, pc = _n(m.group(1)), _pct(m.group(2))
         if sh and pc and 0 < pc <= 100:
-            cands.append((m.start(), {"shares": sh, "pct": pc, "listed": None, "evidence": _snip(text, m)}))
+            cands.append((m.start(), {"shares": sh, "pct": pc, "listed": None, "evidence": _snip(text, m), "table": True}))
+    for b in _timeline_blocks(text):       # 시점별 유통가능 표의 '상장일' 행
+        for r in b:
+            if r.get("months") == 0 and r["shares"] and r["pct"]:
+                cands.append((r["pos"], {"shares": r["shares"], "pct": r["pct"], "listed": None, "table": True,
+                                         "evidence": re.sub(r"\s+", " ", text[r["pos"]:r["pos"] + 120]).strip()}))
 
     for m in _FLOAT_SUB.finditer(text):
         cs = _cells(m.group(1))
         prs = [(_n(cs[i]), _pct(cs[i + 1])) for i in range(len(cs) - 1)
                if _n(cs[i]) and _IS_PCT.match(cs[i + 1] or "")]
-        if prs and prs[-1][1] and 0 < prs[-1][1] <= 100:
-            cands.append((m.start(), {"shares": prs[-1][0], "pct": prs[-1][1], "listed": None, "evidence": _snip(text, m)}))
+        # 공모 후 값이 마지막 쌍이 아닐 수 있습니다('희석지분 반영시' 열 등): 상장주식수와 맞는 마지막 쌍을 고릅니다
+        fit = [pr for pr in prs if listed and pr[1] and abs(pr[0] / listed * 100 - pr[1]) <= 0.3]
+        pr = fit[-1] if fit else (prs[-1] if prs else None)
+        if pr and pr[1] and 0 < pr[1] <= 100:
+            cands.append((m.start(), {"shares": pr[0], "pct": pr[1], "listed": None, "evidence": _snip(text, m), "table": True}))
 
     def ok(c):
         base = c["listed"] or listed
-        return not base or abs(c["shares"] / base * 100 - c["pct"]) <= 1.5
+        return not base or abs(c["shares"] / base * 100 - c["pct"]) <= (0.5 if c.get("table") else 1.5)
 
     good = [c for c in cands if ok(c[1])]
+    # 표에서 읽은 값(시점별 유통가능 표의 '상장일' 행·유통가능 소계 행)을 문장보다 먼저 씁니다.
+    # 문장은 '벤처금융 보유분 중 569,250주(3.91%)는 상장 직후 유통 가능'처럼 일부 주주의 물량일 수 있습니다.
+    tab = [c for c in good if c[1].get("table")]
+    if tab:
+        return max(tab, key=lambda c: c[0])[1]
     if good:
         return max(good, key=lambda c: c[0])[1]
     # 직접 적힌 유통가능 물량이 없으면 '상장예정주식수 X주 중 Y주(Z%)는 보호예수…'에서 계산
@@ -173,21 +224,69 @@ _SCHED_ROW = re.compile(r"^상장\s*(?:후|일로부터|일부터)\s*(\d+\s*년|
 _SCHED_SENT = re.compile(r"(\d+)\s*(개월|년)\s*(?:후|뒤)\s*:?\s*([\d,]{3,})\s*주\s*\(\s*누적\s*(?:지분율\s*)?([\d.]+)\s*%\s*\)")
 
 
-def _schedule(text: str) -> list | None:
-    blocks, cur, last = [], [], -10
-    for m in _SCHED_ROW.finditer(text):
-        line_no = text.count("\n", 0, m.start())
-        if line_no - last > 2 and cur:
+# 시점별 유통가능 표의 첫 칸: '상장일 (유통가능)', '상장 후 3개월 뒤 유통가능', '2027년 09월 01일 이후 유통가능'
+_TL_DAY0 = re.compile(r"^상장\s*(?:일|직후|당일)(?:\s*유통\s*가능.*)?$")
+_TL_AFTER = re.compile(r"^상장\s*(?:후|일로부터|일부터|일\s*이후)\s*(\d+\s*년(?:\s*\d+\s*개월)?|\d+\s*개월|\d+\s*일)\s*"
+                       r"(?:뒤|후|경과\s*후?|이후)?(?:\s*유통\s*가능.*)?$")
+_TL_DATE = re.compile(r"^(20\d\d\s*(?:[.\-/]|년)\s*\d{1,2}\s*(?:[.\-/]|월)\s*\d{1,2}\s*일?)\s*(?:이후|부터|후|경과\s*후?)(?:\s*유통\s*가능.*)?$")
+
+
+def _pct_cell(c: str) -> float | None:
+    """비율 칸: '24.99%', '38.84', '100.00'(소수점이나 %가 있어야 함, 0~100)."""
+    c = (c or "").strip()
+    if not re.fullmatch(r"\d{1,3}(?:\.\d+)?\s*%|\d{1,3}\.\d+", c):
+        return None
+    v = float(c.replace("%", ""))
+    return v if 0 <= v <= 100 else None
+
+
+def _timeline_blocks(text: str) -> list:
+    """시점별(누적) 유통가능 표의 행 묶음. 행마다 첫 비율 칸과 바로 앞 주식수 칸을 읽습니다
+    ('구분 | 추가 | 누적 | 비율', '구분 | 주식수 | 비율 | 행사 가정 시 …' 양식 모두)."""
+    blocks, cur, last, pos = [], [], -10, 0
+    for i, l in enumerate(text.split("\n")):
+        at, pos = pos, pos + len(l) + 1
+        if "|" not in l:
+            continue
+        cs = _cells(l)
+        if len(cs) < 3:
+            continue
+        lab = re.sub(r"\s+", " ", cs[0]).strip()
+        row = None
+        if _TL_DAY0.match(lab):
+            row = {"months": 0}
+        else:
+            m = _TL_AFTER.match(lab)
+            if m and _months(m.group(1)) is not None:
+                row = {"months": _months(m.group(1))}
+            else:
+                m = _TL_DATE.match(lab)
+                if m and _until(m.group(1)):
+                    row = {"until": _until(m.group(1))}
+        if row is None:
+            continue
+        j = next((k for k in range(1, len(cs)) if _pct_cell(cs[k]) is not None), None)
+        if j is None or j < 2 or _n(re.sub(r"\s*주$", "", cs[j - 1])) is None:
+            continue
+        row.update(shares=_n(re.sub(r"\s*주$", "", cs[j - 1])), pct=_pct_cell(cs[j]), pos=at)
+        if i - last > 2 and cur:
             blocks.append(cur)
             cur = []
-        mo = _months(m.group(1))
-        if mo is not None:
-            cur.append({"months": mo, "shares": _n(m.group(2)), "pct": _pct(m.group(3))})
-        last = line_no
+        cur.append(row)
+        last = i
     if cur:
         blocks.append(cur)
+    return blocks
+
+
+def _timeline_ok(rows: list, listed: int | None) -> bool:
+    return not listed or all(abs(r["shares"] / listed * 100 - r["pct"]) <= 1.5 for r in rows if r["shares"])
+
+
+def _schedule(text: str, listed: int | None = None) -> list | None:
+    blocks = [b for b in _timeline_blocks(text) if _timeline_ok(b, listed) and any(r.get("months") != 0 for r in b)]
     if blocks:
-        return _mono(blocks[-1])
+        return _mono([r for r in blocks[-1] if r.get("months") != 0])
     sents = list(_SCHED_SENT.finditer(text))
     if sents:
         # 마지막 문단의 연속된 문장만
@@ -199,14 +298,17 @@ def _schedule(text: str) -> list | None:
 
 
 def _mono(rows: list) -> list | None:
+    """누적 해제 일정 정리. 날짜로 정해진 행(until)이 섞이면 원문 순서를 그대로 씁니다(상장일에 따라 선후가 달라짐)."""
     seen, out = set(), []
-    for r in sorted(rows, key=lambda r: r["months"]):
-        if r["months"] in seen or not r["shares"]:
+    dated = any(r.get("until") for r in rows)
+    for r in (rows if dated else sorted(rows, key=lambda r: r["months"])):
+        key = r.get("until") or r.get("months")
+        if key in seen or not r["shares"]:
             continue
         if out and r["shares"] < out[-1]["shares"]:
             return None          # 누적이 줄어들면 표를 잘못 읽은 것
-        seen.add(r["months"])
-        out.append(r)
+        seen.add(key)
+        out.append({k: v for k, v in r.items() if k != "pos" and v is not None})
     return out or None
 
 
@@ -214,7 +316,7 @@ def _mono(rows: list) -> list | None:
 _HOLDER_HEAD = re.compile(r"구\s*분")
 _FLOW = re.compile(r"유통\s*가능")
 _LOCKW = re.compile(r"매각\s*제한|매도\s*(?:금지|제한)|보호\s*예수|의무\s*보유|유통\s*제한")
-_STOP = re.compile(r"^(?:주\s*\d+\s*\)|\(\s*주\s*\d*\s*\)|※|\*|주\)|\[|【|\(단위|가\.|나\.|다\.|라\.|마\.|\d+\.)")
+_STOP = re.compile(r"^(?:주\s*\d+\s*\)|\(\s*주\s*\d+\s*\)|※|\*|주\)|\[|【|\(단위|가\.|나\.|다\.|라\.|마\.|\d+\.)")
 _IS_PCT = re.compile(r"^-?[\d.]+\s*%$")
 _GROUP_LABEL = re.compile(r"최대\s*주주|5\s*%\s*이상|1\s*%\s*(?:이상|미만)|벤처|전문\s*투자자|기타\s*주주|소액|공모\s*주주|"
                           r"우리\s*사주|일반\s*법인|외국|기관|주관|상장\s*주선인|신기술|자기\s*주식|임원|특수\s*관계|"
@@ -239,12 +341,17 @@ def _category(group: str, row_text: str) -> str:
 
 def _holder_groups(text: str) -> tuple[list | None, int | None]:
     lines = text.split("\n")
-    heads = [i for i, l in enumerate(lines) if _HOLDER_HEAD.search(l) and _LOCKW.search(l) and l.count("|") >= 4
+    heads = [i for i, l in enumerate(lines)
+             if _HOLDER_HEAD.search(l) and _LOCKW.search(l) and l.count("|") >= 4
              and (_FLOW.search(l) or re.search(r"주주\s*명|성\s*명|가능\s*여부", l))
              and not re.search(r"부여|행사|가중치|유통보통주식", l)]
+    # '구분' 칸 없이 '주주명'으로 시작하는 표는 머리행 묶음(아래 두 줄 포함)에 '유통가능'이 있어야 합니다
+    heads += [i for i, l in enumerate(lines)
+              if re.search(r"^\s*(?:주주\s*명|성\s*명)\s*\|", l) and _LOCKW.search(l) and l.count("|") >= 4
+              and _FLOW.search(" ".join(lines[i:i + 3])) and not re.search(r"부여|행사|가중치|유통보통주식", l)]
     if not heads:
         return None, None
-    h = heads[-1]
+    h = max(heads)
     head = lines[h]
     hb = " ".join(lines[h:h + 3])
     lq = re.search(r"(?:매각\s*제한|매도\s*금지|보호\s*예수|의무\s*보유|유통\s*제한)\s*(?:물량|주식)", hb)
@@ -280,7 +387,7 @@ def _holder_groups(text: str) -> tuple[list | None, int | None]:
     for cs, _ in norm:
         if len(cs) == full:
             for i in range(len(cs) - 1, -1, -1):
-                if _months(cs[i]) is not None:
+                if _per(cs[i]) is not None:
                     roff = len(cs) - i
                     break
         if roff:
@@ -290,17 +397,19 @@ def _holder_groups(text: str) -> tuple[list | None, int | None]:
     for cs, st in norm:
         joined = " ".join(cs)
         is_total = any(re.fullmatch(r"(?:공모\s*후\s*)?(?:합\s*계|총\s*계|계)", c) for c in cs[:2])
-        is_sub = any(re.search(r"(?:^|\s)소\s*계$", c) for c in cs[:2])
+        # '공모 전 주식 총계'처럼 중간 합계 행은 소계로 봅니다
+        is_sub = any(re.search(r"소\s*계\s*(?:\(\s*\d+\s*(?:인|명|개사)\s*\))?\s*$", c) for c in cs[:2]) or \
+            (not is_total and bool(re.search(r"(?:총|합)\s*계\s*$", cs[0])))
         if len(cs) >= full - 0 and not is_total and not is_sub and _GROUP_LABEL.search(cs[0]):
             group = cs[0]
         # 기간 셀(오른쪽에서 찾음)
         pidx = None
         for i in range(len(cs) - 1, -1, -1):
-            if _months(cs[i]) is not None and not _IS_PCT.match(cs[i]):
+            if _per(cs[i]) is not None:
                 pidx = i
                 break
-        if pidx is None and roff and len(cs) == full and cs[len(cs) - roff] in ("-", "", "해당없음"):
-            pidx = len(cs) - roff           # 기간 칸이 '-'인 온전한 행
+        if pidx is None and roff and len(cs) >= full - 1 and len(cs) >= roff and cs[len(cs) - roff] in ("-", "", "해당없음"):
+            pidx = len(cs) - roff           # 기간 칸이 '-'인 온전한 행(왼쪽 구분 칸만 병합돼 빠진 행 포함)
         if pidx is not None:
             body = cs[:pidx]
         trailing_dash = 0
@@ -308,11 +417,17 @@ def _holder_groups(text: str) -> tuple[list | None, int | None]:
             lastp = max((i for i, c in enumerate(cs) if _IS_PCT.match(c)), default=-1)
             body = cs[:lastp + 1]
             trailing_dash = sum(1 for c in cs[lastp + 1:] if c in ("-", ""))
-        pairs = []
-        for i in range(len(body) - 1):
+        pairs, i = [], 0
+        while i < len(body) - 1:      # (주식수, 지분율) 쌍을 왼쪽부터 겹치지 않게 읽습니다
             v, p = body[i], body[i + 1]
-            if (_IS_PCT.match(p) or (p == "-" and v == "-") or (p == "" and _n(v) is not None)) and (v == "-" or _n(v) is not None):
+            if v in ("-", "") and p in ("-", ""):
+                pairs.append(0)            # '- | -' 또는 빈 칸 두 개: 해당 물량 없음
+                i += 2
+            elif (_IS_PCT.match(p) or (p == "" and _n(v) is not None)) and (v == "-" or _n(v) is not None):
                 pairs.append(_n(v) or 0)
+                i += 2
+            else:
+                i += 1
         if not pairs and pidx is not None and pidx >= 1 and _n(cs[pidx - 1]) is not None and len(cs) <= 4:
             pairs = [_n(cs[pidx - 1])]      # '336,000 | 3개월' 처럼 지분율 없이 나뉜 행
         if not pairs:
@@ -331,12 +446,12 @@ def _holder_groups(text: str) -> tuple[list | None, int | None]:
         after_sub = False
         if st == "free":
             continue
-        if pidx is not None and _months(cs[pidx]) is not None:
-            period = _months(cs[pidx])
+        if pidx is not None and _per(cs[pidx]) is not None:
+            period = _per(cs[pidx])
         elif pidx is None:
             ref = next((notes[k] for k in re.findall(r"주\s*(\d+)\s*\)", joined) if k in notes), None)
             if ref is not None:
-                period = ref
+                period = {"months": ref}
         elif pidx is not None:
             period = None if not lock else period
         if not lock:
@@ -347,11 +462,14 @@ def _holder_groups(text: str) -> tuple[list | None, int | None]:
         cont = last_cat and _n(cs[0]) is not None     # 첫 칸이 숫자면 위 주주의 기간별 분할 행
         cat = last_cat if cont else _category(group, joined)
         last_cat = cat
-        key = (cat, period)
-        agg[key] = agg.get(key, 0) + lock
-    out = [{"category": k[0], "months": k[1], "shares": v} for k, v in agg.items()]
+        pk = period.get("until") or period.get("label") or period.get("months")
+        key = (cat, pk)
+        if key not in agg:
+            agg[key] = dict({"category": cat}, **{k: v for k, v in period.items() if v is not None}, shares=0)
+        agg[key]["shares"] += lock
+    out = list(agg.values())
     order = ["최대주주등", "우리사주조합", "상장주선인 의무인수", "기관 의무보유확약", "벤처금융·전문투자자", "기타 주주"]
-    out.sort(key=lambda r: (order.index(r["category"]), -r["months"]))
+    out.sort(key=lambda r: (order.index(r["category"]), -(r.get("months") or 0), r.get("until") or ""))
     return (out or None), total_row
 
 
@@ -448,7 +566,7 @@ def extract_lockup(text: str) -> dict:
     f0 = _float0(text, listed)
     if f0 and f0.get("listed"):
         listed = f0["listed"]
-    sched = _schedule(text)
+    sched = _schedule(text, listed)
     groups, total_lock = _holder_groups(text)
     commit = _commitment(text)
     if f0 and not listed and f0["pct"]:
@@ -468,7 +586,8 @@ def extract_lockup(text: str) -> dict:
         for g in groups:
             g["pct"] = round(g["shares"] / listed * 100, 2)
     # 해제 일정이 없으면 검증된 주주별 내역으로 만듭니다
-    if not sched and groups and groups_full and f0 and listed:
+    if not sched and groups and groups_full and f0 and listed and \
+            all(g.get("months") is not None and not g.get("until") and not g.get("mixed") for g in groups):
         cum, acc = [], f0["shares"]
         for mo in sorted({g["months"] for g in groups}):
             acc += sum(g["shares"] for g in groups if g["months"] == mo)

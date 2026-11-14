@@ -909,43 +909,88 @@
     return t.getFullYear() + "-" + String(t.getMonth() + 1).padStart(2, "0") + "-" + String(t.getDate()).padStart(2, "0");
   }
   function pct1(v) { return v == null ? "-" : (Math.round(v * 10) / 10).toFixed(1) + "%"; }
+  // 보호예수 해제일 기준: 상장일(확정) → KIND 상장예정일 → 예상 상장일. q: ""(확정)·"예정"·"예상"
+  function lkBase(d) { var l = lstOf(d); return { dt: l.dt, q: l.q }; }
+  function lkDate(base, x) {
+    // x: {months} 또는 {until}(날짜로 정해진 기간: 우리사주 예탁 등, 상장일과 무관)
+    if (x.until) return { dt: x.until, q: "", fixed: true };
+    if (x.months == null || !base.dt) return { dt: "", q: "" };
+    return { dt: addPeriod(base.dt, x.months), q: base.q };
+  }
+  function dtShort(iso) { return iso ? iso.slice(2).replace(/-/g, ".") : ""; }
+  function lkWhen(x) { return x.until ? dtShort(x.until) + " 이후" : x.mixed ? esc(x.label) : x.months === 0 ? "상장일" : periodText(x.months) + " 후"; }
+  // 해제 시점 목록(누적): 상장일 + 해제 일정. 같은 비율이 이어지는 중간 시점은 뺍니다
+  function lkPoints(d) {
+    var L = d.lockup || {}, f0 = L.float0, base = lkBase(d);
+    var pts = [{ months: 0, shares: f0 ? f0.shares : null, pct: f0 ? f0.pct : null }].concat((L.schedule || []).map(function (x) {
+      return { months: x.months, until: x.until, shares: x.shares, pct: x.pct };
+    }));
+    pts = pts.filter(function (x, i) { return x.pct != null && (i === 0 || x.pct !== pts[i - 1].pct || i === pts.length - 1); });
+    return pts.map(function (x, i) {
+      var prev = i ? pts[i - 1].pct : 0;
+      return { months: x.months, until: x.until, pct: x.pct, add: i ? x.pct - prev : x.pct, prev: prev, date: x.months === 0 ? { dt: base.dt, q: base.q } : lkDate(base, x) };
+    });
+  }
+  function lkDateHtml(dd, short) {
+    if (!dd || !dd.dt) return "";
+    var t = short ? dtShort(dd.dt) : esc(dd.dt);
+    return dd.q ? '<span class="lk-est" title="' + dd.q + ' 상장일 기준">' + t + "</span>" : t;
+  }
+  // 상단 요약(카드 첫 화면, 시안 A): 증권신고서 제출부터 상장 전까지만 보여 주고, 상장 후(상장일 당일 포함)와 철회 건은 숨깁니다
+  function lkSummary(d) {
+    var L = d.lockup;
+    if (!L || !L.float0 || d.status === "withdrawn" || (d.listing_dt && d.listing_dt <= asOf())) return "";
+    var pts = lkPoints(d), f0 = L.float0, rel = pts.slice(1), first = rel[0], base = lkBase(d);
+    var top = (L.groups || []).filter(function (g) { return g.category === "최대주주등" && g.months != null; })
+      .sort(function (a, b) { return b.months - a.months; })[0];
+    var in6 = rel.filter(function (x) { return x.months != null && x.months <= 6; }).pop();
+    var tile = function (k, val, sub) { return '<div><span class="k">' + k + '</span><span class="v">' + val + "</span>" + (sub ? '<span class="s">' + sub + "</span>" : "") + "</div>"; };
+    return '<div class="lk-sum lk-a"><div class="lk-sum-hd">유통물량·보호예수</div><div class="terms t3">' +
+      tile("상장일 유통가능", pct1(f0.pct), int(f0.shares) + "주") +
+      tile("첫 해제", first ? "+" + pct1(first.add) : '<span class="dim">-</span>', first ? lkWhen(first) + (first.date.dt ? " · " + lkDateHtml(first.date, true) : "") : "") +
+      tile(top ? "최대주주 보호예수" : "6개월 내 누적", top ? periodText(top.months) : in6 ? pct1(in6.pct) : '<span class="dim">-</span>',
+        top ? (base.dt ? "해제 " + lkDateHtml(lkDate(base, top), true) : pct1(top.pct) + " 보유") : in6 ? "상장일 대비 +" + pct1(in6.pct - f0.pct) : "") +
+      "</div></div>";
+  }
   function lockupBlock(d) {
     var L = d.lockup;
     if (!L || (!L.float0 && !L.schedule && !L.commit)) return "";
-    var listed = L.listed, f0 = L.float0, c = L.commit;
+    var listed = L.listed, f0 = L.float0, c = L.commit, base = lkBase(d);
     var tile = function (k, v, sub) { return '<div><span class="k">' + k + '</span><span class="v">' + v + "</span>" + (sub ? '<span class="s">' + sub + "</span>" : "") + "</div>"; };
     var h = '<div class="terms lk-terms">' +
       tile("상장일 유통가능", f0 ? pct1(f0.pct) : '<span class="dim">-</span>', f0 ? int(f0.shares) + "주" : "") +
       tile("기관 의무보유확약", c ? pct1(c.ratio) : '<span class="dim">-</span>', c ? "수요예측 신청수량 기준" : (d.status === "filed" ? "수요예측 결과가 나오면 표시" : "원문에서 찾지 못함")) +
       tile("상장예정주식수", listed ? int(listed) + "<small>주</small>" : '<span class="dim">-</span>') + "</div>";
     // 해제 일정(누적)
-    var sch = (L.schedule || []).slice();
+    var sch = L.schedule || [];
     if (f0 || sch.length) {
-      var pts = [{ m: 0, shares: f0 ? f0.shares : null, pct: f0 ? f0.pct : null }].concat(sch.map(function (x) { return { m: x.months, shares: x.shares, pct: x.pct }; }));
-      pts = pts.filter(function (x, i) { return x.pct != null && (i === 0 || x.pct !== pts[i - 1].pct || i === pts.length - 1); });
-      h += '<div class="lk-sub">보호예수 해제 일정 <span class="dim">(누적 유통가능)</span></div><ol class="lk-sched">' + pts.map(function (x, i) {
-        var prev = i ? pts[i - 1].pct : 0, add = i ? x.pct - prev : x.pct;
-        var when = x.m === 0 ? "상장일" : periodText(x.m) + " 후";
-        var dt = d.listing_dt ? addPeriod(d.listing_dt, x.m) : "";
-        return '<li><span class="w">' + when + (dt ? '<small>' + dt + "</small>" : "") + '</span><span class="bar"><i class="base" style="width:' + Math.min(100, prev).toFixed(2) + '%"></i><i class="add" style="left:' + Math.min(100, prev).toFixed(2) + "%;width:" + Math.max(0, Math.min(100 - prev, add)).toFixed(2) + '%"></i></span>' +
-          '<span class="p">' + pct1(x.pct) + (i ? '<small>+' + pct1(add) + "</small>" : "") + "</span></li>";
-      }).join("") + "</ol>" + (sch.some(function (x) { return x.derived; }) ? '<p class="snote">해제 일정은 주주별 매각제한 내역으로 계산했습니다.</p>' : "");
+      var pts = lkPoints(d);
+      h += '<div class="lk-sub">보호예수 해제 일정 <span class="dim">(누적 유통가능' + (base.q && base.dt ? " · 해제일은 " + base.q + " 상장일 " + esc(base.dt) + " 기준" : "") + ")</span></div><ol class=\"lk-sched\">" + pts.map(function (x, i) {
+        return '<li><span class="w">' + lkWhen(x) + (x.date.dt ? "<small>" + lkDateHtml(x.date) + "</small>" : "") + '</span><span class="bar"><i class="base" style="width:' + Math.min(100, x.prev).toFixed(2) + '%"></i><i class="add" style="left:' + Math.min(100, x.prev).toFixed(2) + "%;width:" + Math.max(0, Math.min(100 - x.prev, x.add)).toFixed(2) + '%"></i></span>' +
+          '<span class="p">' + pct1(x.pct) + (i ? '<small>+' + pct1(x.add) + "</small>" : "") + "</span></li>";
+      }).join("") + "</ol>" + (sch.some(function (x) { return x.derived; }) ? '<p class="snote">해제 일정은 주주별 매각제한 내역으로 계산했습니다.</p>' : "") +
+        (sch.some(function (x) { return x.until; }) ? '<p class="snote">날짜로 적힌 시점(우리사주 예탁 등)은 상장일과 무관하게 정해져 있어 다른 시점과 선후가 바뀔 수 있습니다.</p>' : "");
     }
     if (L.groups && L.groups.length) {
-      h += '<div class="lk-sub">보호예수·의무보유 내역</div>' + table(["구분", "기간", "주식수", "상장주식 대비"],
-        L.groups.map(function (g) { return [esc(g.category), esc(periodText(g.months)), int(g.shares), g.pct != null ? pct1(g.pct) : "-"]; }), [2, 3]);
+      h += '<div class="lk-sub">보호예수·의무보유 내역</div>' + table(["구분", "기간 · 해제일", "주식수", "상장주식 대비"],
+        L.groups.map(function (g) {
+          var per = g.until ? "날짜 지정" : g.mixed ? esc(g.label) : esc(periodText(g.months));
+          var dd = g.mixed ? null : lkDate(base, g);
+          return [esc(g.category), '<span class="lk-per">' + per + (dd && dd.dt ? "<small>" + lkDateHtml(dd, true) + "</small>" : "") + "</span>", int(g.shares), g.pct != null ? pct1(g.pct) : "-"];
+        }), [2, 3]);
       if (L.groups_full === false) h += '<p class="snote">원문 표에 실린 주주 기준입니다. 표 밖의 물량(공모주 배정분 등)은 빠져 있을 수 있습니다.</p>';
     }
     if (c && c.by && c.by.length) {
-      h += '<div class="lk-sub">기관 의무보유확약 기간별 <span class="dim">(신청수량)</span></div>' + table(["확약 기간", "신청수량", c.total ? "참여수량 대비" : "확약 내 비중"],
+      h += '<div class="lk-sub">기관 의무보유확약 기간별 <span class="dim">(신청수량)</span></div>' + table(["확약 기간", "해제일", "신청수량", c.total ? "참여수량 대비" : "확약 내 비중"],
         c.by.slice().sort(function (a, b) { return b.months - a.months; }).map(function (b) {
-          return [esc(periodText(b.months)), int(b.qty), pct1(b.qty / (c.total || c.committed) * 100)];
-        }), [1, 2]);
+          var dd = lkDate(base, b);
+          return [esc(periodText(b.months)), dd.dt ? lkDateHtml(dd, true) : '<span class="dim">-</span>', int(b.qty), pct1(b.qty / (c.total || c.committed) * 100)];
+        }), [2, 3]);
     }
     var src = [];
     if (L.src_float) src.push("유통물량 " + dartLink(L.src_float));
     if (L.src_commit) src.push("확약 " + dartLink(L.src_commit));
-    h += '<p class="snote">상장일 유통가능 물량은 공모주 배정분의 기관 의무보유확약을 반영하지 않은 투자설명서 기준입니다. 원문의 표를 규칙으로 읽은 값이며, 검증이 맞지 않은 항목은 비워 둡니다.' +
+    h += '<p class="snote">상장일 유통가능 물량은 공모주 배정분의 기관 의무보유확약을 반영하지 않은 증권신고서·투자설명서 기준입니다. 해제일은 상장일에 기간을 더한 날짜이며, 상장 전에는 예정·예상 상장일로 계산합니다. 원문의 표를 규칙으로 읽은 값이며, 검증이 맞지 않은 항목은 비워 둡니다.' +
       (src.length ? " 출처: " + src.join(" · ") : "") + "</p>";
     return section("유통물량·보호예수", h, true);
   }
@@ -1170,6 +1215,7 @@
       term("대표주관", esc(d.lead_underwriters || "-"), d.co_underwriters ? "공동 " + esc(d.co_underwriters) : "", "txt") +
       "</div>";
     html += '<div id="bandviz-slot"></div>';
+    html += lkSummary(d);
     html += structBlock(d);
     html += finBlock(d);
     html += lockupBlock(d);

@@ -624,6 +624,13 @@ def lockup_plan(conn, min_year: str = "2020") -> list:
                 dd["src_listed"] = dd.get("src_float")
                 conn.execute("UPDATE deal_lockup SET parser_version=?, data=? WHERE deal_id=?",
                              (LOCKUP_VERSION, _json.dumps(dd, ensure_ascii=False, sort_keys=True), r["deal_id"]))
+    # v6 → v7(시점별 표 양식·날짜로 정해진 기간·'주주명' 머리행 등 보완): 상장일 유통·해제 일정·검증된 주주별 내역이
+    # 모두 있는 행은 버전만 올리고, 하나라도 빠진 행만 새 규칙으로 처음부터 다시 읽습니다
+    for r in list(done.values()):
+        if (r["parser_version"] or 0) == 6:
+            dd = _json.loads(r["data"] or "{}")
+            if dd.get("float0") and dd.get("schedule") and dd.get("groups") and dd.get("groups_full"):
+                conn.execute("UPDATE deal_lockup SET parser_version=? WHERE deal_id=?", (LOCKUP_VERSION, r["deal_id"]))
     conn.commit()
     done = {r["deal_id"]: r for r in conn.execute("SELECT deal_id, tried, status, parser_version, data FROM deal_lockup")}
     alls = _group(conn)[1]
