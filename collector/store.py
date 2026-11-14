@@ -455,7 +455,7 @@ def rebuild_deals(conn, now: str) -> int:
             "deal_id": deal_id, "corp_code": first["corp_code"],
             "first_rcept_no": first["rcept_no"], "first_filing_dt": first["rcept_dt"],
             "latest_rcept_no": latest["rcept_no"], "latest_filing_dt": latest["rcept_dt"],
-            "amendment_count": len(fl) - 1, "status": status,
+            "amendment_count": sum("기재정정" in (x["report_nm"] or "") for x in fl), "status": status,
             "is_ipo_candidate": cand, "ipo_basis": basis,
             "offer_price_low": band[0] if band else None,
             "offer_price_high": band[1] if band else None,
