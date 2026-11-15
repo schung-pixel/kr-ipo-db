@@ -52963,6 +52963,7 @@ INSERT INTO "kind_corp" VALUES('다이나맥','다이나맥','000040','유가','
 INSERT INTO "kind_corp" VALUES('동원파츠','동원파츠','0162D0','코스닥','특수 목적용 기계 제조업','샤워헤드, 챔버부품 등','2026-11-10','2026-11-10T04:56:25+09:00');
 INSERT INTO "kind_corp" VALUES('바로팜','바로팜','0153R0','코스닥','기타 정보 서비스업','약국 통합 플랫폼','2026-11-11','2026-11-11T02:10:47+09:00');
 INSERT INTO "kind_corp" VALUES('넥스아이','넥스아이','493410','코스닥','자연과학 및 공학 연구개발업','면역항암제 불응암 치료제 개발','2026-11-12','2026-11-12T02:19:22+09:00');
+INSERT INTO "kind_corp" VALUES('영광와이케이엠씨','영광와이케이엠씨','345290','코스닥','기타 금속 가공제품 제조업','반도체 장비용 정밀부품, 디스플레이 장비용 정밀부품','2026-11-16','2026-11-16T05:19:45+09:00');
 CREATE TABLE kind_listing (
   name_key    TEXT PRIMARY KEY,
   corp_name   TEXT,
@@ -55043,9 +55044,9 @@ CREATE TABLE meta (
   key   TEXT PRIMARY KEY,
   value TEXT
 );
-INSERT INTO "meta" VALUES('last_list_date','2026-11-15');
+INSERT INTO "meta" VALUES('last_list_date','2026-11-16');
 INSERT INTO "meta" VALUES('schema_stage','2');
-INSERT INTO "meta" VALUES('kind_as_of','2026-11-15');
+INSERT INTO "meta" VALUES('kind_as_of','2026-11-16');
 INSERT INTO "meta" VALUES('kind_review_history','2026-11-14');
 CREATE TABLE review (
   deal_id               TEXT PRIMARY KEY,
