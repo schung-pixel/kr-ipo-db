@@ -1,17 +1,17 @@
 {
- "run_at": "2026-11-15T07:37:30+09:00",
- "fetch": "error",
- "error": "HTTPError",
- "message": "403 Client Error: Forbidden for url: https://kind.krx.co.kr/listinvstg/listinvstgcom.do",
- "http_status": 403,
- "response_bytes": 407,
- "dump": "data/kind/_last_response.html",
- "corp_list_error": "HTTPError: 403 Client Error: Forbidden for url: https://kind.krx.co.kr/corpgeneral/corpList.do?method=download&searchType=13",
+ "run_at": "2026-11-15T19:42:21+09:00",
+ "fetch": "ok",
+ "http_status": 200,
+ "response_bytes": 196090,
+ "rows": 332,
+ "saved": 332,
+ "approved": 208,
+ "corp_list": 2768,
  "listing_sched": {
   "screens": {
-   "pubofrprogcom": "HTTPError: 403 Client Error: Forbidden for url: https://kind.krx.co.kr/listinvstg/pubofrprogcom.do"
+   "pubofrprogcom": 36
   },
-  "saved": 0
+  "saved": 36
  },
  "src38": {
   "screens": {
