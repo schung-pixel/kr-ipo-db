@@ -2576,19 +2576,19 @@
         if (!a) return; b = b || a;
         if (a <= today && b >= today) {
           var x = dayNth({ a: a, b: b }, today), tx = a === today ? "시작" : b === today ? "마감" : x ? x[0] + "일차" : "진행";
-          evs.push({ o: o, h: lk + " " + k + " " + tx }); cnt[k]++;
+          evs.push({ o: o, h: lk + " " + k + " " + tx, k: k, lk: lk, tx: tx, d: d }); cnt[k]++;
         } else if (a > today && (!nx || a < nx.dt)) nx = { dt: a, h: lk + " " + k + " 시작" };
       };
-      if (c.lst === today) { evs.push({ o: 0, h: lk + " 상장" }); cnt["상장"]++; }
+      if (c.lst === today) { evs.push({ o: 0, h: lk + " 상장", k: "상장", lk: lk, tx: "", d: d }); cnt["상장"]++; }
       else if (c.lst && c.lst > today && (!nx || c.lst < nx.dt)) nx = { dt: c.lst, h: lk + " 상장" };
       rng("청약", c.ss, c.se, 1); rng("수요예측", c.ds, c.de, 2);
     });
     evs.sort(function (a, b) { return a.o - b.o; });
-    var sm = ["상장", "청약", "수요예측"].filter(function (k) { return cnt[k]; }).map(function (k) { return k + " " + cnt[k]; }).join(" · ");
-    var dt = dOf(today), head = '<b class="mono">' + (dt.getMonth() + 1) + "." + dt.getDate() + " " + WD[dt.getDay()] + "</b>오늘의 공모" + (sm ? " · " + sm : "");
-    var body = evs.length ? evs.map(function (e) { return '<span class="bev">' + e.h + '</span>'; }).join(' <span class="o">·</span> ')
-      : "오늘은 공모 일정이 없습니다" + (nx ? ' <span class="o">·</span> 다음 ' + md(nx.dt) + " " + nx.h : "");
-    return '<section class="brief" aria-label="오늘의 공모 브리핑"><div class="t">' + head + '</div><div class="l">' + body + "</div></section>";
+    // 왼쪽 큰 날짜, 오른쪽 일정 한 줄씩(점 색은 달력과 같음)
+    var KC = { "상장": 3, "청약": 1, "수요예측": 0 }, dt = dOf(today);
+    var body = evs.length ? evs.map(function (e) { return '<div class="ln"><i class="k-' + KC[e.k] + '"></i>' + e.lk + ' <span class="kk">' + e.k + (e.tx ? " " + e.tx : "") + "</span></div>"; }).join("")
+      : '<div class="emp">오늘은 공모 일정이 없습니다</div>' + (nx ? '<div class="nx">다음 · ' + md(nx.dt) + " " + nx.h + "</div>" : "");
+    return '<section class="brief" aria-label="오늘의 공모 브리핑"><div class="dt"><b class="mono">' + dt.getDate() + "</b><span>" + (dt.getMonth() + 1) + "월 " + WD[dt.getDay()] + '</span></div><div class="bd">' + body + "</div></section>";
   }
   // 예심 통계(주관사별 예심 실적·분기별 심사기간): 통계 화면에서 사용. KIND 수록 기간 전체 기준
   function reviewStatPanels() {
