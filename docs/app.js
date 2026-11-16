@@ -892,12 +892,17 @@
       var ap = rvGroup.filter(function (d) { return d.status === "approved"; }),
         rv = rvGroup.filter(function (d) { return d.status === "review"; }).sort(function (a, b) { return a.first_filing_dt > b.first_filing_dt ? -1 : 1; });
       var SHOW = 8;
-      grp = '<details class="rvgrp" open><summary><span class="t">예심 단계</span><span class="cnt">' + rvGroup.length + '</span><svg class="chev" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></svg></summary>' +
-        (ap.length ? '<div class="rvsec"><div class="rvh">승인 · 신고서 대기 <b>' + ap.length + "</b><small>승인 후 경과 · 막대: 효력 6개월 중</small></div><ul>" + ap.map(row).join("") + "</ul></div>" : "") +
-        (rv.length ? '<div class="rvsec"><div class="rvh">심사 중 <b>' + rv.length + "</b><small>청구 후 경과" + (med ? " · 막대 기준 최근 1년 승인 중앙값 " + med + "일" : "") + "</small></div>" +
-          '<ul data-rest="' + esc(JSON.stringify(rv.slice(SHOW).map(function (d) { return d.deal_id; }))) + '">' + rv.slice(0, SHOW).map(row).join("") +
-          (rv.length > SHOW ? '<li class="more"><button type="button" id="rv-more">나머지 ' + (rv.length - SHOW) + "곳 더 보기</button></li>" : "") + "</ul></div>" : "") +
-        "</details>";
+      // 심사 중과 승인(신고서 대기)은 성격이 달라 카드를 나눔: 심사 중 → 승인 순
+      var chev = '<svg class="chev" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></svg>';
+      var card = function (t, n, cap, inner) {
+        return '<details class="rvgrp" open><summary><span class="t">' + t + '</span><span class="cnt">' + n + "</span>" + chev + "</summary>" +
+          '<div class="rvsec"><div class="rvcap">' + cap + "</div>" + inner + "</div></details>";
+      };
+      var apCard = ap.length ? card("예심 승인 · 신고서 대기", ap.length, "승인 후 경과 · 막대: 효력 6개월 중", "<ul>" + ap.map(row).join("") + "</ul>") : "";
+      var rvCard = rv.length ? card("예심 심사 중", rv.length, "청구 후 경과" + (med ? " · 막대 기준 최근 1년 승인 중앙값 " + med + "일" : ""),
+        '<ul data-rest="' + esc(JSON.stringify(rv.slice(SHOW).map(function (d) { return d.deal_id; }))) + '">' + rv.slice(0, SHOW).map(row).join("") +
+        (rv.length > SHOW ? '<li class="more"><button type="button" id="rv-more">나머지 ' + (rv.length - SHOW) + "곳 더 보기</button></li>" : "") + "</ul>") : "";
+      grp = rvCard + apCard;
       renderRows._rvRow = row;
     }
     box.innerHTML = grp + html + "</tbody></table></div>" + cards;

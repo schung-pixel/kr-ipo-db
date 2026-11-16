@@ -1326,9 +1326,6 @@ header.top nav.tabs, #app .srow .search {
 .rvgrp .chev { width: 16px; height: 16px; margin-left: auto; fill: none; stroke: var(--muted); stroke-width: 1.8; transition: transform .2s; }
 .rvgrp[open] .chev { transform: rotate(180deg); }
 .rvgrp .rvsec { margin: 0; padding: 0 14px 6px; }
-.rvgrp .rvh { display: flex; align-items: baseline; gap: 6px; font-size: 12px; font-weight: 600; color: var(--muted); padding: 10px 0 4px; border-top: 1px solid var(--line2); }
-.rvgrp .rvh b { font-family: var(--f-mono); color: var(--ink); }
-.rvgrp .rvh small { margin-left: auto; font-size: 11px; font-weight: 400; color: var(--faint); }
 .rvgrp ul { list-style: none; margin: 0; padding: 0; }
 .rvgrp li a { display: grid; gap: 6px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line2); color: var(--ink); text-decoration: none; white-space: nowrap; line-height: 1.35; }
 .rvgrp li.review a, .rvgrp li.approved a { grid-template-columns: minmax(0, 1fr) 36px 70px minmax(0, .5fr); }
@@ -1348,3 +1345,5 @@ header.top nav.tabs, #app .srow .search {
 
 
 
+
+.rvgrp .rvcap { font-size: 11px; color: var(--faint); padding: 8px 0 4px; border-top: 1px solid var(--line2); }
