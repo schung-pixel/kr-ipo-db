@@ -682,7 +682,7 @@
       (act.length ? '<div class="afilters" aria-label="적용된 필터">' + act.map(function (f) {
         return '<button type="button" class="af" data-k="' + f.k + '" aria-label="' + esc(f.t) + ' 필터 해제">' + esc(f.t) + '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>';
       }).join("") + '<button type="button" class="linkbtn" id="f-reset">모두 지우기</button></div>' : "") +
-      '<section class="ledger" aria-label="IPO 딜 목록"><div class="ledger-top" id="ledger-top"></div><div id="result"></div></section>' +
+      '<section class="ledger" aria-label="IPO 딜 목록"><div id="result"></div></section>' +
       '<p class="note">희망 밴드·확정가·경쟁률·상장일은 공시 원문에서 규칙으로 추출한 값입니다. 스팩 등 단일 희망가는 밴드에 한 값으로 표시하고, 밴드가 없는 건의 * 값은 신고서 기재 기준가입니다. 공모액은 확정 건은 확정 금액, 그 외는 신고서 기재 금액입니다. 상장사 유상증자 등은 제외했습니다.' +
       (data.last_list_date ? " 자료 기준: DART " + esc(data.last_list_date) + (data.kind_as_of ? " · KIND " + esc(data.kind_as_of) : "") + "." : "") + "</p>" +
       "</div>";
@@ -822,9 +822,6 @@
       rvGroup = rows.filter(isPre);
       rows = rows.filter(function (d) { return !isPre(d); });
     }
-    var amt = rows.reduce(function (s, d) { return s + (d.offer_amount || 0); }, 0);
-    document.getElementById("ledger-top").innerHTML = '<h2>IPO 딜 <span class="cnt">' + rows.length + "</span></h2>" +
-      (rows.length ? '<span class="hint">공모액 합계 <b>' + eok(amt) + "</b>억원</span>" : "");
     var box = document.getElementById("result");
     if (!rows.length) {
       box.innerHTML = '<div class="empty">조건에 맞는 공모 건이 없습니다. <button type="button" class="linkbtn" id="e-reset">필터 초기화</button></div>';
@@ -895,7 +892,7 @@
       var ap = rvGroup.filter(function (d) { return d.status === "approved"; }),
         rv = rvGroup.filter(function (d) { return d.status === "review"; }).sort(function (a, b) { return a.first_filing_dt > b.first_filing_dt ? -1 : 1; });
       var SHOW = 8;
-      grp = '<details class="rvgrp" open><summary>예심 단계 <b>' + rvGroup.length + "곳</b></summary>" +
+      grp = '<details class="rvgrp" open><summary><span class="t">예심 단계</span><span class="cnt">' + rvGroup.length + '</span><svg class="chev" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></svg></summary>' +
         (ap.length ? '<div class="rvsec"><div class="rvh">승인 · 신고서 대기 <b>' + ap.length + "</b><small>승인 후 경과 · 막대: 효력 6개월 중</small></div><ul>" + ap.map(row).join("") + "</ul></div>" : "") +
         (rv.length ? '<div class="rvsec"><div class="rvh">심사 중 <b>' + rv.length + "</b><small>청구 후 경과" + (med ? " · 막대 기준 최근 1년 승인 중앙값 " + med + "일" : "") + "</small></div>" +
           '<ul data-rest="' + esc(JSON.stringify(rv.slice(SHOW).map(function (d) { return d.deal_id; }))) + '">' + rv.slice(0, SHOW).map(row).join("") +
