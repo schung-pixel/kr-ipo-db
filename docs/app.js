@@ -2437,20 +2437,20 @@
     var live = function (r) { var c = r.c; return (c.ds && c.ds <= today && c.de >= today) || (c.ss && c.ss <= today && c.se >= today) || c.lst === today; };
     var now = rows.filter(live).sort(function (a, b) { return a.nxt < b.nxt ? -1 : 1; });
     var next = rows.filter(function (r) { return !live(r); }).sort(function (a, b) { return a.nxt < b.nxt ? -1 : a.nxt > b.nxt ? 1 : (name(a.d) < name(b.d) ? -1 : 1); });
+    var cr = function (a, b) { if (!a) return "미정"; if (!b || b === a) return md(a); return md(a) + "~" + (a.slice(0, 7) === b.slice(0, 7) ? +b.slice(8) : md(b)); };
+    var stt = function (a, b) { return !a ? "na" : a <= today && (b || a) >= today ? "on" : (b || a) < today ? "done" : ""; };
     var row = function (r) {
-      var d = r.d, c = r.c;
-      var box = function (lab, a, b) {
-        var on = a && a <= today && (b || a) >= today, done = a && (b || a) < today;
-        return '<span class="dt' + (on ? " on" : done ? " done" : "") + '"><i>' + lab + '</i><b class="mono">' + esc(rngT(a, b)) + "</b></span>";
-      };
-      return '<a class="drow' + (focusRole(d) ? " focus" : "") + '" href="#/deal/' + encodeURIComponent(d.deal_id) + '"><span class="t1"><span class="nm">' + esc(name(d)) + "</span>" +
-        boardTag(d) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + focusTag(d) + '<span class="u">' + esc(uwShortStr(d.lead_underwriters)) + "</span></span>" +
-        '<span class="dts">' + box("수요예측", c.ds, c.de) + box("청약", c.ss, c.se) + box("상장" + (c.lq ? ' <em class="lq">' + c.lq + "</em>" : ""), c.lst, c.lst) + "</span>" +
-        (pxText(d) ? '<span class="px mono">' + pxText(d) + "</span>" : "") + "</a>";
+      var d = r.d, c = r.c, px = pxText(d);
+      var cell = function (k, a, b, q) { return '<span class="cc k-' + k + " " + stt(a, b) + '"><b class="mono">' + esc(cr(a, b)) + "</b>" + (q ? "<small>" + q + "</small>" : "") + "</span>"; };
+      return '<a class="xr' + (focusRole(d) ? " focus" : "") + '" href="#/deal/' + encodeURIComponent(d.deal_id) + '"><span class="c0"><span class="nm">' + esc(name(d)) + "</span>" +
+        '<span class="sb">' + esc(uwShortStr(d.lead_underwriters)) + (px ? " · " + px : "") + "</span></span>" +
+        cell(0, c.ds, c.de) + cell(1, c.ss, c.se) + cell(3, c.lst, c.lst, c.lq) + "</a>";
     };
+    var head = '<div class="bh"><span>회사</span><span>수요예측</span><span>청약</span><span>상장</span></div>';
+    var lg = '<div class="legend cal-lg">' + ["수요예측", "청약", "상장"].map(function (k) { return '<span><i class="k-' + EV_ORDER[k] + '"></i>' + k + "</span>"; }).join("") + "</div>";
     return '<section class="panel dtable"><header><div><h2>딜별 공모 일정</h2><p>진행 중 ' + now.length + "건 · 다가오는 일정 " + next.length + "건(70일 이내). 상장일은 증권발행실적보고서가 나와야 표시됩니다.</p></div></header>" +
-      '<div class="pbody">' + (now.length ? '<h3 class="dsec">진행 중</h3>' + now.map(row).join("") : "") +
-      (next.length ? '<h3 class="dsec">다가오는 일정</h3>' + next.map(row).join("") : "") +
+      '<div class="pbody">' + (now.length || next.length ? lg : "") + (now.length ? '<h3 class="dsec">진행 중</h3>' + head + now.map(row).join("") : "") +
+      (next.length ? '<h3 class="dsec">다가오는 일정</h3>' + head + next.map(row).join("") : "") +
       (!now.length && !next.length ? '<div class="empty">확인된 공모 일정이 없습니다.</div>' : "") + "</div></section>";
   }
   function bindCal() {

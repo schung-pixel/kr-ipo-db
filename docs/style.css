@@ -1035,30 +1035,28 @@ header.top .brand .upd { font-size: 12px; color: var(--faint); font-family: var(
 .cdl .it .nm { font-weight: 600; overflow-wrap: anywhere; }
 .cdl .it .r { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
 .cdl .it .u { width: 100%; font-size: 12px; color: var(--muted); }
-.cdl .it.focus .nm, .drow.focus .nm { color: #1a6fd1; }
+.cdl .it.focus .nm { color: #1a6fd1; }
 .cdl .it:hover { background: var(--surface2); }
-/* 딜별 일정표 S1 */
-.dtable .dsec { margin: 4px 0 0; font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .02em; }
-.drow { display: grid; gap: 7px; padding: 10px 2px 11px; border-top: 1px solid var(--line2); text-decoration: none; color: inherit; }
-.dtable .dsec + .drow { border-top: 0; }
-.drow:hover { background: var(--surface2); }
-.drow .t1 { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-width: 0; }
-.drow .t1 .nm { font-weight: 600; font-size: 14.5px; overflow-wrap: anywhere; }
-.drow .t1 .u { margin-left: auto; font-size: 12px; color: var(--muted); }
-.drow .dts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-.drow .dt { background: var(--surface2); border-radius: 9px; padding: 5px 8px; min-width: 0; }
-.drow .dt i { display: block; font-style: normal; font-size: 10.5px; color: var(--muted); }
-.drow .dt b { font-size: 12.5px; font-weight: 500; white-space: nowrap; }
-.drow .dt.on { background: var(--accent); color: var(--accent-ink); }
-.drow .dt.on i { color: color-mix(in srgb, var(--accent-ink) 75%, transparent); }
-.drow .dt.done { opacity: .5; }
-.drow .px { font-size: 12px; color: var(--muted); }
-@media (min-width: 1061px) {
-  .dtable .pbody { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; }
-  .dtable .dsec { grid-column: 1 / -1; }
-  .dtable .drow { border-top: 1px solid var(--line2); }
+/* 딜별 일정표: 회사당 한 줄, 진행 중 단계는 달력과 같은 색 */
+.dtable .dsec { margin: 8px 0 0; font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .02em; }
+.dtable .k-0 { --c: var(--info); --cs: var(--info-soft); } .dtable .k-1 { --c: var(--eosin); --cs: var(--eosin-soft); } .dtable .k-3 { --c: var(--good); --cs: var(--good-soft); }
+.dtable .bh, .dtable .xr { display: grid; grid-template-columns: minmax(0, 1fr) 78px 70px 50px; gap: 6px; align-items: center; }
+.dtable .bh { font-size: 10.5px; color: var(--muted); padding: 4px 2px; } .dtable .bh span:not(:first-child) { text-align: center; }
+.dtable .xr { padding: 8px 2px; border-top: 1px solid var(--line2); text-decoration: none; color: inherit; }
+.dtable .xr:hover { background: var(--surface2); }
+.dtable .c0 { min-width: 0; }
+.dtable .c0 .nm { display: block; font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dtable .xr.focus .nm { color: #1a6fd1; }
+.dtable .c0 .sb { display: block; margin-top: 1px; font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dtable .cc { text-align: center; border-radius: 7px; padding: 4px 2px; line-height: 1.15; }
+.dtable .cc b { font-size: 11.5px; font-weight: 500; white-space: nowrap; }
+.dtable .cc small { display: block; font-size: 9.5px; color: var(--muted); }
+.dtable .cc.done, .dtable .cc.na { color: var(--faint); }
+.dtable .cc.on { background: var(--cs); color: var(--c); } .dtable .cc.on b { font-weight: 700; }
+@media (min-width: 761px) {
+  .dtable .bh, .dtable .xr { grid-template-columns: minmax(0, 340px) 120px 104px 76px; gap: 12px; justify-content: start; }
+  .dtable .cc b { font-size: 12.5px; }
 }
-@media (max-width: 760px) { .drow .dt { padding: 5px 6px; } .drow .dt b { font-size: 12px; } }
 .cgrid > .cd { align-self: stretch; height: auto; justify-content: flex-start; }
 .cd .dn { flex: none; }
 /* 그날 일정 D2: 종류별 옅은 색 상자, 항목은 흰 칸 */
@@ -1108,7 +1106,6 @@ header.top .tgl button svg { width: 12px; height: 12px; }
 .cd.m1 .mdots i.k-3, .cal-lg i.k-3 { background: var(--cal-k3); }
 @media (min-width: 761px) { .cd.m1 .mdots { gap: 4px; height: 8px; } .cd.m1 .mdots i { width: 8px; height: 8px; } }
 .lq { font-style: normal; font-size: 10px; font-weight: 600; padding: 0 4px; border-radius: 4px; margin-left: 3px; background: var(--warn-soft); color: var(--warn); vertical-align: 1px; }
-.drow .dt.on .lq { background: color-mix(in srgb, var(--accent-ink) 20%, transparent); color: var(--accent-ink); }
 /* 어느 화면에서나 검색(G1) */
 .gsr { position: relative; z-index: 35; }
 .gsr .sbox .search { padding-right: 44px; }
@@ -1314,3 +1311,4 @@ header.top nav.tabs, #app .srow .search {
 @media (min-width: 761px) {
   .rvgrp li.review a, .rvgrp li.approved a { grid-template-columns: minmax(0, 220px) 44px 120px minmax(0, 1fr); gap: 10px; }
 }
+
