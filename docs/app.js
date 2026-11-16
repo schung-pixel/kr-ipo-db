@@ -8,7 +8,9 @@
   // 아티팩트(임베드) 모드: 데이터가 페이지에 들어 있고, 주소 대신 메모리로 화면을 바꿉니다.
   var embedEl = document.getElementById("embedded-data");
   var EMBED = !!embedEl;
-  var memPath = "/";
+  var memPath = "/cal";
+  // 첫 화면은 일정: 주소에 화면이 없으면 일정으로 엽니다
+  if (!EMBED && (location.hash === "" || location.hash === "#")) { try { history.replaceState(history.state, "", "#/cal"); } catch (e) {} }
   function curPath() { return EMBED ? memPath : (location.hash.replace(/^#/, "") || "/"); }
   // 화면 이동 기록: 휴대폰(갤럭시 등)의 뒤로 가기가 앱을 닫지 않고 앞 화면으로 돌아가게, 이동마다 기록을 쌓습니다.
   // 임베드(아티팩트)에서도 같은 방식(주소는 바꾸지 않고 기록만)으로 동작합니다.
@@ -1853,19 +1855,20 @@
     var grp = {};
     tech.forEach(function (d) {
       var GR = { AAA: 0, AA: 1, A: 2, BBB: 3, BB: 4, B: 5 };
-      var g = d.tech_grades ? (/^단수평가/.test(d.tech_mode || "") ? "단수 " + bestGrade(d.tech_grades)
+      var one = d.tech_grades && (/^단수평가/.test(d.tech_mode || "") || d.tech_grades.indexOf(",") < 0);   // 단수평가 표시 또는 등급 1개 → 모두 "단수"로 묶음
+      var g = d.tech_grades ? (one ? "단수 " + bestGrade(d.tech_grades)
         : d.tech_grades.split(/\s*,\s*/).sort(function (a, b) { return (GR[a] || 9) - (GR[b] || 9); }).join("·")) : d.tech_track === "성장성 추천" ? "성장성 추천" : "등급 미확인";
-      if (d.tech_grades && d.tech_grades.indexOf(",") < 0) g += " (단수)";
       (grp[g] = grp[g] || []).push(d);
     });
     var GRANK = { "AA·AA": 0, "AA·A": 1, "A·A": 2, "AA·BBB": 3, "A·BBB": 4 };
     var gradeRank = function (g) { return g in GRANK ? GRANK[g] : /단수/.test(g) ? 6 : g === "성장성 추천" ? 8 : g === "등급 미확인" ? 9 : 5; };
+    gradeGroups = { grp: grp, period: periodText };
     var gkeys = Object.keys(grp).sort(function (a, b) { return gradeRank(a) - gradeRank(b) || grp[b].length - grp[a].length; });
     var gmax = Math.max.apply(null, gkeys.map(function (g) { return grp[g].length; }).concat([1]));
     var gradeRows = gkeys.map(function (g) {
       var ds = grp[g], im = median(ds.map(function (d) { return d.inst_demand_ratio; })), rm = median(ds.map(function (d) { return d.retail_ratio; }));
       var pd = ds.filter(function (d) { return position(d); }), up = pd.filter(function (d) { var p = position(d); return p === "상단" || p === "초과"; }).length;
-      return '<tr><td><span class="gtag">' + esc(g) + '</span></td><td class="num">' + ds.length + '</td><td class="bar-cell"><div class="hbar t" style="width:' + (ds.length / gmax * 100).toFixed(1) + '%"></div></td><td class="num">' +
+      return '<tr class="go" tabindex="0" data-grade="' + esc(g) + '"><td><span class="gtag">' + esc(g) + ' <span class="gchev" aria-hidden="true">›</span></span></td><td class="num">' + ds.length + '</td><td class="bar-cell"><div class="hbar t" style="width:' + (ds.length / gmax * 100).toFixed(1) + '%"></div></td><td class="num">' +
         (im != null ? ratio(im, 0) : "-") + '</td><td class="num">' + (rm != null ? ratio(rm, 0) : "-") + '</td><td class="num">' + (pd.length ? Math.round(up / pd.length * 100) + "%" : "-") + "</td></tr>";
     }).join("");
     var routes = {};
@@ -1985,7 +1988,7 @@
       '<div class="pbody chart zoomable">' + legend2 + svg2 + "</div></section>" +
       '<section class="panel"><header><div><h2>밴드 대비 확정가 위치</h2><p>' + unitWord + " 상장 건의 비중. 단일 희망가(스팩 등)는 제외.</p></div></header>" +
       '<div class="pbody chart zoomable">' + legend3 + svg3 + "</div></section></div>" +
-      (statFast ? '<div class="keep"></div>' : '<div class="stack">' + floatP + '<div class="panels even">' + techPanel + leaguePanel + "</div>" + '<div class="panels even">' + sectorPanel + valPanel + "</div>" + uwPanel + "</div>") + "</div>");
+      (statFast ? '<div class="keep"></div>' : '<div class="stack">' + floatP + '<div class="panels even">' + techPanel + leaguePanel + "</div>" + '<div class="panels even">' + sectorPanel + valPanel + "</div>" + uwPanel + reviewStatPanels() + "</div>") + "</div>");
     bindStats();
     bindChart();
   }
@@ -2393,6 +2396,7 @@
         return '<a class="it' + (focusRole(d) ? " focus" : "") + '" href="#/deal/' + encodeURIComponent(d.deal_id) + '"><span class="nm">' + esc(name(d)) + "</span>" +
           boardTag(d) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + focusTag(d) +
           (function () { var dn = dayNthHtml(e, day);   // 며칠차가 나오면 기간은 생략(기간은 툴팁으로)
+            if (!dn && e.a === day && (!e.b || e.b === e.a)) return e.q ? '<span class="r mono"><em class="lq">' + e.q + "</em></span>" : "";   // 하루짜리 일정(상장 등)은 고른 날짜와 같아 생략
             return dn ? '<span class="r mono" title="' + esc(rngT(e.a, e.b)) + '">' + dn + "</span>" : '<span class="r mono">' + esc(rngT(e.a, e.b)) + (e.q ? ' <em class="lq">' + e.q + "</em>" : "") + "</span>"; })() + '<span class="u">' + esc(uwShortStr(d.lead_underwriters) || "주관사 미확인") + (pxText(d) ? " · " + '<span class="mono">' + pxText(d) + "</span>" : "") + "</span></a>";
       }).join("") + "</div>";
     }).join("");
@@ -2436,21 +2440,22 @@
     });
     var live = function (r) { var c = r.c; return (c.ds && c.ds <= today && c.de >= today) || (c.ss && c.ss <= today && c.se >= today) || c.lst === today; };
     var now = rows.filter(live).sort(function (a, b) { return a.nxt < b.nxt ? -1 : 1; });
-    var next = rows.filter(function (r) { return !live(r); }).sort(function (a, b) { return a.nxt < b.nxt ? -1 : a.nxt > b.nxt ? 1 : (name(a.d) < name(b.d) ? -1 : 1); });
+    var lk = function (r) { return (r.c.lst || "9999-99-99") + "|" + r.nxt; };
+    var next = rows.filter(function (r) { return !live(r); }).sort(function (a, b) { var x = lk(a), y = lk(b); return x < y ? -1 : x > y ? 1 : (name(a.d) < name(b.d) ? -1 : 1); });
     var cr = function (a, b) { if (!a) return "미정"; if (!b || b === a) return md(a); return md(a) + "~" + (a.slice(0, 7) === b.slice(0, 7) ? +b.slice(8) : md(b)); };
     var stt = function (a, b) { return !a ? "na" : a <= today && (b || a) >= today ? "on" : (b || a) < today ? "done" : ""; };
     var row = function (r) {
       var d = r.d, c = r.c, px = pxText(d);
       var cell = function (k, a, b, q) { return '<span class="cc k-' + k + " " + stt(a, b) + '"><b class="mono">' + esc(cr(a, b)) + "</b>" + (q ? "<small>" + q + "</small>" : "") + "</span>"; };
       return '<a class="xr' + (focusRole(d) ? " focus" : "") + '" href="#/deal/' + encodeURIComponent(d.deal_id) + '"><span class="c0"><span class="nm">' + esc(name(d)) + "</span>" +
-        '<span class="sb">' + esc(uwShortStr(d.lead_underwriters)) + (px ? " · " + px : "") + "</span></span>" +
+        "</span>" +
         cell(0, c.ds, c.de) + cell(1, c.ss, c.se) + cell(3, c.lst, c.lst, c.lq) + "</a>";
     };
     var head = '<div class="bh"><span>회사</span><span>수요예측</span><span>청약</span><span>상장</span></div>';
     var lg = '<div class="legend cal-lg">' + ["수요예측", "청약", "상장"].map(function (k) { return '<span><i class="k-' + EV_ORDER[k] + '"></i>' + k + "</span>"; }).join("") + "</div>";
-    return '<section class="panel dtable"><header><div><h2>딜별 공모 일정</h2><p>진행 중 ' + now.length + "건 · 다가오는 일정 " + next.length + "건(70일 이내). 상장일은 증권발행실적보고서가 나와야 표시됩니다.</p></div></header>" +
-      '<div class="pbody">' + (now.length || next.length ? lg : "") + (now.length ? '<h3 class="dsec">진행 중</h3>' + head + now.map(row).join("") : "") +
-      (next.length ? '<h3 class="dsec">다가오는 일정</h3>' + head + next.map(row).join("") : "") +
+    return '<section class="panel dtable"><header><div><h2>딜별 공모 일정</h2></div></header>' +
+      '<div class="pbody">' + (now.length ? '<div class="dgrp now"><h3 class="dsec">진행 중 <span class="dcnt mono">' + now.length + '</span></h3>' + head + now.map(row).join("") + "</div>" : "") +
+      (next.length ? '<div class="dgrp nx"><h3 class="dsec">다가오는 일정 <span class="dcnt mono">' + next.length + '</span></h3>' + head + next.map(row).join("") + "</div>" : "") +
       (!now.length && !next.length ? '<div class="empty">확인된 공모 일정이 없습니다.</div>' : "") + "</div></section>";
   }
   function bindCal() {
@@ -2532,6 +2537,104 @@
     var dd = document.getElementById("g-dd"), qi = document.getElementById("g-q");
     if (dd && !dd.hidden && !(e.target.closest && e.target.closest(".gsr"))) { dd.hidden = true; if (qi) qi.setAttribute("aria-expanded", "false"); }
   }, true);
+  // 기술특례 평가 등급 행 → 포함 회사 시트
+  var gradeGroups = { grp: {}, period: "" }, glayer = null;
+  function gradeClose() { if (!glayer) return; var l = glayer; glayer = null; l.classList.add("closing"); setTimeout(function () { l.remove(); }, 180); document.documentElement.classList.remove("lock"); }
+  function gradeOpen(g) {
+    var ds = (gradeGroups.grp[g] || []).slice().sort(function (a, b) { var x = lstOf(a).dt || "", y = lstOf(b).dt || ""; return x < y ? 1 : x > y ? -1 : 0; });
+    if (!ds.length) return;
+    gradeClose();
+    var items = ds.map(function (d) {
+      var dt = lstOf(d).dt, p = position(d), im = ratio(d.inst_demand_ratio), rm = ratio(d.retail_ratio);
+      return '<a class="gi" href="#/deal/' + encodeURIComponent(d.deal_id) + '"><span class="r1"><b>' + esc(name(d)) + '</b><small class="mono">' + (dt ? dt.slice(2).replace(/-/g, ".").replace(/\.0/g, ".") : "상장일 미정") + "</small></span>" +
+        '<span class="r2 mono">' + (im ? "<span>수요 " + im + "</span>" : "") + (rm ? "<span>청약 " + rm + "</span>" : "") + (p ? pill(p) : "") + (!im && !rm && !p ? '<span class="dim">경쟁률 미확인</span>' : "") + "</span></a>";
+    }).join("");
+    var l = document.createElement("div");
+    l.className = "dd-layer sheet-mode glist";
+    l.innerHTML = '<div class="dd-scrim"></div><div class="dd-panel" role="dialog" aria-modal="true" aria-label="' + esc(g) + ' 포함 회사"><div class="dd-top"><span class="grab"></span>' +
+      '<div class="gh"><b>' + esc(g) + '</b><span class="mono">' + ds.length + '개사</span><button class="gx" type="button" aria-label="닫기">✕</button></div><p class="gm">기술특례 · ' + esc(gradeGroups.period || "") + " · 상장일 최근 순</p></div>" +
+      '<div class="dd-body">' + items + "</div></div>";
+    document.body.appendChild(l); glayer = l;
+    document.documentElement.classList.add("lock");
+    l.addEventListener("click", function (e) {
+      if (e.target.closest(".gx") || e.target.classList.contains("dd-scrim")) { gradeClose(); return; }
+      if (e.target.closest("a.gi")) gradeClose();   // 딜 상세로 이동(전역 링크 처리)
+    });
+  }
+  document.addEventListener("click", function (e) { var tr = e.target.closest && e.target.closest("tr[data-grade]"); if (tr) gradeOpen(tr.getAttribute("data-grade")); });
+  document.addEventListener("keydown", function (e) {
+    if (glayer && e.key === "Escape") { e.preventDefault(); gradeClose(); return; }
+    var tr = e.target.closest && e.target.closest("tr[data-grade]"); if (tr && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); gradeOpen(tr.getAttribute("data-grade")); }
+  });
+  // 오늘의 공모 브리핑(검색창 아래): 오늘 상장·수요예측·청약을 두 줄로
+  function briefing(today) {
+    var evs = [], nx = null, cnt = { "상장": 0, "수요예측": 0, "청약": 0 };
+    data.deals.forEach(function (d) {
+      if (d.status === "withdrawn" || d.is_ipo_candidate !== 1) return;
+      var c = calDates(d), lk = '<a href="#/deal/' + encodeURIComponent(d.deal_id) + '">' + esc(name(d)) + "</a>";
+      var rng = function (k, a, b, o) {
+        if (!a) return; b = b || a;
+        if (a <= today && b >= today) {
+          var x = dayNth({ a: a, b: b }, today), tx = a === today ? "시작" : b === today ? "마감" : x ? x[0] + "일차" : "진행";
+          evs.push({ o: o, h: lk + " " + k + " " + tx }); cnt[k]++;
+        } else if (a > today && (!nx || a < nx.dt)) nx = { dt: a, h: lk + " " + k + " 시작" };
+      };
+      if (c.lst === today) { evs.push({ o: 0, h: lk + " 상장" }); cnt["상장"]++; }
+      else if (c.lst && c.lst > today && (!nx || c.lst < nx.dt)) nx = { dt: c.lst, h: lk + " 상장" };
+      rng("청약", c.ss, c.se, 1); rng("수요예측", c.ds, c.de, 2);
+    });
+    evs.sort(function (a, b) { return a.o - b.o; });
+    var sm = ["상장", "청약", "수요예측"].filter(function (k) { return cnt[k]; }).map(function (k) { return k + " " + cnt[k]; }).join(" · ");
+    var dt = dOf(today), head = '<b class="mono">' + (dt.getMonth() + 1) + "." + dt.getDate() + " " + WD[dt.getDay()] + "</b>오늘의 공모" + (sm ? " · " + sm : "");
+    var body = evs.length ? evs.map(function (e) { return '<span class="bev">' + e.h + '</span>'; }).join(' <span class="o">·</span> ')
+      : "오늘은 공모 일정이 없습니다" + (nx ? ' <span class="o">·</span> 다음 ' + md(nx.dt) + " " + nx.h : "");
+    return '<section class="brief" aria-label="오늘의 공모 브리핑"><div class="t">' + head + '</div><div class="l">' + body + "</div></section>";
+  }
+  // 예심 통계(주관사별 예심 실적·분기별 심사기간): 통계 화면에서 사용. KIND 수록 기간 전체 기준
+  function reviewStatPanels() {
+    var today = todayIso(), RV = data.reviews || [];
+    var decided = RV.filter(function (r) { return rvKind(r) !== "pending" && rvKind(r) !== "other" && r.f && r.d; });
+    // 주관사별 예심 실적 (KIND 수록 기간 전체, 신규상장·스팩 제외)
+    var sp = {};
+    decided.filter(rvIpo).forEach(function (r) {
+      (r.s || "미확인").split(/\s*,\s*/).forEach(function (s) {
+        var o = sp[s] = sp[s] || { s: s, n: 0, ok: 0, rej: 0, wd: 0, durs: [] };
+        o.n++;
+        var k = rvKind(r);
+        if (k === "approved") { o.ok++; o.durs.push(daysBetween(r.f, r.d)); } else if (k === "rejected") o.rej++; else o.wd++;
+      });
+    });
+    var spRows = Object.keys(sp).map(function (k) { return sp[k]; }).sort(function (a, b) { return b.n - a.n || b.ok - a.ok; });
+    var allOk = decided.filter(function (r) { return rvIpo(r) && rvKind(r) === "approved"; }).length, allN = decided.filter(rvIpo).length;
+    var minF = RV.reduce(function (m, r) { return r.d && (!m || r.d < m) ? r.d : m; }, null);
+    var spHtml = spRows.map(function (o) {
+      var foc = o.s.indexOf(FOCUS_NAME) >= 0;
+      return "<tr" + (foc ? ' class="focus"' : "") + "><td>" + esc(o.s) + '</td><td class="num">' + o.n + '</td><td class="num">' + o.ok + '</td><td class="num">' + (o.wd || '<span class="dim">0</span>') + '</td><td class="num">' + (o.rej || '<span class="dim">0</span>') +
+        '</td><td class="num"><b>' + Math.round(o.ok / o.n * 100) + '%</b></td><td class="num">' + (o.durs.length ? medInt(o.durs) + "일" : "-") + "</td></tr>";
+    }).join("");
+    var spPanel = '<section class="panel"><header><div><h2>주관사별 예심 실적</h2><p>KIND 수록 결과(' + (minF ? esc(minF.slice(0, 7).replace("-", ".")) : "-") + " 이후) 중 신규상장 청구, 스팩 제외. 공동 주관은 각각 1건. 승인률 = 승인 ÷ (승인 + 철회 + 미승인). 전체 " + allN + "건 중 승인 " + allOk + "건(" + (allN ? Math.round(allOk / allN * 100) : 0) + "%).</p></div></header>" +
+      '<div class="pbody"><div class="scroll"><table class="mini rv"><thead><tr><th>주관사</th><th class="num">결과</th><th class="num">승인</th><th class="num">철회</th><th class="num">미승인</th><th class="num">승인률</th><th class="num">심사기간</th></tr></thead><tbody>' + spHtml + "</tbody></table></div>" +
+      '<p class="snote">심사기간은 승인 건의 청구일~결과일 중앙값입니다. 출처: 한국거래소 KIND 상장예비심사 현황.</p></div></section>';
+
+    // 분기별 심사기간·승인률
+    var qs = {};
+    decided.filter(rvIpo).forEach(function (r) {
+      var q = r.d.slice(0, 4) + " Q" + (Math.floor((+r.d.slice(5, 7) - 1) / 3) + 1);
+      var o = qs[q] = qs[q] || { q: q, n: 0, ok: 0, durs: [] };
+      o.n++; if (rvKind(r) === "approved") { o.ok++; o.durs.push(daysBetween(r.f, r.d)); }
+    });
+    var qList = Object.keys(qs).sort().map(function (k) { return qs[k]; });
+    var qMax = Math.max.apply(null, qList.map(function (o) { return medInt(o.durs) || 0; }).concat([1]));
+    var qHtml = qList.map(function (o) {
+      var m = medInt(o.durs);
+      return "<tr><td>" + esc(o.q) + '</td><td class="num">' + o.n + '</td><td class="num">' + Math.round(o.ok / o.n * 100) + '%</td><td class="num">' + (m != null ? m + "일" : "-") +
+        '</td><td class="bar-cell"><div class="hbar" style="width:' + (m ? Math.round(m / qMax * 100) : 0) + '%"></div></td></tr>';
+    }).join("");
+    var qPanel = '<section class="panel"><header><div><h2>분기별 심사기간</h2><p>결과 통지일이 속한 분기 기준. 신규상장 청구, 스팩 제외.</p></div></header>' +
+      '<div class="pbody"><div class="scroll"><table class="mini rv q"><thead><tr><th>분기</th><th class="num">결과</th><th class="num">승인률</th><th class="num">심사기간</th><th class="bar-cell"><span class="sr">막대</span></th></tr></thead><tbody>' + qHtml + "</tbody></table></div></div></section>";
+
+    return '<div class="panels even">' + spPanel + qPanel + "</div>";
+  }
   function renderCal() {
     document.title = "일정 · IPO Tracker";
     view = "cal";
@@ -2575,48 +2678,8 @@
     var waitPanel = '<section class="panel"><header><div><h2>승인 후 상장 대기 <span class="cnt">' + waiting.length + "</span></h2><p>예심 승인 효력은 결과 통지일부터 6개월입니다(승인일 + 6개월로 계산). 효력 만료가 45일 이내로 남은 건은 승인일을 붉게 표시합니다.</p></div></header>" +
       '<div class="pbody"><div class="scroll"><table class="mini rv wait"><colgroup><col class="w-n"><col class="w-u"><col class="w-d"><col class="w-s"></colgroup><thead><tr><th>회사</th><th>주관사</th><th class="num">승인일</th><th>진행</th></tr></thead><tbody>' + waitRows + "</tbody></table></div></div></section>";
 
-    // 주관사별 예심 실적 (KIND 수록 기간 전체, 신규상장·스팩 제외)
-    var sp = {};
-    decided.filter(rvIpo).forEach(function (r) {
-      (r.s || "미확인").split(/\s*,\s*/).forEach(function (s) {
-        var o = sp[s] = sp[s] || { s: s, n: 0, ok: 0, rej: 0, wd: 0, durs: [] };
-        o.n++;
-        var k = rvKind(r);
-        if (k === "approved") { o.ok++; o.durs.push(daysBetween(r.f, r.d)); } else if (k === "rejected") o.rej++; else o.wd++;
-      });
-    });
-    var spRows = Object.keys(sp).map(function (k) { return sp[k]; }).sort(function (a, b) { return b.n - a.n || b.ok - a.ok; });
-    var allOk = decided.filter(function (r) { return rvIpo(r) && rvKind(r) === "approved"; }).length, allN = decided.filter(rvIpo).length;
-    var minF = RV.reduce(function (m, r) { return r.d && (!m || r.d < m) ? r.d : m; }, null);
-    var spHtml = spRows.map(function (o) {
-      var foc = o.s.indexOf(FOCUS_NAME) >= 0;
-      return "<tr" + (foc ? ' class="focus"' : "") + "><td>" + esc(o.s) + '</td><td class="num">' + o.n + '</td><td class="num">' + o.ok + '</td><td class="num">' + (o.wd || '<span class="dim">0</span>') + '</td><td class="num">' + (o.rej || '<span class="dim">0</span>') +
-        '</td><td class="num"><b>' + Math.round(o.ok / o.n * 100) + '%</b></td><td class="num">' + (o.durs.length ? medInt(o.durs) + "일" : "-") + "</td></tr>";
-    }).join("");
-    var spPanel = '<section class="panel"><header><div><h2>주관사별 예심 실적</h2><p>KIND 수록 결과(' + (minF ? esc(minF.slice(0, 7).replace("-", ".")) : "-") + " 이후) 중 신규상장 청구, 스팩 제외. 공동 주관은 각각 1건. 승인률 = 승인 ÷ (승인 + 철회 + 미승인). 전체 " + allN + "건 중 승인 " + allOk + "건(" + (allN ? Math.round(allOk / allN * 100) : 0) + "%).</p></div></header>" +
-      '<div class="pbody"><div class="scroll"><table class="mini rv"><thead><tr><th>주관사</th><th class="num">결과</th><th class="num">승인</th><th class="num">철회</th><th class="num">미승인</th><th class="num">승인률</th><th class="num">심사기간</th></tr></thead><tbody>' + spHtml + "</tbody></table></div>" +
-      '<p class="snote">심사기간은 승인 건의 청구일~결과일 중앙값입니다. 출처: 한국거래소 KIND 상장예비심사 현황.</p></div></section>';
-
-    // 분기별 심사기간·승인률
-    var qs = {};
-    decided.filter(rvIpo).forEach(function (r) {
-      var q = r.d.slice(0, 4) + " Q" + (Math.floor((+r.d.slice(5, 7) - 1) / 3) + 1);
-      var o = qs[q] = qs[q] || { q: q, n: 0, ok: 0, durs: [] };
-      o.n++; if (rvKind(r) === "approved") { o.ok++; o.durs.push(daysBetween(r.f, r.d)); }
-    });
-    var qList = Object.keys(qs).sort().map(function (k) { return qs[k]; });
-    var qMax = Math.max.apply(null, qList.map(function (o) { return medInt(o.durs) || 0; }).concat([1]));
-    var qHtml = qList.map(function (o) {
-      var m = medInt(o.durs);
-      return "<tr><td>" + esc(o.q) + '</td><td class="num">' + o.n + '</td><td class="num">' + Math.round(o.ok / o.n * 100) + '%</td><td class="num">' + (m != null ? m + "일" : "-") +
-        '</td><td class="bar-cell"><div class="hbar" style="width:' + (m ? Math.round(m / qMax * 100) : 0) + '%"></div></td></tr>';
-    }).join("");
-    var qPanel = '<section class="panel"><header><div><h2>분기별 심사기간</h2><p>결과 통지일이 속한 분기 기준. 신규상장 청구, 스팩 제외.</p></div></header>' +
-      '<div class="pbody"><div class="scroll"><table class="mini rv q"><thead><tr><th>분기</th><th class="num">결과</th><th class="num">승인률</th><th class="num">심사기간</th><th class="bar-cell"><span class="sr">막대</span></th></tr></thead><tbody>' + qHtml + "</tbody></table></div></div></section>";
-
-    app.innerHTML = '<div class="content cal-page">' + gsearchBox() + monthPanel(today) + dealTable(today) +
-      '<div class="panels even">' + pendPanel + waitPanel + "</div>" +
-      '<div class="panels even">' + spPanel + qPanel + "</div></div>";
+    app.innerHTML = '<div class="content cal-page">' + gsearchBox() + briefing(today) + monthPanel(today) + dealTable(today) +
+      '<div class="panels even">' + pendPanel + waitPanel + "</div></div>";
     bindCal();
     bindGsearch();
   }
