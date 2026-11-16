@@ -1,6 +1,6 @@
 {
-  "name": "IPO 데이터룸",
-  "short_name": "IPO 데이터룸",
+  "name": "IPO Tracker",
+  "short_name": "IPO Tracker",
   "description": "DART 증권신고서 기반 국내 IPO 공모 현황",
   "lang": "ko",
   "start_url": "./",

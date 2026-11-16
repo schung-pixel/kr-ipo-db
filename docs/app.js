@@ -442,7 +442,7 @@
     var token = ++routeSeq;
     if (view && view !== tab) requestAnimationFrame(function () { requestAnimationFrame(function () { if (token === routeSeq) draw(); }); });
     else draw();
-    document.title = (tab === "stats" ? "통계" : tab === "bio" ? "기술특례 바이오" : tab === "cal" ? "일정" : "목록") + " · IPO 데이터룸";
+    document.title = (tab === "stats" ? "통계" : tab === "bio" ? "기술특례 바이오" : tab === "cal" ? "일정" : "목록") + " · IPO Tracker";
   }
   function baseView() { return view === "stats" ? "/stats" : view === "bio" ? "/bio" : view === "cal" ? "/cal" : "/"; }
 
@@ -1241,7 +1241,7 @@
       sbody.innerHTML = '<p class="err">목록으로 돌아가 다시 선택해 주십시오.</p>';
       return;
     }
-    document.title = name(d) + " · IPO 데이터룸";
+    document.title = name(d) + " · IPO Tracker";
     var bc = bioByDeal[d.deal_id] || null;
     var list = !nav && view === "list" ? filtered() : [], idx = -1;
     for (var i = 0; i < list.length; i++) if (list[i].deal_id === id) { idx = i; break; }
@@ -1684,7 +1684,7 @@
     return '<section class="panel fpanel">' + hd + '<div class="pbody">' + body + "</div></section>";
   }
   function renderStats() {
-    document.title = "통계 · IPO 데이터룸";
+    document.title = "통계 · IPO Tracker";
     view = "stats";
     var all = listedDeals();
     var ys = Array.from(new Set(data.deals.map(listDate).filter(Boolean).map(function (s) { return s.slice(0, 4); }))).sort().reverse();
@@ -2533,7 +2533,7 @@
     if (dd && !dd.hidden && !(e.target.closest && e.target.closest(".gsr"))) { dd.hidden = true; if (qi) qi.setAttribute("aria-expanded", "false"); }
   }, true);
   function renderCal() {
-    document.title = "일정 · IPO 데이터룸";
+    document.title = "일정 · IPO Tracker";
     view = "cal";
     var today = todayIso(), dow = dOf(today).getDay();
     var wk0 = addDays(today, -((dow + 6) % 7));          // 이번 주 월요일
@@ -2621,7 +2621,7 @@
     bindGsearch();
   }
   function renderBio() {
-    document.title = "기술특례 바이오 · IPO 데이터룸";
+    document.title = "기술특례 바이오 · IPO Tracker";
     view = "bio";
     if (!bio) {
       app.innerHTML = '<div class="content"><div class="ledger"><div class="empty">기술특례 바이오 자료를 불러오지 못했습니다. 네트워크 연결을 확인한 뒤 새로 고침해 주십시오.</div></div></div>';
@@ -3054,12 +3054,12 @@
       sbody.innerHTML = '<p class="err">목록으로 돌아가 다시 선택해 주십시오.</p>';
       return;
     }
-    document.title = c.n + " · 기술특례 바이오 · IPO 데이터룸";
+    document.title = c.n + " · 기술특례 바이오 · IPO Tracker";
     titleEl.textContent = c.n;
     chipEl.innerHTML = '<span class="tag b-tech">' + esc(c.route || "기술특례") + "</span>" + bioChips(c);
     subEl.textContent = "상장 " + c.list_date + (c.lead ? " · " + c.lead.replace(/\s*\(.*$/, "") : "") + " · " + c.basis + " 기준";
     setNav(nav.idx, nav.len, nav.prev, nav.next);
-    sbody.innerHTML = '<p class="notice">IPO 데이터룸 수집 범위 밖의 공모라 경쟁률·확정가·보호예수 정보는 없습니다. 상장 당시 증권신고서 정리만 보여 드립니다.</p>' + bioDetail(c, false, false);
+    sbody.innerHTML = '<p class="notice">IPO Tracker 수집 범위 밖의 공모라 경쟁률·확정가·보호예수 정보는 없습니다. 상장 당시 증권신고서 정리만 보여 드립니다.</p>' + bioDetail(c, false, false);
     sbody.scrollTop = 0;
     if (!wasOpen) focusSheet();
   }

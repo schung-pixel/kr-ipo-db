@@ -24,7 +24,7 @@ bio = ""
 if bio_path.exists():
     bio = json.dumps(json.loads(bio_path.read_text(encoding="utf-8")), ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
 
-page = f"""<title>IPO 데이터룸</title>
+page = f"""<title>IPO Tracker</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
