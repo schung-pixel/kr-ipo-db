@@ -272,7 +272,11 @@
     }
     return best;
   }
-  function fuzzyHit(text, q, lim) { return !!fzWin(unitsOf(text), units(latinize(q)), lim); }
+  // 영문 약칭 변환은 이름 중간 글자까지 바꿔 버릴 수 있어(에이엔에이치 → 에이nh), 변환 전 글자끼리도 한 번 더 비교합니다.
+  var RAW_CACHE = {};
+  function rawKey(t) { return t.toLowerCase().replace(/\(주\)|㈜|주식회사|\s+/g, ""); }
+  function rawUnitsOf(t) { return RAW_CACHE[t] || (RAW_CACHE[t] = units(rawKey(t))); }
+  function fuzzyHit(text, q, lim) { return !!(fzWin(unitsOf(text), units(latinize(q)), lim) || fzWin(rawUnitsOf(text), units(rawKey(q)), lim)); }
   // 허용 기준: 검색어 길이(영문 약칭 변환 후 글자 수) 2~5글자는 자음·모음 1개, 6글자 이상은 2개까지.
   // 한 글자, 초성 검색은 정확히 일치하는 것만 찾습니다.
   function fuzzyLimit(q) {
@@ -296,9 +300,10 @@
   function fuzzyMark(text, q) {
     var idx = [], ch = [];
     for (var i = 0; i < text.length; i++) if (!/\s/.test(text[i])) { idx.push(i); ch.push(text[i].toLowerCase()); }
-    var w = fzWin(units(ch.join("")), units(latinize(q)), fuzzyLimit(q));
+    var qc = rawKey(q), w = fzWin(units(ch.join("")), units(qc), fuzzyLimit(q));
+    if (!w) { qc = latinize(q); w = fzWin(units(ch.join("")), units(qc), fuzzyLimit(q)); }
     if (!w) return esc(text);
-    var qc = latinize(q), on = {};
+    var on = {};
     w.diff.forEach(function (k) { on[idx[w.s + k]] = 1; });
     // ㅐ/ㅔ처럼 같은 소리로 본 글자도 실제 글자가 다르면 밑줄
     for (var k = 0; k < qc.length && w.s + k < idx.length; k++) if (ch[w.s + k] !== qc[k]) on[idx[w.s + k]] = 1;
