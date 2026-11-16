@@ -1615,8 +1615,7 @@
     var corrOf = function (xs) { xs = xs.filter(function (d) { return inSeg(d) && d[key] > 0; }); return spearman(xs.map(f0), xs.map(function (d) { return d[key]; })); };
     var all = ds.filter(inSeg), cAll = corrOf(ds);
     var ctrl = '<div class="fctl">' + segBtns("data-fs", FSEG, seg) + segBtns("data-fk", [["inst_demand_ratio", "수요예측"], ["retail_ratio", "일반청약"]], key) + "</div>";
-    var hd = '<header><div><h2>상장일 유통물량</h2><p>' + periodText + " 상장 기준(스팩 제외). 상장일 유통가능 비율은 증권신고서·투자설명서의 공모 후 기준이며 기관 확약분은 반영하지 않습니다. " +
-      "상관은 순위상관(Spearman)이고 굵게 표시한 값은 5% 수준에서 유의합니다.</p></div>" + ctrl + "</header>";
+    var hd = '<header><div><h2>상장일 유통물량</h2>' + "</div>" + ctrl + "</header>";
     if (!ds.length) return '<section class="panel fpanel">' + hd + '<div class="pbody"><div class="empty">유통물량을 읽은 상장 건이 없습니다.</div></div></section>';
     var kpi = '<div class="cmp f4">' +
       '<div><span class="k">상장일 유통가능 중앙값</span><span class="v">' + pct1(median(all.map(f0))) + '</span><span class="s">' + all.length + "건 · 가운데 50% " + pct1(quant(all.map(f0), .25)) + "~" + pct1(quant(all.map(f0), .75)) + "</span></div>" +
@@ -1879,7 +1878,7 @@
       return '<div><span class="k">' + r[0] + '</span><span class="v">' + (median(ds.map(function (d) { return d.inst_demand_ratio; })) != null ? int(Math.round(median(ds.map(function (d) { return d.inst_demand_ratio; })))) + "<small>:1</small>" : "-") +
         '</span><span class="s">상단 이상 ' + (pd.length ? Math.round(up / pd.length * 100) + "%" : "-") + " · 공모액 중앙값 " + (median(ds.map(function (d) { return d.offer_amount; })) != null ? jo(median(ds.map(function (d) { return d.offer_amount; })) / 1e8) : "-") + "</span></div>";
     }).join("");
-    techPanel = '<section class="panel tech"><header><div><h2>기술특례 분석</h2><p>' + periodText + " 상장 기술특례 " + tech.length + "건. 등급은 전문평가기관 2곳 결과(소부장 단수평가는 1곳). 경쟁률은 중앙값입니다.</p></div></header>" +
+    techPanel = '<section class="panel tech"><header><div><h2>기술특례 분석</h2>' + "</div></header>" +
       '<div class="pbody">' + (tech.length ? '<div class="cmp">' + cmp + "</div>" +
         '<div class="routes">' + Object.keys(routes).sort(function (a, b) { return routes[b] - routes[a]; }).map(function (r) { return '<span class="chip-s">' + esc(r) + " <b>" + routes[r] + "</b></span>"; }).join("") + "</div>" +
         '<div class="scroll"><table class="mini grades"><thead><tr><th>평가 등급</th><th class="num">건수</th><th class="bar-cell"><span class="sr">건수 막대</span></th><th class="num">수요예측</th><th class="num">일반청약</th><th class="num">상단 이상</th></tr></thead><tbody>' + gradeRows + "</tbody></table></div>"
@@ -1899,7 +1898,7 @@
         '</td><td class="num">' + (im != null ? ratio(im, 0) : "-") + '</td><td class="num">' + (cm.length ? pct1(cm.reduce(function (a, v) { return a + v; }, 0) / cm.length) : "-") +
         '</td><td class="num">' + (pd.length ? Math.round(up / pd.length * 100) + "%" : "-") + "</td></tr>";
     }).join("");
-    sectorPanel = '<section class="panel sectors"><header><div><h2>업종별 현황</h2><p>' + periodText + " 상장 기준(스팩 제외). 업종은 DART 업종코드(KSIC)를 15개 대분류로 묶었습니다. 경쟁률은 중앙값, 확약비율은 원문에서 읽힌 건의 평균입니다.</p></div></header>" +
+    sectorPanel = '<section class="panel sectors"><header><div><h2>업종별 현황</h2>' + "</div></header>" +
       '<div class="pbody">' + (skeys.length ? '<div class="scroll"><table class="mini sect"><thead><tr><th>업종</th><th class="num">건수</th><th class="bar-cell"><span class="sr">막대</span></th><th class="num">공모액(억)</th><th class="num">수요예측</th><th class="num">확약비율</th><th class="num">상단 이상</th></tr></thead><tbody>' + sectorRows + "</tbody></table></div>"
         : '<div class="empty">선택한 조건에 상장 건이 없습니다.</div>') + "</div></section>";
 
@@ -1925,7 +1924,7 @@
     var sRows = Object.keys(ps).filter(function (k) { return ps[k].length >= 3; }).sort(function (a, b) { return ps[b].length - ps[a].length; })
       .map(function (k) { return valRow(esc(k), ps[k], true); }).join("");
     var vHead = '<thead><tr><th>구분</th><th class="num">건수</th><th class="num">밴드 할인율(평균)</th><th class="num">확정가 할인율</th><th class="num">적용 배수</th></tr></thead>';
-    valPanel = '<section class="panel valp"><header><div><h2>공모가 산정 근거</h2><p>' + periodText + " 상장 기준(스팩 제외). 증권신고서 &lsquo;공모가격에 대한 의견&rsquo;에서 읽은 " + vds.length + "건 / " + nAll + "건. 밴드 할인율은 주당 평가가액 대비 희망 밴드 상단~하단의 할인율 평균, 확정가 할인율·적용 배수는 중앙값입니다.</p></div></header>" +
+    valPanel = '<section class="panel valp"><header><div><h2>공모가 산정 근거</h2>' + "</div></header>" +
       '<div class="pbody">' + (vds.length ? '<div class="scroll"><table class="mini sect">' + vHead + "<tbody>" + mRows + '<tr class="gap"><td colspan="5"></td></tr>' + tRows + "</tbody></table></div>" +
         (sRows ? '<h3 class="minih">업종별 PER 적용 (3건 이상)</h3><div class="scroll"><table class="mini sect">' + vHead + "<tbody>" + sRows + "</tbody></table></div>" : "")
         : '<div class="empty">선택한 조건에 산정 근거를 읽은 상장 건이 없습니다.</div>') + "</div></section>";
@@ -1948,7 +1947,7 @@
         '</td><td class="num">' + (lo != null ? f1(lo) + "~" + f1(hi, "%") : "-") + '</td><td class="num">' + (fd == null ? "-" : fd < 0 ? "할증 " + f1(-fd, "%") : f1(fd, "%")) +
         '</td><td class="num">' + (pd.length ? Math.round(up / pd.length * 100) + "%" : "-") + '</td><td class="num">' + (im != null ? ratio(im, 0) : "-") + "</td></tr>";
     }).join("");
-    uwPanel = '<section class="panel uwp"><header><div><h2>대표주관사별 공모 조건</h2><p>' + periodText + " 상장 기준(스팩 제외), 대표주관 5건 이상. 공동 대표주관은 각사에 1건씩 셉니다. 수수료율은 인수대가 ÷ 인수금액(신고서 기준, 성과수수료 제외) 평균, 밴드 할인율은 평균, 확정가 할인율·경쟁률은 중앙값입니다.</p></div></header>" +
+    uwPanel = '<section class="panel uwp"><header><div><h2>대표주관사별 공모 조건</h2>' + "</div></header>" +
       '<div class="pbody">' + (uRows ? '<div class="scroll"><table class="mini sect uw"><thead><tr><th>대표주관</th><th class="num">건수</th><th class="num">수수료율</th><th class="num">밴드 할인율</th><th class="num">확정가 할인율</th><th class="num">상단 이상</th><th class="num">수요예측</th></tr></thead><tbody>' + uRows + "</tbody></table></div>"
         : '<div class="empty">선택한 조건에 대표주관 5건 이상인 주관사가 없습니다.</div>') + "</div></section>";
 
@@ -1972,7 +1971,7 @@
         '</td><td class="num">' + eok(r.amount) +
         '</td><td class="bar-cell"><div class="hbar" style="width:' + (r[lk] / maxL * 100).toFixed(1) + '%"></div></td></tr>';
     }).join("");
-    leaguePanel = '<section class="panel league"><header><div><h2>대표주관사 순위</h2><p>' + periodText + " 상장 기준. 공동 대표주관은 건수 각 1건, 공모액은 사 수로 나눔. 사명 변경·합병사는 현재 사명으로 합산.</p></div>" +
+    leaguePanel = '<section class="panel league"><header><div><h2>대표주관사 순위</h2>' + "</div>" +
       segBtns("data-l", [["count", "건수순"], ["amount", "공모액순"], ["tech", "기술특례순"]], lk) + '</header><div class="pbody">' +
       '<div class="scroll"><table class="mini"><thead><tr><th>순위</th><th>대표주관</th><th class="num">건수</th><th class="num">기술특례</th><th class="num">공모액(억)</th><th class="bar-cell"><span class="sr">막대</span></th></tr></thead><tbody>' + leagueRows + "</tbody></table></div>" +
       '<p class="snote">상위 ' + topN.length + "개사 / 전체 " + leag.length + "개사</p></div></section>";
@@ -1980,13 +1979,13 @@
     })();
     var unitWord = unit === "year" ? "연도별" : unit === "quarter" ? "분기별" : "월별";
     setStatsHtml('<div class="content">' + gsearchBox() + head + kpi +
-      '<section class="panel"><header><div><h2>' + unitWord + " 상장 추이</h2><p>상장일 기준(상장 완료 건). 공모액은 확정 금액입니다." + (estN ? " 상장일을 원문에서 읽지 못한 " + estN + "건은 증권발행실적보고서 제출일로 추정했습니다." : "") + "</p></div>" +
+      '<section class="panel"><header><div><h2>' + unitWord + " 상장 추이</h2>" + "</div>" +
       segBtns("data-m", [["count", "건수"], ["amount", "공모액"]], isAmt ? "amount" : "count") + '</header><div class="pbody chart zoomable">' + legend1 + svg1 +
       '<details class="tv"><summary>표로 보기</summary>' + tbl1 + "</details></div></section>" +
       '<div class="panels even">' +
-      '<section class="panel"><header><div><h2>경쟁률 추이</h2><p>' + unitWord + " 상장 건의 수요예측·일반청약 경쟁률 중앙값(스팩 제외).</p></div></header>" +
+      '<section class="panel"><header><div><h2>경쟁률 추이</h2>' + "</div></header>" +
       '<div class="pbody chart zoomable">' + legend2 + svg2 + "</div></section>" +
-      '<section class="panel"><header><div><h2>밴드 대비 확정가 위치</h2><p>' + unitWord + " 상장 건의 비중. 단일 희망가(스팩 등)는 제외.</p></div></header>" +
+      '<section class="panel"><header><div><h2>밴드 대비 확정가 위치</h2>' + "</div></header>" +
       '<div class="pbody chart zoomable">' + legend3 + svg3 + "</div></section></div>" +
       (statFast ? '<div class="keep"></div>' : '<div class="stack">' + floatP + '<div class="panels even">' + techPanel + leaguePanel + "</div>" + '<div class="panels even">' + sectorPanel + valPanel + "</div>" + uwPanel + reviewStatPanels() + "</div>") + "</div>");
     bindStats();
@@ -2612,7 +2611,7 @@
       return "<tr" + (foc ? ' class="focus"' : "") + "><td>" + esc(o.s) + '</td><td class="num">' + o.n + '</td><td class="num">' + o.ok + '</td><td class="num">' + (o.wd || '<span class="dim">0</span>') + '</td><td class="num">' + (o.rej || '<span class="dim">0</span>') +
         '</td><td class="num"><b>' + Math.round(o.ok / o.n * 100) + '%</b></td><td class="num">' + (o.durs.length ? medInt(o.durs) + "일" : "-") + "</td></tr>";
     }).join("");
-    var spPanel = '<section class="panel"><header><div><h2>주관사별 예심 실적</h2><p>KIND 수록 결과(' + (minF ? esc(minF.slice(0, 7).replace("-", ".")) : "-") + " 이후) 중 신규상장 청구, 스팩 제외. 공동 주관은 각각 1건. 승인률 = 승인 ÷ (승인 + 철회 + 미승인). 전체 " + allN + "건 중 승인 " + allOk + "건(" + (allN ? Math.round(allOk / allN * 100) : 0) + "%).</p></div></header>" +
+    var spPanel = '<section class="panel"><header><div><h2>주관사별 예심 실적</h2>' + "</div></header>" +
       '<div class="pbody"><div class="scroll"><table class="mini rv"><thead><tr><th>주관사</th><th class="num">결과</th><th class="num">승인</th><th class="num">철회</th><th class="num">미승인</th><th class="num">승인률</th><th class="num">심사기간</th></tr></thead><tbody>' + spHtml + "</tbody></table></div>" +
       '<p class="snote">심사기간은 승인 건의 청구일~결과일 중앙값입니다. 출처: 한국거래소 KIND 상장예비심사 현황.</p></div></section>';
 
@@ -2630,7 +2629,7 @@
       return "<tr><td>" + esc(o.q) + '</td><td class="num">' + o.n + '</td><td class="num">' + Math.round(o.ok / o.n * 100) + '%</td><td class="num">' + (m != null ? m + "일" : "-") +
         '</td><td class="bar-cell"><div class="hbar" style="width:' + (m ? Math.round(m / qMax * 100) : 0) + '%"></div></td></tr>';
     }).join("");
-    var qPanel = '<section class="panel"><header><div><h2>분기별 심사기간</h2><p>결과 통지일이 속한 분기 기준. 신규상장 청구, 스팩 제외.</p></div></header>' +
+    var qPanel = '<section class="panel"><header><div><h2>분기별 심사기간</h2></div></header>' +
       '<div class="pbody"><div class="scroll"><table class="mini rv q"><thead><tr><th>분기</th><th class="num">결과</th><th class="num">승인률</th><th class="num">심사기간</th><th class="bar-cell"><span class="sr">막대</span></th></tr></thead><tbody>' + qHtml + "</tbody></table></div></div></section>";
 
     return '<div class="panels even">' + spPanel + qPanel + "</div>";
@@ -2659,7 +2658,7 @@
       return "<tr" + ((r.s || "").indexOf(FOCUS_NAME) >= 0 ? ' class="focus"' : "") + "><td>" + nmLink(r.id, r.n) + (/스팩/.test(r.t || "") ? ' <span class="dim">(' + esc(r.t) + ")</span>" : "") + '</td><td class="c-m">' + esc(r.m || "-") + "</td><td>" + spText(r.s) +
         '</td><td class="num mono">' + esc(r.f.slice(2).replace(/-/g, ".")) + '</td><td class="num mono' + (over ? " warn" : "") + '">' + el + "일</td></tr>";
     }).join("");
-    var pendPanel = '<section class="panel"><header><div><h2>심사 중 <span class="cnt">' + pend.length + "</span></h2><p>청구서 접수 후 결과가 나오지 않은 건. 경과일이 최근 1년 승인 건의 심사기간 중앙값(" + (medDur != null ? medDur + "일" : "-") + ")을 넘으면 붉게 표시합니다." + (stale ? " 청구 후 1년이 넘도록 결과가 수록되지 않은 " + stale + "건은 제외했습니다." : "") + "</p></div></header>" +
+    var pendPanel = '<section class="panel"><header><div><h2>심사 중 <span class="cnt">' + pend.length + "</span></h2>" + "</div></header>" +
       '<div class="pbody"><div class="scroll"><table class="mini rv"><thead><tr><th>회사</th><th class="c-m">시장</th><th>주관사</th><th class="num">청구일</th><th class="num">경과</th></tr></thead><tbody>' + pendRows + "</tbody></table></div></div></section>";
 
     // 승인 후 아직 상장하지 않은 건: 효력 6개월
@@ -2675,7 +2674,7 @@
       return "<tr" + ((r.s || "").indexOf(FOCUS_NAME) >= 0 ? ' class="focus"' : "") + "><td>" + nmLink(r.id, r.n) + "</td><td>" + spText(r.s) + '</td><td class="num mono' + (x.left <= 45 ? " warn" : "") + '" title="' + esc(tip) + '">' + esc(r.d.slice(2).replace(/-/g, ".")) +
         '</td><td><span class="sdot s-' + o[1] + '" title="' + esc(tip) + '"><i></i>' + o[0] + "</span></td></tr>";
     }).join("");
-    var waitPanel = '<section class="panel"><header><div><h2>승인 후 상장 대기 <span class="cnt">' + waiting.length + "</span></h2><p>예심 승인 효력은 결과 통지일부터 6개월입니다(승인일 + 6개월로 계산). 효력 만료가 45일 이내로 남은 건은 승인일을 붉게 표시합니다.</p></div></header>" +
+    var waitPanel = '<section class="panel"><header><div><h2>승인 후 상장 대기 <span class="cnt">' + waiting.length + "</span></h2></div></header>" +
       '<div class="pbody"><div class="scroll"><table class="mini rv wait"><colgroup><col class="w-n"><col class="w-u"><col class="w-d"><col class="w-s"></colgroup><thead><tr><th>회사</th><th>주관사</th><th class="num">승인일</th><th>진행</th></tr></thead><tbody>' + waitRows + "</tbody></table></div></div></section>";
 
     app.innerHTML = '<div class="content cal-page">' + gsearchBox() + briefing(today) + monthPanel(today) + dealTable(today) +
@@ -2776,7 +2775,7 @@
         '<div class="b3"><span>계약(L/O)<b>' + coTxt(c) + "</b></span><span>파이프라인<b>" + c.np + "</b></span></div></a>";
     }).join("");
     var listPanel = '<section class="panel bio-list"><header><div><h2>기술특례 신약개발사 명단 <span class="cnt">' + list.length + (list.length !== bio.companies.length ? " / " + bio.companies.length : "") + "</span></h2>" +
-      "<p>계약은 기술이전(L/O, 플랫폼·옵션 포함)과 공동연구·공동개발이고, 괄호 안이 그중 L/O입니다. 선두 단계는 신고서 문구를 규칙으로 분류한 근사치입니다.</p></div></header>" +
+      "</div></header>" +
       '<div class="pbody">' + bioSearchRow("c") + bioChips("c") +
       '<div class="scroll bio-box"><table class="mini bio-t"><thead><tr><th>상장일</th><th>회사</th><th class="hide-m">사업</th><th>선두 단계</th><th class="num" title="기술이전(L/O)과 공동연구·공동개발 계약 수, 괄호는 L/O 수">계약(L/O)</th><th class="num hide-m">파이프라인</th></tr></thead><tbody id="bio-rows">' +
       (rowsH || '<tr><td colspan="6" class="muted">조건에 맞는 회사가 없습니다.</td></tr>') + "</tbody></table></div>" +
@@ -2784,7 +2783,7 @@
     // 6) 철회·미승인 명단
     var fails = bioFails();
     var nFailAll = A.filter(function (a) { return a.outcome !== "승인"; }).length;
-    var failPanel = '<section class="panel bio-failp"><header><div><h2>철회·미승인 명단 <span class="cnt">' + fails.length + (fails.length !== nFailAll ? " / " + nFailAll : "") + "</span></h2><p>사유는 거래소 공식 사유가 아니라 보도·회사 설명입니다. 2017년 이전 건은 기사가 적어 확인 못한 항목이 많습니다.</p></div>" +
+    var failPanel = '<section class="panel bio-failp"><header><div><h2>철회·미승인 명단 <span class="cnt">' + fails.length + (fails.length !== nFailAll ? " / " + nFailAll : "") + "</span></h2></div>" +
       bioFilterBtn("f") + "</header>" +
       '<div class="pbody bio-boxw">' + bioChips("f") + (fails.length ? table(["청구일", "회사", "결과", "선두 단계", "L/O", "소요일", "보도된 사유"], fails.map(function (a) {
         var inList = bioByName[a.name];
@@ -2800,15 +2799,15 @@
 
     app.innerHTML = '<div class="content">' + gsearchBox() +
       '<p class="notice">상장예비심사를 청구한 코스닥 신약개발사(2005~2026년, 경계 바이오 포함)의 결과와 청구 당시 프로필입니다. 신고서 제출 당시 신약개발사로 보기 어려운 소재·의료기기·진단·분석 플랫폼·바이오시밀러·CDMO 주업 회사는 뺐습니다. 승인 건은 상장 당시 증권신고서, 철회·미승인 건은 언론·공시로 조사했습니다. 기술성평가에서 이미 떨어져 청구하지 못한 회사는 포함되지 않습니다.</p>' + kpi +
-      '<section class="panel"><header><div><h2>연도별 상장예비심사 결과</h2><p>청구 연도 기준. 심사를 통과한 뒤 공모를 접은 건은 뺐습니다.</p></div></header>' +
+      '<section class="panel"><header><div><h2>연도별 상장예비심사 결과</h2></div></header>' +
       '<div class="pbody chart">' + bioLegend(BIO_RES, resItems) + svgRes + "</div></section>" +
-      '<section class="panel"><header><div><h2>청구 시점 L/O 유무와 선두 임상 단계</h2><p>L/O에는 플랫폼·옵션 계약을 포함합니다. "2상 이상"은 선두 자산이 임상 2상 이상이거나 상용화 단계입니다. 칸당 표본이 작아 방향만 참고하십시오.</p></div></header>' +
+      '<section class="panel"><header><div><h2>청구 시점 L/O 유무와 선두 임상 단계</h2></div></header>' +
       '<div class="pbody">' + bioLegend(BIO_GRP) + '<div class="panels even bio-pair"><div class="chart"><div class="lk-sub">승인 건</div>' + svgG1 + '</div><div class="chart"><div class="lk-sub">철회·미승인 건</div>' + svgG2 + "</div></div>" +
       '<div class="lk-sub">조건별 통과율 (승인/청구)</div>' + condTbl + "</div></section>" +
       '<div class="panels even">' +
-      '<section class="panel"><header><div><h2>청구부터 결과까지 걸린 기간</h2><p>연도별 중앙값. 2022년 이후 승인까지 걸리는 기간이 크게 늘었습니다.</p></div></header><div class="pbody chart">' +
+      '<section class="panel"><header><div><h2>청구부터 결과까지 걸린 기간</h2></div></header><div class="pbody chart">' +
       '<div class="legend">' + dser.map(function (s) { return '<span><i class="ln-key" style="background:' + s.css + '"></i>' + s.key + "</span>"; }).join("") + "</div>" + svgD + "</div></section>" +
-      '<section class="panel"><header><div><h2>승인 회사의 상장 당시 계약 구성</h2><p>청구 연도별 승인 회사 수를 신고서상 계약 구성으로 나눴습니다.</p></div></header><div class="pbody chart">' + bioLegend(BIO_PROF, pItems) + svgP + "</div></section></div>" +
+      '<section class="panel"><header><div><h2>승인 회사의 상장 당시 계약 구성</h2></div></header><div class="pbody chart">' + bioLegend(BIO_PROF, pItems) + svgP + "</div></section></div>" +
       listPanel + failPanel +
       '<p class="note">' + esc(bio.note) + " 출처: " + esc(bio.sources) + ". 생성 " + esc(bio.generated) + ".</p></div>";
     bindChart();
