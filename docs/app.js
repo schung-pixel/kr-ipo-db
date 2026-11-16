@@ -899,20 +899,12 @@
           '<div class="rvsec">' + inner + "</div></details>";
       };
       var apCard = ap.length ? card("예심 승인 · 신고서 대기", ap.length, "<ul>" + ap.map(row).join("") + "</ul>") : "";
-      var chv = '<svg class="mchev" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></svg>';
-      var moreBtn = rv.length > SHOW ? '<li class="more"><button type="button" class="rvm" aria-expanded="false"><span class="o">더 보기' + chv + '</span><span class="c">접기' + chv + "</span></button></li>" : "";
+      var moreBtn = rv.length > SHOW ? moreBtnHtml("li") : "";
       var rvCard = rv.length ? card("예심 심사 중", rv.length,
-        '<ul class="rvl">' + rv.map(function (d, i) { return i < SHOW ? row(d) : row(d).replace('<li class="', '<li class="rest '); }).join("") + moreBtn + "</ul>") : "";
+        '<ul class="rvl mgrp">' + rv.map(function (d, i) { return i < SHOW ? row(d) : row(d).replace('<li class="', '<li class="rest '); }).join("") + moreBtn + "</ul>") : "";
       grp = rvCard + apCard;
     }
     box.innerHTML = grp + html + "</tbody></table></div>" + cards;
-    box.querySelectorAll(".rvm").forEach(function (b) {
-      b.addEventListener("click", function () {
-        var ul = b.closest("ul"), open = !ul.classList.contains("open");
-        ul.classList.toggle("open", open); b.setAttribute("aria-expanded", open ? "true" : "false");
-        if (!open) { var card = b.closest(".rvgrp"); if (card.getBoundingClientRect().top < 0) card.scrollIntoView({ block: "start" }); }
-      });
-    });
     box.querySelectorAll("th .sort").forEach(function (b) {
       b.addEventListener("click", function () {
         var k = b.dataset.key;
@@ -1459,6 +1451,18 @@
     var m = a.length >> 1;
     return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
   }
+  // "더 보기 / 접기" 버튼(예심 심사 중 카드, 딜별 공모 일정 공용): 묶음(.mgrp)에 open 클래스를 토글
+  function moreBtnHtml(tag) {
+    var chv = '<svg class="mchev" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></svg>';
+    return "<" + tag + ' class="more"><button type="button" class="rvm" aria-expanded="false"><span class="o">더 보기' + chv + '</span><span class="c">접기' + chv + "</span></button></" + tag + ">";
+  }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest(".rvm");
+    if (!b) return;
+    var g = b.closest(".mgrp"), open = !g.classList.contains("open");
+    g.classList.toggle("open", open); b.setAttribute("aria-expanded", open ? "true" : "false");
+    if (!open) { var card = b.closest(".rvgrp, .dgrp") || g; if (card.getBoundingClientRect().top < 0) card.scrollIntoView({ block: "start" }); }
+  });
   // 막대 위 값 표시 배치: 큰 값부터 놓고, 이미 놓인 표시나 다른 막대와 겹치는 표시는 생략(최댓값은 항상 표시)
   function placeLabels(c, bw, maxI) {
     var bars = c.map(function (o) { return { l: o.bx, r: o.bx + bw, t: o.top }; });
@@ -2481,7 +2485,9 @@
     var lg = '<div class="legend cal-lg">' + ["수요예측", "청약", "상장"].map(function (k) { return '<span><i class="k-' + EV_ORDER[k] + '"></i>' + k + "</span>"; }).join("") + "</div>";
     return '<section class="panel dtable"><header><div><h2>딜별 공모 일정</h2></div></header>' +
       '<div class="pbody">' + (now.length ? '<div class="dgrp now"><h3 class="dsec">진행 중 <span class="dcnt mono">' + now.length + '</span></h3>' + head + now.map(row).join("") + "</div>" : "") +
-      (next.length ? '<div class="dgrp nx"><h3 class="dsec">다가오는 일정 <span class="dcnt mono">' + next.length + '</span></h3>' + head + next.map(row).join("") + "</div>" : "") +
+      (next.length ? '<div class="dgrp nx mgrp"><h3 class="dsec">다가오는 일정 <span class="dcnt mono">' + next.length + '</span></h3>' + head +
+        next.map(function (r, i) { var h = row(r); return i < 5 ? h : h.replace('<a class="xr', '<a class="xr rest'); }).join("") +   // 가장 빠른 5건만, 나머지는 더 보기
+        (next.length > 5 ? moreBtnHtml("div") : "") + "</div>" : "") +
       (!now.length && !next.length ? '<div class="empty">확인된 공모 일정이 없습니다.</div>' : "") + "</div></section>";
   }
   function bindCal() {
