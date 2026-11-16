@@ -164,7 +164,7 @@
     var r = focusRole(d);
     return r ? '<span class="tag b-focus" title="' + FOCUS_NAME + " " + r + (r === "인수" ? "단" : "주관") + ' 참여">' + FOCUS_SHORT + " " + r + "</span>" : "";
   }
-  function boardTag(d) {
+  function boardTag(d, brief) {   // brief: 목록 카드용으로 기술평가 등급을 빼고 "기술"만
     var m = d.board === "KOSPI" ? '<span class="tag b-ks">유가</span>'
       : (d.board === "KOSDAQ" || d.board === "KOSDAQ_TECH") ? '<span class="tag b-kq">코스닥</span>' : "";
     if (isSpac(d)) return m;
@@ -172,7 +172,7 @@
     if (d.board === "KOSDAQ_TECH") {
       var growth = d.tech_track === "성장성 추천";
       var single = /^단수평가/.test(d.tech_mode || "");
-      var gtxt = d.tech_grades && !growth ? (single ? "단수 " + bestGrade(d.tech_grades) : d.tech_grades.replace(/\s*,\s*/g, "·")) : "";
+      var gtxt = d.tech_grades && !growth && !brief ? (single ? "단수 " + bestGrade(d.tech_grades) : d.tech_grades.replace(/\s*,\s*/g, "·")) : "";
       r += '<span class="tag b-tech" title="코스닥 기술특례 · ' + esc(d.tech_track || "") + (d.tech_mode ? " · " + esc(d.tech_mode) : "") + (d.tech_agencies ? " · " + esc(d.tech_agencies) : "") + '">' +
         (growth ? "성장성 특례" : "기술") + (gtxt ? " " + esc(gtxt) : "") + "</span>";
     }
@@ -837,7 +837,7 @@
     var cards = '<div class="cards">';
     rows.forEach(function (d) {
       var p = position(d);
-      var tags = boardTag(d) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + refileTag(d) + focusTag(d);
+      var tags = boardTag(d, true) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + refileTag(d) + focusTag(d);
       var bandCell = d.offer_price_low ? bandText(d) : (d.filed_price ? '<span class="dim" title="신고서 기재 기준가">' + int(d.filed_price) + "*</span>" : "-");
       var href = "#/deal/" + encodeURIComponent(d.deal_id);
       html += '<tr data-id="' + esc(d.deal_id) + '">' +
