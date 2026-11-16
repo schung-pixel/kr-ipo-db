@@ -899,18 +899,19 @@
           '<div class="rvsec"><div class="rvcap">' + cap + "</div>" + inner + "</div></details>";
       };
       var apCard = ap.length ? card("예심 승인 · 신고서 대기", ap.length, "승인 후 경과 · 막대: 효력 6개월 중", "<ul>" + ap.map(row).join("") + "</ul>") : "";
+      var chv = '<svg class="mchev" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></svg>';
+      var moreBtn = rv.length > SHOW ? '<li class="more"><button type="button" class="rvm" aria-expanded="false"><span class="o">더 보기' + chv + '</span><span class="c">접기' + chv + "</span></button></li>" : "";
       var rvCard = rv.length ? card("예심 심사 중", rv.length, "청구 후 경과" + (med ? " · 막대 기준 최근 1년 승인 중앙값 " + med + "일" : ""),
-        '<ul data-rest="' + esc(JSON.stringify(rv.slice(SHOW).map(function (d) { return d.deal_id; }))) + '">' + rv.slice(0, SHOW).map(row).join("") +
-        (rv.length > SHOW ? '<li class="more"><button type="button" id="rv-more">나머지 ' + (rv.length - SHOW) + "곳 더 보기</button></li>" : "") + "</ul>") : "";
+        '<ul class="rvl">' + rv.map(function (d, i) { return i < SHOW ? row(d) : row(d).replace('<li class="', '<li class="rest '); }).join("") + moreBtn + "</ul>") : "";
       grp = rvCard + apCard;
-      renderRows._rvRow = row;
     }
     box.innerHTML = grp + html + "</tbody></table></div>" + cards;
-    var rvm = document.getElementById("rv-more");
-    if (rvm) rvm.addEventListener("click", function () {
-      var ul = rvm.closest("ul"), ids = JSON.parse(ul.dataset.rest || "[]"), by = {};
-      rvGroup.forEach(function (d) { by[d.deal_id] = d; });
-      rvm.closest("li").outerHTML = ids.map(function (id) { return renderRows._rvRow(by[id]); }).join("");
+    box.querySelectorAll(".rvm").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var ul = b.closest("ul"), open = !ul.classList.contains("open");
+        ul.classList.toggle("open", open); b.setAttribute("aria-expanded", open ? "true" : "false");
+        if (!open) { var card = b.closest(".rvgrp"); if (card.getBoundingClientRect().top < 0) card.scrollIntoView({ block: "start" }); }
+      });
     });
     box.querySelectorAll("th .sort").forEach(function (b) {
       b.addEventListener("click", function () {
