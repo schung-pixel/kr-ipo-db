@@ -891,7 +891,7 @@
       };
       var ap = rvGroup.filter(function (d) { return d.status === "approved"; }),
         rv = rvGroup.filter(function (d) { return d.status === "review"; }).sort(function (a, b) { return a.first_filing_dt > b.first_filing_dt ? -1 : 1; });
-      var SHOW = 8;
+      var SHOW = 5;   // 심사 중은 최근 청구 5건만, 나머지는 "더 보기"로
       // 심사 중과 승인(신고서 대기)은 성격이 달라 카드를 나눔: 심사 중 → 승인 순
       var chev = '<svg class="chev" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></svg>';
       var card = function (t, n, cap, inner) {
