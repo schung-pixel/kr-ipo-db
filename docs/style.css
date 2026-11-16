@@ -1355,4 +1355,4 @@ header.top nav.tabs, #app .srow .search {
 
 
 
-.rvgrp .rvcap { font-size: 11px; color: var(--faint); padding: 8px 0 4px; border-top: 1px solid var(--line2); }
+.chart .vlabel.sm { font-size: 10px; letter-spacing: -.02em; }

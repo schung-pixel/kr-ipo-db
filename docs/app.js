@@ -894,14 +894,14 @@
       var SHOW = 5;   // 심사 중은 최근 청구 5건만, 나머지는 "더 보기"로
       // 심사 중과 승인(신고서 대기)은 성격이 달라 카드를 나눔: 심사 중 → 승인 순
       var chev = '<svg class="chev" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></svg>';
-      var card = function (t, n, cap, inner) {
+      var card = function (t, n, inner) {
         return '<details class="rvgrp" open><summary><span class="t">' + t + '</span><span class="cnt">' + n + "</span>" + chev + "</summary>" +
-          '<div class="rvsec"><div class="rvcap">' + cap + "</div>" + inner + "</div></details>";
+          '<div class="rvsec">' + inner + "</div></details>";
       };
-      var apCard = ap.length ? card("예심 승인 · 신고서 대기", ap.length, "승인 후 경과 · 막대: 효력 6개월 중", "<ul>" + ap.map(row).join("") + "</ul>") : "";
+      var apCard = ap.length ? card("예심 승인 · 신고서 대기", ap.length, "<ul>" + ap.map(row).join("") + "</ul>") : "";
       var chv = '<svg class="mchev" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></svg>';
       var moreBtn = rv.length > SHOW ? '<li class="more"><button type="button" class="rvm" aria-expanded="false"><span class="o">더 보기' + chv + '</span><span class="c">접기' + chv + "</span></button></li>" : "";
-      var rvCard = rv.length ? card("예심 심사 중", rv.length, "청구 후 경과" + (med ? " · 막대 기준 최근 1년 승인 중앙값 " + med + "일" : ""),
+      var rvCard = rv.length ? card("예심 심사 중", rv.length,
         '<ul class="rvl">' + rv.map(function (d, i) { return i < SHOW ? row(d) : row(d).replace('<li class="', '<li class="rest '); }).join("") + moreBtn + "</ul>") : "";
       grp = rvCard + apCard;
     }
@@ -1459,6 +1459,28 @@
     var m = a.length >> 1;
     return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
   }
+  // 막대 위 값 표시 배치: 큰 값부터 놓고, 이미 놓인 표시나 다른 막대와 겹치는 표시는 생략(최댓값은 항상 표시)
+  function placeLabels(c, bw, maxI) {
+    var bars = c.map(function (o) { return { l: o.bx, r: o.bx + bw, t: o.top }; });
+    // 한 차트 안에서는 표기를 통일: 모두 단위까지 넣을 수 있으면 "6.8조", 하나라도 겹치면 전부 단위 없는 작은 글씨("6.8")
+    var run = function (key, fs, cls, force) {
+      var out = {}, boxes = [], clash = 0;
+      c.slice().sort(function (a, b) { return b.v - a.v; }).forEach(function (o) {
+        if (!(o.v > 0)) return;
+        var w = lblW(o[key], fs), bx = { l: o.cx - w / 2 - 1, r: o.cx + w / 2 + 1, t: o.top - 6 - fs, b: o.top - 3 };
+        var hit = boxes.some(function (q) { return bx.l < q.r && q.l < bx.r && bx.t < q.b && q.t < bx.b; }) ||
+          bars.some(function (q, k) { return k !== o.i && bx.l < q.r && q.l < bx.r && bx.b > q.t; });
+        if (hit) { clash++; if (!(force && o.i === maxI)) return; }
+        boxes.push(bx);
+        out[o.i] = '<text class="vlabel' + cls + '" x="' + o.cx + '" y="' + (o.top - 6) + '" text-anchor="middle">' + o[key] + "</text>";
+      });
+      return { out: out, clash: clash };
+    };
+    var full = run("full", 11, "", false);
+    return full.clash ? run("short", 10, " sm", true).out : full.out;
+  }
+  // 차트 값 표시의 대략적 폭(px): 고정폭 숫자는 글자 크기의 약 0.6배, 한글은 1배
+  function lblW(t, fs) { var w = 0; for (var k = 0; k < t.length; k++) w += /[\u3131-\uD79D]/.test(t[k]) ? fs : fs * 0.6; return w; }
   function jo(eokVal) {   // 억원 → "1.2조" / "8,500억"
     return eokVal >= 10000 ? (Math.round(eokVal / 1000) / 10).toLocaleString("ko-KR") + "조" : int(Math.round(eokVal)) + "억";
   }
@@ -1754,7 +1776,7 @@
     var iw = W - L - R, band = iw / keys.length, bw = Math.min(unit === "year" ? 44 : 26, band * 0.64);
     var svg1 = '<svg data-w="' + W + '" data-l="' + L + '" data-r="' + R + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + unitTitle(keys[0], unit) + "부터 시장별 상장 " + (isAmt ? "공모액" : "건수") + ' 누적 막대">' +
       frame(W, H, L, R, T, B, top1, labels, function (v) { return isAmt ? jo(v) : int(Math.round(v)); });
-    var maxI = tots.indexOf(Math.max.apply(null, tots));
+    var maxI = tots.indexOf(Math.max.apply(null, tots)), lblCand = [];
     cell.forEach(function (o, i) {
       var x = L + band * i + (band - bw) / 2, acc = 0, segs = "", shown = series.filter(function (s) { return o[s.key] > 0; });
       shown.forEach(function (s, j) {
@@ -1767,11 +1789,13 @@
       var tipH = "<b>" + unitTitle(keys[i], unit) + " 상장 " + byK[i].length + "건</b>" +
         series.slice().reverse().map(function (s) { return tipRow(s.css, s.label, isAmt ? jo(o[s.key]) + "원" : o[s.key] + "건"); }).join("") +
         (isAmt ? "" : tipRow("", "공모액", jo(byK[i].reduce(function (a, d) { return a + (d.offer_amount || 0); }, 0) / 1e8) + "원"));
-      var showLbl = tots[i] > 0 && (keys.length <= 16 || i === maxI);
-      svg1 += colHit(L + band * i, T, band, ih, tipH, unitTitle(keys[i], unit) + " " + byK[i].length + "건") + segs +
-        (showLbl ? '<text class="vlabel" x="' + (x + bw / 2) + '" y="' + (T + ih - (tots[i] / top1) * ih - 6) + '" text-anchor="middle">' + (isAmt ? jo(tots[i]) : int(tots[i])) + "</text>" : "") + "</g>";
+      // 값 표시는 막대를 다 그린 뒤 겹침을 검사해 넣습니다(아래 placeLabels)
+      lblCand.push({ i: i, cx: x + bw / 2, top: T + ih - (tots[i] / top1) * ih, bx: x, full: isAmt ? jo(tots[i]) : int(tots[i]),
+        short: isAmt ? (Math.round(tots[i] / 1000) / 10).toFixed(1) : int(tots[i]), v: tots[i] });
+      svg1 += colHit(L + band * i, T, band, ih, tipH, unitTitle(keys[i], unit) + " " + byK[i].length + "건") + segs + "%%LBL" + i + "%%</g>";
     });
-    svg1 += "</svg>";
+    var placed = placeLabels(lblCand, bw, maxI);
+    svg1 = svg1.replace(/%%LBL(\d+)%%/g, function (_, i) { return placed[i] || ""; }) + "</svg>";
     var legend1 = '<div class="legend">' + series.map(function (s) {
       var t = cell.reduce(function (a, o) { return a + o[s.key]; }, 0);
       return '<span><i style="background:' + s.css + '"></i>' + s.label + " " + (isAmt ? jo(t) + "원" : int(t) + "건") + "</span>";
