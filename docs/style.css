@@ -1176,8 +1176,13 @@ header.top { position: sticky; top: calc(env(safe-area-inset-top, 0px) - var(--n
 .mini.rv.wait { table-layout: fixed; }
 .mini.rv.wait col.w-n { width: 40%; } .mini.rv.wait col.w-u { width: 17%; } .mini.rv.wait col.w-d { width: 23%; } .mini.rv.wait col.w-s { width: 20%; }
 .mini.rv.wait td:first-child { min-width: 0; }
-.mini.rv.wait td, .mini.rv.wait th { word-break: keep-all; overflow-wrap: anywhere; }
+.mini.rv.wait td, .mini.rv.wait th { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* 한 줄: 넘치면 말줄임 */
 .mini.rv.wait td.num, .mini.rv.wait td:last-child { white-space: nowrap; }
+@media (max-width: 760px) {   /* 휴대폰: 주관사·승인일·진행은 고정 폭, 남는 폭을 회사명에 */
+  .mini.rv.wait col.w-n { width: auto; } .mini.rv.wait col.w-u { width: 70px; } .mini.rv.wait col.w-d { width: 72px; } .mini.rv.wait col.w-s { width: 48px; }
+  .mini.rv.wait td.num, .mini.rv.wait th.num { padding-left: 6px; padding-right: 6px; }
+  .mini.rv.wait td:last-child, .mini.rv.wait th:last-child { padding-left: 8px; padding-right: 0; }
+}
 .sdot { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; white-space: nowrap; color: var(--ink); }
 .sdot i { flex: none; width: 8px; height: 8px; border-radius: 99px; background: var(--faint); }
 .sdot.s-filed i { background: #2563EB; } .sdot.s-fixed i { background: #16A34A; } .sdot.s-done i { background: var(--accent); }

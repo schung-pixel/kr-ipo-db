@@ -2420,6 +2420,11 @@
     if (!s) return '<span class="dim">-</span>';
     return s.split(/\s*,\s*/).map(function (x) { return x.indexOf(FOCUS_NAME) >= 0 ? '<b class="focus-t">' + esc(uwShort(x)) + "</b>" : esc(uwShort(x)); }).join(", ");
   }
+  // 좁은 표용: 주관사가 3곳 이상이면 첫 곳만 쓰고 "외 N"
+  function spTextShort(s) {
+    var a = s ? s.split(/\s*,\s*/).filter(Boolean) : [];
+    return a.length >= 3 ? spText(a[0]) + ' <span class="dim">외 ' + (a.length - 1) + "</span>" : spText(s);
+  }
   function medInt(xs) { var m = median(xs); return m == null ? null : Math.round(m); }
   // 일정 행: 날짜 | 종류·회사명·배지(줄바꿈 허용) / 주관사·가격(줄바꿈 허용). 휴대폰에서 좌우로 넘치지 않게 모두 접어 씁니다.
   function evRow(e, today) {
@@ -2743,7 +2748,7 @@
       var r = x.r, d = x.d, k = d && d.status !== "approved" ? stKey(d) : null, o = k ? (DOT[k] || DOT.filed) : x.left < 0 ? ["만료", "off"] : ["대기", "off"];
       var tip = (k ? statusLabel(d) : "신고서 제출 전") + " · 효력 만료 " + x.exp + (x.left >= 0 ? " (" + x.left + "일 남음)" : " (만료)");
       var trc = ((r.s || "").indexOf(FOCUS_NAME) >= 0 ? "focus" : "") + (wi >= 5 ? " rest" : "");   // 앞 5건만, 나머지는 더 보기
-      return "<tr" + (trc.trim() ? ' class="' + trc.trim() + '"' : "") + "><td>" + nmLink(r.id, r.n) + "</td><td>" + spText(r.s) + '</td><td class="num mono' + (x.left <= 45 ? " warn" : "") + '" title="' + esc(tip) + '">' + esc(r.d.slice(2).replace(/-/g, ".")) +
+      return "<tr" + (trc.trim() ? ' class="' + trc.trim() + '"' : "") + "><td>" + nmLink(r.id, r.n) + '</td><td title="' + esc(r.s || "") + '">' + spTextShort(r.s) + '</td><td class="num mono' + (x.left <= 45 ? " warn" : "") + '" title="' + esc(tip) + '">' + esc(r.d.slice(2).replace(/-/g, ".")) +
         '</td><td><span class="sdot s-' + o[1] + '" title="' + esc(tip) + '"><i></i>' + o[0] + "</span></td></tr>";
     }).join("");
     var waitPanel = '<section class="panel"><header><div><h2>승인 후 상장 대기 <span class="cnt">' + waiting.length + "</span></h2></div></header>" +
