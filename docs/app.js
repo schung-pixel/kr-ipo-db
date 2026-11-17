@@ -2732,24 +2732,6 @@
     var RV = data.reviews || [];
     var byId = {}; data.deals.forEach(function (d) { byId[d.deal_id] = d; });
 
-    // 3) 예심 현황
-    var decided = RV.filter(function (r) { return rvKind(r) !== "pending" && rvKind(r) !== "other" && r.f && r.d; });
-    var y1 = addDays(today, -365);
-    var appr1 = decided.filter(function (r) { return r.d >= y1 && rvIpo(r) && rvKind(r) === "approved"; });
-    var dec1 = decided.filter(function (r) { return r.d >= y1 && rvIpo(r); });
-    var durs1 = appr1.map(function (r) { return daysBetween(r.f, r.d); });
-    var medDur = medInt(durs1);
-    var pendAll = RV.filter(function (r) { return rvKind(r) === "pending"; });
-    var pend = pendAll.filter(function (r) { return daysBetween(r.f, today) <= 365; }).sort(function (a, b) { return a.f < b.f ? -1 : 1; });
-    var stale = pendAll.length - pend.length;
-    var pendRows = pend.map(function (r) {
-      var el = daysBetween(r.f, today), over = medDur && el > medDur;
-      return "<tr" + ((r.s || "").indexOf(FOCUS_NAME) >= 0 ? ' class="focus"' : "") + "><td>" + nmLink(r.id, r.n) + (/스팩/.test(r.t || "") ? ' <span class="dim">(' + esc(r.t) + ")</span>" : "") + '</td><td class="c-m">' + esc(r.m || "-") + "</td><td>" + spText(r.s) +
-        '</td><td class="num mono">' + esc(r.f.slice(2).replace(/-/g, ".")) + '</td><td class="num mono' + (over ? " warn" : "") + '">' + el + "일</td></tr>";
-    }).join("");
-    var pendPanel = '<section class="panel"><header><div><h2>심사 중 <span class="cnt">' + pend.length + "</span></h2>" + "</div></header>" +
-      '<div class="pbody"><div class="scroll"><table class="mini rv"><thead><tr><th>회사</th><th class="c-m">시장</th><th>주관사</th><th class="num">청구일</th><th class="num">경과</th></tr></thead><tbody>' + pendRows + "</tbody></table></div></div></section>";
-
     // 승인 후 아직 상장하지 않은 건: 효력 6개월
     var waiting = RV.filter(function (r) { return r.r === "심사 승인" && r.d && !/스팩|재상장/.test(r.t || ""); }).map(function (r) {
       var exp = addMonths(r.d, 6), d = r.id ? byId[r.id] : null;
@@ -2767,7 +2749,7 @@
       '<div class="pbody"><div class="scroll"><table class="mini rv wait"><colgroup><col class="w-n"><col class="w-u"><col class="w-d"><col class="w-s"></colgroup><thead><tr><th>회사</th><th>주관사</th><th class="num">승인일</th><th>진행</th></tr></thead><tbody>' + waitRows + "</tbody></table></div></div></section>";
 
     app.innerHTML = '<div class="content cal-page">' + gsearchBox() + briefing(today) + monthPanel(today) + dealTable(today) +
-      '<div class="panels even">' + pendPanel + waitPanel + "</div></div>";
+      '<div class="panels even">' + waitPanel + "</div></div>";   // 심사 중 표는 목록 탭의 '예심 심사 중' 카드와 겹쳐 삭제
     bindCal();
     bindGsearch();
   }
