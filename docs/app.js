@@ -2739,14 +2739,15 @@
     }).filter(function (x) { return x.left >= -30; }).sort(function (a, b) { return a.exp < b.exp ? -1 : 1; });
     // T4: 진행 상태는 색 점 + 짧은 글자, 효력 만료 45일 이내는 승인일을 붉게(남은 기간 열 없음)
     var DOT = { filed: ["신고", "filed"], price_fixed: ["확정", "fixed"], completed: ["상장", "done"], upcoming: ["예정", "done"], withdrawn: ["철회", "off"] };
-    var waitRows = waiting.map(function (x) {
+    var waitRows = waiting.map(function (x, wi) {
       var r = x.r, d = x.d, k = d && d.status !== "approved" ? stKey(d) : null, o = k ? (DOT[k] || DOT.filed) : x.left < 0 ? ["만료", "off"] : ["대기", "off"];
       var tip = (k ? statusLabel(d) : "신고서 제출 전") + " · 효력 만료 " + x.exp + (x.left >= 0 ? " (" + x.left + "일 남음)" : " (만료)");
-      return "<tr" + ((r.s || "").indexOf(FOCUS_NAME) >= 0 ? ' class="focus"' : "") + "><td>" + nmLink(r.id, r.n) + "</td><td>" + spText(r.s) + '</td><td class="num mono' + (x.left <= 45 ? " warn" : "") + '" title="' + esc(tip) + '">' + esc(r.d.slice(2).replace(/-/g, ".")) +
+      var trc = ((r.s || "").indexOf(FOCUS_NAME) >= 0 ? "focus" : "") + (wi >= 5 ? " rest" : "");   // 앞 5건만, 나머지는 더 보기
+      return "<tr" + (trc.trim() ? ' class="' + trc.trim() + '"' : "") + "><td>" + nmLink(r.id, r.n) + "</td><td>" + spText(r.s) + '</td><td class="num mono' + (x.left <= 45 ? " warn" : "") + '" title="' + esc(tip) + '">' + esc(r.d.slice(2).replace(/-/g, ".")) +
         '</td><td><span class="sdot s-' + o[1] + '" title="' + esc(tip) + '"><i></i>' + o[0] + "</span></td></tr>";
     }).join("");
     var waitPanel = '<section class="panel"><header><div><h2>승인 후 상장 대기 <span class="cnt">' + waiting.length + "</span></h2></div></header>" +
-      '<div class="pbody"><div class="scroll"><table class="mini rv wait"><colgroup><col class="w-n"><col class="w-u"><col class="w-d"><col class="w-s"></colgroup><thead><tr><th>회사</th><th>주관사</th><th class="num">승인일</th><th>진행</th></tr></thead><tbody>' + waitRows + "</tbody></table></div></div></section>";
+      '<div class="pbody mgrp wgrp"><div class="scroll"><table class="mini rv wait"><colgroup><col class="w-n"><col class="w-u"><col class="w-d"><col class="w-s"></colgroup><thead><tr><th>회사</th><th>주관사</th><th class="num">승인일</th><th>진행</th></tr></thead><tbody>' + waitRows + "</tbody></table></div>" + (waiting.length > 5 ? moreBtnHtml("div") : "") + "</div></section>";
 
     app.innerHTML = '<div class="content cal-page">' + gsearchBox() + briefing(today) + monthPanel(today) + dealTable(today) +
       '<div class="panels even">' + waitPanel + "</div></div>";   // 심사 중 표는 목록 탭의 '예심 심사 중' 카드와 겹쳐 삭제
