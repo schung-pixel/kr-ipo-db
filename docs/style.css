@@ -881,7 +881,7 @@ a.bcard:active { background: var(--surface2); }
 .focus-t { color: #1a6fd1; font-weight: 700; }
 .mini.rv.q .bar-cell { width: 34%; padding-left: 14px; }
 .cal-page .panel .pbody .scroll { max-height: 520px; overflow: auto; }
-.cal-page .wgrp .scroll { max-height: none; }
+.cal-page .panel .pbody.wgrp .scroll { max-height: none; overflow: visible; }   /* 표 안 스크롤 없음: 더 보기로 펼침 */
 .wgrp tr.rest { display: none; }
 .wgrp.open tr.rest { display: table-row; }
 .wgrp > .more .rvm { padding: 10px 0 2px; font-size: 13px; font-weight: 600; }
