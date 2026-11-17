@@ -160,13 +160,20 @@
     d._fr = r;
     return r;
   }
-  function focusTag(d) {
+  // NH 강조: 칩 대신 주관사 글자에서 파란색. 공동·인수단이면 대표주관사 뒤에 "NH(공동)"을 덧붙임
+  function uwHtml(d, q, full) {
+    var parts = splitNames(d.lead_underwriters).map(function (n) {
+      var t = full ? n : uwShort(n), h = q ? highlight(t, q) : esc(t);
+      return n.indexOf(FOCUS_NAME) >= 0 ? '<b class="focus-t">' + h + "</b>" : h;
+    });
     var r = focusRole(d);
-    return r ? '<span class="tag b-focus" title="' + FOCUS_NAME + " " + r + (r === "인수" ? "단" : "주관") + ' 참여">' + FOCUS_SHORT + " " + r + "</span>" : "";
+    if (r && r !== "대표") parts.push('<b class="focus-t">' + (full ? FOCUS_NAME : FOCUS_SHORT) + "(" + r + ")</b>");
+    return parts.length ? parts.join(", ") : "주관사 미확인";
   }
+  function focusHi(s) { return splitNames(s).map(function (n) { return n.indexOf(FOCUS_NAME) >= 0 ? '<b class="focus-t">' + esc(n) + "</b>" : esc(n); }).join(", "); }
   function boardTag(d, brief) {   // brief: 목록 카드용으로 기술평가 등급을 빼고 "기술"만
-    var m = d.board === "KOSPI" ? '<span class="tag b-ks">유가</span>'
-      : (d.board === "KOSDAQ" || d.board === "KOSDAQ_TECH") ? '<span class="tag b-kq">코스닥</span>' : "";
+    var m = d.board === "KOSPI" ? '<span class="tag b-ks" title="유가증권시장">KS</span>'
+      : (d.board === "KOSDAQ" || d.board === "KOSDAQ_TECH") ? '<span class="tag b-kq" title="코스닥">KQ</span>' : "";
     if (isSpac(d)) return m;
     var r = "";
     if (d.board === "KOSDAQ_TECH") {
@@ -324,7 +331,7 @@
   var STATUS = {
     review: { label: "예심 청구", tip: "상장예비심사를 청구했고 결과가 아직 나오지 않은 단계(한국거래소 KIND 기준)", icon: '<path d="M3.5 1.8h7M3.5 12.2h7M4.5 1.8c0 3 5 3.4 5 5.2s-5 2.2-5 5.2M9.5 1.8c0 3-5 3.4-5 5.2s5 2.2 5 5.2" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>' },
     approved: { label: "예심 승인", tip: "상장예비심사 승인을 받았고 증권신고서는 아직 내지 않은 단계", icon: '<path d="M7 1.6l1.5 1.2 1.9-.2.6 1.8 1.6 1-.6 1.8.6 1.8-1.6 1-.6 1.8-1.9-.2L7 12.4l-1.5-1.2-1.9.2-.6-1.8-1.6-1 .6-1.8-.6-1.8 1.6-1 .6-1.8 1.9.2z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M4.8 7.1l1.5 1.5 2.9-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>' },
-    filed: { label: "신고서 제출", tip: "증권신고서를 냈고 공모가는 아직 정해지지 않은 단계(수요예측 전·중)", icon: '<circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.8"/>' },
+    filed: { label: "신고서", tip: "증권신고서를 냈고 공모가는 아직 정해지지 않은 단계(수요예측 전·중)", icon: '<circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.8"/>' },
     price_fixed: { label: "가격 확정", tip: "발행조건확정 신고서로 공모가가 정해졌고 증권발행실적보고서는 아직인 단계(청약·납입)", icon: '<path d="M2.5 7.4l3 3 6-6.4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>' },
     completed: { label: "상장 완료", tip: "증권발행실적보고서 제출 후 상장일이 지난 공모", icon: '<path d="M3.5 12V2.5M3.5 3h7l-1.8 2.5L10.5 8h-7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/>' },
     withdrawn: { label: "철회", tip: "철회신고서를 낸 공모", icon: '<path d="M3 3l8 8M11 3l-8 8" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>' }
@@ -345,9 +352,11 @@
     var tip = up ? "증권발행실적보고서를 냈고 상장일(" + d.listing_dt + ")이 아직 오지 않은 공모" : s.tip;
     return '<span class="chip ' + esc(st) + (up ? " upcoming" : "") + '" title="' + esc(tip || "") + '"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">' + s.icon + "</svg>" + label + "</span>";
   }
+  var NFR = {};   // 경쟁률: 천 단위 쉼표 없이(1234:1)
   function ratio(v, digits) {
     if (v == null) return null;
-    return nf(digits || 0, digits == null ? 0 : digits).format(Number(v)) + ":1";
+    var k = digits || 0;
+    return (NFR[k] || (NFR[k] = new Intl.NumberFormat("ko-KR", { minimumFractionDigits: k, maximumFractionDigits: k, useGrouping: false }))).format(Number(v)) + ":1";
   }
 
   // 확정가가 희망 밴드의 어디에 놓였는지 (밴드가 없거나 단일 희망가면 판단하지 않음)
@@ -865,13 +874,14 @@
     var cards = '<div class="cards">';
     rows.forEach(function (d) {
       var p = position(d);
-      var tags = boardTag(d, true) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + refileTag(d) + focusTag(d);
+      var tags = boardTag(d, true) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + refileTag(d);
       var bandCell = d.offer_price_low ? bandText(d) : (d.filed_price ? '<span class="dim" title="신고서 기재 기준가">' + int(d.filed_price) + "*</span>" : "-");
       var href = "#/deal/" + encodeURIComponent(d.deal_id);
-      html += '<tr data-id="' + esc(d.deal_id) + '">' +
+      var fc = focusRole(d) ? " focus" : "";
+      html += '<tr data-id="' + esc(d.deal_id) + '"' + (fc ? ' class="focus"' : "") + ">" +
         '<td class="c-date">' + (d.listing_dt ? esc(d.listing_dt) : d.demand_start && d.status !== "withdrawn" ? '<span class="dim">수요예측 </span>' + esc(demandText(d, true)) : '<span class="dim">' + (d.status === "approved" ? "승인 " : d.status === "review" ? "청구 " : "신고 ") + esc(d.first_filing_dt) + "</span>") + "</td>" +
         '<td class="c-name"><a class="nm" href="' + href + '">' + hlName(name(d), q) + "</a>" + tags + "</td>" +
-        '<td class="c-lead" title="' + esc(d.lead_underwriters || "") + '">' + (d.lead_underwriters ? highlight(d.lead_underwriters, q) : '<span class="dim">-</span>') + "</td>" +
+        '<td class="c-lead" title="' + esc(d.lead_underwriters || "") + '">' + (d.lead_underwriters || fc ? uwHtml(d, q, true) : '<span class="dim">-</span>') + "</td>" +
         '<td class="c-status">' + chip(d) + "</td>" +
         '<td class="c-band n">' + bandCell + "</td>" +
         '<td class="c-final n">' + (d.final_price ? (p ? pill(p) : "") + "<b>" + int(d.final_price) + "</b>" : '<span class="dim">-</span>') + "</td>" +
@@ -887,9 +897,9 @@
         ? '<span class="b">' + bandCell + '</span><span class="arrow" aria-label="확정">→</span><b>' + int(d.final_price) + "</b>" + (p ? pill(p) : "")
         : '<span class="lbl">밴드</span><span class="b">' + bandCell + "</span>";
       var hasRatio = d.inst_demand_ratio != null || d.retail_ratio != null;
-      cards += '<a class="card" href="' + href + '" data-id="' + esc(d.deal_id) + '">' +
+      cards += '<a class="card' + fc + '" href="' + href + '" data-id="' + esc(d.deal_id) + '">' +
         '<div class="r1"><span class="nmw"><span class="nm">' + hlName(name(d), q) + '</span>' + (tags ? '<span class="tags">' + tags + "</span>" : "") + "</span>" + chip(d) + "</div>" +
-        '<div class="r2">' + (d.listing_dt ? '상장 <span class="mono">' + esc(d.listing_dt) + "</span>" : d.demand_start && d.status !== "withdrawn" ? '수요예측 <span class="mono">' + esc(demandText(d, true)) + "</span>" : (d.status === "approved" ? "예심 승인 " : d.status === "review" ? "예심 청구 " : "신고 ") + '<span class="mono">' + esc(d.first_filing_dt) + "</span>") + " · " + (d.lead_underwriters ? highlight(uwShortStr(d.lead_underwriters), q) : "주관사 미확인") + "</div>" +
+        '<div class="r2">' + (d.listing_dt ? '상장 <span class="mono">' + esc(d.listing_dt) + "</span>" : d.demand_start && d.status !== "withdrawn" ? '수요예측 <span class="mono">' + esc(demandText(d, true)) + "</span>" : (d.status === "approved" ? "예심 승인 " : d.status === "review" ? "예심 청구 " : "신고 ") + '<span class="mono">' + esc(d.first_filing_dt) + "</span>") + " · " + uwHtml(d, q) + "</div>" +
         '<div class="r3"><span class="price">' + price + "</span>" + (!hasRatio && d.offer_amount != null ? '<span class="amt r3a">공모액<b>' + eok(d.offer_amount) + "억</b></span>" : "") + "</div>" +
         (hasRatio
           ? '<div class="r4">' + (d.inst_demand_ratio != null ? "<span>수요예측<b>" + ratio(d.inst_demand_ratio) + "</b></span>" : "") +
@@ -915,7 +925,7 @@
           b = bar(since / 183 * 100, since > 150 ? "warn" : "ok");
         }
         return '<li class="' + d.status + '"><a href="#/deal/' + encodeURIComponent(d.deal_id) + '"><span class="nm">' + esc(name(d)) + "</span>" +
-          txt + b + '<span class="uw">' + esc(uwShortStr(d.lead_underwriters || "")) + "</span></a></li>";
+          txt + b + '<span class="uw">' + (d.lead_underwriters ? uwHtml(d) : "") + "</span></a></li>";
       };
       var ap = rvGroup.filter(function (d) { return d.status === "approved"; }),
         rv = rvGroup.filter(function (d) { return d.status === "review"; }).sort(function (a, b) { return a.first_filing_dt > b.first_filing_dt ? -1 : 1; });
@@ -1277,7 +1287,7 @@
     for (var i = 0; i < list.length; i++) if (list[i].deal_id === id) { idx = i; break; }
     var prev = idx > 0 ? list[idx - 1] : null, next = idx >= 0 && idx < list.length - 1 ? list[idx + 1] : null;
     titleEl.textContent = name(d);
-    chipEl.innerHTML = chip(d) + boardTag(d) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + refileTag(d) + focusTag(d) + (bc ? bioChips(bc) : "");
+    chipEl.innerHTML = chip(d) + boardTag(d) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + refileTag(d) + (bc ? bioChips(bc) : "");
     var tlEl = document.getElementById("sheet-tl");
     if (d.status === "review") {
       subEl.textContent = "예심 청구 " + (d.first_filing_dt || "-") + (d.prelim && d.prelim.market ? " · " + d.prelim.market : "") + (d.lead_underwriters ? " · " + d.lead_underwriters : "");
@@ -1361,7 +1371,7 @@
         d.listing_dt ? (d.listing_dt > asOf() ? "예정" : "") : lstNote(d)) +
       term(amtLabel, d.offer_amount != null ? eok(d.offer_amount) + "<small>억원</small>" : "-") +
       term(shrLabel, d.shares_offered != null ? int(d.shares_offered) + "<small>주</small>" : "-", d.secondary_shares ? "구주 " + int(d.secondary_shares) + "주" : "") +
-      term("대표주관", esc(d.lead_underwriters || "-"), d.co_underwriters ? "공동 " + esc(d.co_underwriters) : "", "txt") +
+      term("대표주관", d.lead_underwriters ? focusHi(d.lead_underwriters) : "-", d.co_underwriters ? "공동 " + focusHi(d.co_underwriters) : focusRole(d) === "인수" ? '<b class="focus-t">' + FOCUS_NAME + " 인수단</b>" : "", "txt") +
       "</div>";
     html += d1Block(d);
     html += '<div id="bandviz-slot"></div>';
@@ -1939,7 +1949,7 @@
     var nonTechKq = deals.filter(function (d) { return d.board === "KOSDAQ" && !isSpac(d); });
     var cmp = [["기술특례", tech], ["코스닥 일반", nonTechKq]].map(function (r) {
       var ds = r[1], pd = ds.filter(function (d) { return position(d); }), up = pd.filter(function (d) { var p = position(d); return p === "상단" || p === "초과"; }).length;
-      return '<div><span class="k">' + r[0] + '</span><span class="v">' + (median(ds.map(function (d) { return d.inst_demand_ratio; })) != null ? int(Math.round(median(ds.map(function (d) { return d.inst_demand_ratio; })))) + "<small>:1</small>" : "-") +
+      return '<div><span class="k">' + r[0] + '</span><span class="v">' + (median(ds.map(function (d) { return d.inst_demand_ratio; })) != null ? Math.round(median(ds.map(function (d) { return d.inst_demand_ratio; }))) + "<small>:1</small>" : "-") +
         '</span><span class="s">상단 이상 ' + (pd.length ? Math.round(up / pd.length * 100) + "%" : "-") + " · 공모액 중앙값 " + (median(ds.map(function (d) { return d.offer_amount; })) != null ? jo(median(ds.map(function (d) { return d.offer_amount; })) / 1e8) : "-") + "</span></div>";
     }).join("");
     techPanel = '<section class="panel tech"><header><div><h2>기술특례 분석</h2>' + "</div></header>" +
@@ -2429,14 +2439,14 @@
   // 일정 행: 날짜 | 종류·회사명·배지(줄바꿈 허용) / 주관사·가격(줄바꿈 허용). 휴대폰에서 좌우로 넘치지 않게 모두 접어 씁니다.
   function evRow(e, today) {
     var d = e.d, past = e.b < today, now = e.a <= today && e.b >= today;
-    var sub = [esc(uwShortStr(d.lead_underwriters) || "주관사 미확인")];
+    var sub = [uwHtml(d)];
     if (e.k === "수요예측" && d.offer_price_low) sub.push('<span class="mono">' + bandText(d) + "원</span>");
     if (e.k !== "수요예측" && d.final_price) sub.push('<span class="mono">' + int(d.final_price) + "원</span>");
     if (d.offer_amount && e.k !== "납입") sub.push('<span class="mono">' + eok(d.offer_amount) + "억</span>");
     return '<a class="ev' + (past ? " past" : "") + (now ? " now" : "") + (focusRole(d) ? " focus" : "") + '" href="#/deal/' + encodeURIComponent(d.deal_id) + '">' +
       '<span class="ed mono">' + (e.b !== e.a ? esc(md(e.a)) + "<br>~" + esc(md(e.b)) : esc(mdw(e.a))) + "</span>" +
       '<span class="em"><span class="ek k-' + EV_ORDER[e.k] + '">' + e.k + '</span><span class="nm">' + esc(name(d)) + "</span>" +
-      boardTag(d) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + focusTag(d) + "</span>" +
+      boardTag(d, true) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + "</span>" +
       '<span class="eu">' + sub.join(" · ") + "</span></a>";
   }
   // 달력: 월 단위, 일요일 시작. 여러 날짜에 걸친 수요예측·청약은 평일에만 표시합니다.
@@ -2485,10 +2495,10 @@
       return '<div class="dg g-' + EV_ORDER[k] + '"><h4>' + k + " · " + xs.length + "건</h4>" + xs.map(function (e) {
         var d = e.d;
         return '<a class="it' + (focusRole(d) ? " focus" : "") + '" href="#/deal/' + encodeURIComponent(d.deal_id) + '"><span class="nm">' + esc(name(d)) + "</span>" +
-          boardTag(d) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + focusTag(d) +
+          boardTag(d, true) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") +
           (function () { var dn = dayNthHtml(e, day);   // 며칠차가 나오면 기간은 생략(기간은 툴팁으로)
             if (!dn && e.a === day && (!e.b || e.b === e.a)) return e.q ? '<span class="r mono"><em class="lq">' + e.q + "</em></span>" : "";   // 하루짜리 일정(상장 등)은 고른 날짜와 같아 생략
-            return dn ? '<span class="r mono" title="' + esc(rngT(e.a, e.b)) + '">' + dn + "</span>" : '<span class="r mono">' + esc(rngT(e.a, e.b)) + (e.q ? ' <em class="lq">' + e.q + "</em>" : "") + "</span>"; })() + '<span class="u">' + esc(uwShortStr(d.lead_underwriters) || "주관사 미확인") + (pxText(d) ? " · " + '<span class="mono">' + pxText(d) + "</span>" : "") + "</span></a>";
+            return dn ? '<span class="r mono" title="' + esc(rngT(e.a, e.b)) + '">' + dn + "</span>" : '<span class="r mono">' + esc(rngT(e.a, e.b)) + (e.q ? ' <em class="lq">' + e.q + "</em>" : "") + "</span>"; })() + '<span class="u">' + uwHtml(d) + (pxText(d) ? " · " + '<span class="mono">' + pxText(d) + "</span>" : "") + "</span></a>";
       }).join("") + "</div>";
     }).join("");
   }
@@ -2609,8 +2619,8 @@
       if (!q.trim()) { dd.hidden = true; qi.setAttribute("aria-expanded", "false"); return; }
       dd.innerHTML = (hits.length ? '<div class="gdh">기업 ' + hits.total + "</div>" + hits.map(function (d) {
         return '<a class="gri" href="#/deal/' + encodeURIComponent(d.deal_id) + '"><span class="nm">' + hlName(name(d), q.trim()) + "</span>" + boardTag(d) +
-          (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + focusTag(d) + '<span class="gst">' + esc(statusLabel(d)) + "</span>" +
-          '<span class="u">' + esc(gsearchWhen(d)) + " · " + esc(uwShortStr(d.lead_underwriters) || "주관사 미확인") + "</span></a>";
+          (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") + '<span class="gst">' + esc(statusLabel(d)) + "</span>" +
+          '<span class="u">' + esc(gsearchWhen(d)) + " · " + uwHtml(d) + "</span></a>";
       }).join("") : '<div class="gdh">"' + esc(q.trim()) + '"에 맞는 공모가 없습니다.</div>') +
         (hits.length > 0 ? '<button type="button" class="gall" id="g-all">목록에서 전체 결과 보기' + (hits.total > hits.length ? " (" + hits.total + "건)" : "") + " ›</button>" : "");
       dd.hidden = false; qi.setAttribute("aria-expanded", "true");

@@ -872,13 +872,17 @@ a.bcard:active { background: var(--surface2); }
 .ek.k-bad { background: var(--bad-soft); color: var(--bad); }
 .feedl { list-style: none; margin: 0; padding: 0; }
 .feedl li + li { border-top: 1px solid var(--line2); border-radius: 0; }
-.ev.focus .nm, .feedl li.focus .nm { color: #1a6fd1; }
+.feedl li.focus .nm { color: #1a6fd1; }
 .mini.rv td a.nm { color: inherit; font-weight: 600; text-decoration: none; }
 .mini.rv td a.nm:hover { text-decoration: underline; }
 .mini.rv td .nm { font-weight: 600; }
 .mini.rv td.warn { color: var(--bad); font-weight: 600; }
 .mini.rv tr.focus td { background: color-mix(in srgb, #1a6fd1 8%, transparent); }
 .focus-t { color: #1a6fd1; font-weight: 700; }
+:root[data-theme="dark"] .focus-t { color: #5aa2f5; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .focus-t { color: #5aa2f5; } }
+/* NH 참여 딜: 칩 대신 옅은 하늘색 바탕 */
+.cards .card.focus, .deals tbody tr.focus td, .ev.focus, .cdl .it.focus, .dtable .xr.focus { background: color-mix(in srgb, #2b8ce6 9%, var(--surface)); }
 .mini.rv.q .bar-cell { width: 34%; padding-left: 14px; }
 .cal-page .panel .pbody .scroll { max-height: 520px; overflow: auto; }
 .cal-page .panel .pbody.wgrp .scroll { max-height: none; overflow: visible; }   /* 표 안 스크롤 없음: 더 보기로 펼침 */
@@ -1028,7 +1032,6 @@ header.top .brand .upd { font-size: 12px; color: var(--faint); font-family: var(
 .cdl .it .nm { font-weight: 600; overflow-wrap: anywhere; }
 .cdl .it .r { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
 .cdl .it .u { width: 100%; font-size: 12px; color: var(--muted); }
-.cdl .it.focus .nm { color: #1a6fd1; }
 .cdl .it:hover { background: var(--surface2); }
 /* 등급 행 → 회사 시트 */
 .grades tr.go { cursor: pointer; }
@@ -1401,6 +1404,7 @@ header.top nav.tabs, #app .srow .search {
   html.dock #app .content { margin-right: calc(clamp(460px, 40vw, 720px) + 16px); }
   .deals tbody tr.picked td { background: var(--accent-soft); }
   .deals tbody tr.picked td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+  .cards .card.focus.picked { background: color-mix(in srgb, #2b8ce6 9%, var(--surface)); }
   .cards .card.picked { box-shadow: inset 0 0 0 2px var(--accent), var(--sh1); }
 }
 /* 넓은 화면(1400px 이상): 일정 탭 3단 — 브리핑·달력 | 딜별 공모 일정 | 심사 중·승인 후 대기 */
@@ -1414,6 +1418,7 @@ header.top nav.tabs, #app .srow .search {
   html.dock .ledger { background: transparent; border: 0; box-shadow: none; overflow: visible; }
   html.dock .ledger .cards { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
   html.dock .ledger .cards .card { background: var(--surface); border: 1px solid var(--line2); border-radius: 14px; box-shadow: var(--sh1); padding: 12px 14px; }
+  html.dock .ledger .cards .card.focus { background: color-mix(in srgb, #2b8ce6 9%, var(--surface)); }
 }
 @media (min-width: 1061px) and (max-width: 1799px) { html.dock .ledger .cards .card.picked { box-shadow: inset 0 0 0 2px var(--accent), var(--sh1); } }
 
