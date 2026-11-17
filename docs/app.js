@@ -1794,9 +1794,9 @@
       kpiTile(kq.length ? Math.round(techN / kq.length * 100) : "-", kq.length ? "%" : "", "코스닥 중 기술특례 (" + techN + "/" + kq.length + "건)") +
       kpiTile(instMed != null ? ratio(instMed, 0).replace(":1", "") : "-", instMed != null ? ":1" : "", "수요예측 경쟁률 중앙값 (스팩 제외)") + "</section>";
 
-    var W = Math.max(300, Math.min(app.clientWidth - 40, 1220)), H = W < 500 ? 240 : 280;
+    var W = Math.max(300, Math.min(app.clientWidth - 40, 1760)), H = W < 500 ? 240 : 280;
     var L = 48, R = 10, T = 24, B = 30, ih = H - T - B;
-    var halfW = window.innerWidth > 1060 ? Math.round((Math.min(app.clientWidth, 1232) - 16) / 2) - 38 : W;
+    var halfW = window.innerWidth > 1060 ? Math.round((Math.min(app.clientWidth, 1792) - 16) / 2) - 38 : W;
 
     // ---- 1) 시장별 상장 추이 (누적 막대)
     var isAmt = state.metric === "amount";
@@ -2042,7 +2042,10 @@
 
     })();
     var unitWord = unit === "year" ? "연도별" : unit === "quarter" ? "분기별" : "월별";
-    setStatsHtml('<div class="content">' + gsearchBox() + head + kpi +
+    var stab = state.sTab || "ov";
+    var stabs = '<div class="stabs" role="tablist" aria-label="통계 분류">' + STAT_TABS.map(function (t) {
+      return '<button type="button" role="tab" data-st="' + t[0] + '" aria-selected="' + (t[0] === stab) + '">' + t[1] + "</button>"; }).join("") + "</div>";
+    setStatsHtml('<div class="content stat-page" data-st="' + stab + '">' + gsearchBox() + head + kpi + stabs +
       '<section class="panel"><header><div><h2>' + unitWord + " 상장 추이</h2>" + "</div>" +
       segBtns("data-m", [["count", "건수"], ["amount", "공모액"]], isAmt ? "amount" : "count") + '</header><div class="pbody chart zoomable">' + legend1 + svg1 +
       '<details class="tv"><summary>표로 보기</summary>' + tbl1 + "</details></div></section>" +
@@ -2052,8 +2055,28 @@
       '<section class="panel"><header><div><h2>밴드 대비 확정가 위치</h2>' + "</div></header>" +
       '<div class="pbody chart zoomable">' + legend3 + svg3 + "</div></section></div>" +
       (statFast ? '<div class="keep"></div>' : '<div class="stack">' + floatP + '<div class="panels even">' + techPanel + leaguePanel + "</div>" + '<div class="panels even">' + sectorPanel + valPanel + "</div>" + uwPanel + reviewStatPanels() + "</div>") + "</div>");
+    tagStatPanels();
     bindStats();
     bindChart();
+  }
+  // PC 통계: 하위 탭(개요 · 유통물량 · 주관사·심사 · 업종·공모가)으로 나눠 2단 배치. 휴대폰은 모두 한 줄로 이어서 보여 줌
+  var STAT_TABS = [["ov", "개요"], ["fl", "유통물량"], ["uw", "주관사·심사"], ["sec", "업종·공모가"]];
+  function tagStatPanels() {
+    var c = app.querySelector(".stat-page");
+    if (!c) return;
+    c.querySelectorAll("section.panel").forEach(function (p) {
+      var h = (p.querySelector("h2") || {}).textContent || "";
+      var g = /상장 추이|경쟁률 추이|밴드 대비/.test(h) ? "ov" : /유통물량/.test(h) ? "fl" : /주관사|심사/.test(h) ? "uw" : /업종|공모가|기술특례/.test(h) ? "sec" : "ov";
+      p.classList.add("sg", "g-" + g);
+      if (/상장 추이|유통물량/.test(h)) p.classList.add("wide");
+    });
+    c.querySelectorAll(".stabs button").forEach(function (b) {
+      b.addEventListener("click", function () {
+        state.sTab = b.dataset.st; c.dataset.st = b.dataset.st;
+        c.querySelectorAll(".stabs button").forEach(function (x) { x.setAttribute("aria-selected", x === b ? "true" : "false"); });
+        if (window.scrollY > 0) window.scrollTo(0, 0);
+      });
+    });
   }
   // 제스처 중에는 그래프 상자(.zoomable)를 DOM에서 떼지 않고 안쪽만 바꿉니다(포인터 캡처 유지).
   function patchNode(o, n) {
@@ -2758,6 +2781,11 @@
     var A = bio.attempts, CO = bio.companies, years = bioYears();
     var W = Math.max(300, Math.min(app.clientWidth - 40, 1220)), H = W < 500 ? 240 : 270;
     var halfW = window.innerWidth > 1060 ? Math.round((Math.min(app.clientWidth, 1232) - 16) / 2) - 38 : W;
+    var halfW2 = halfW;   // 기간·계약 구성 차트 폭
+    if (window.innerWidth > 1060) {   // PC: 오른쪽 차트 칸(왼쪽 명단 1.15 : 오른쪽 1) 폭에 맞춰 그림
+      W = Math.round((Math.min(app.clientWidth, 1792) - 16) / 2.15) - 38;
+      halfW = Math.round((W - 16) / 2); halfW2 = W;
+    }
     var recent = A.filter(function (a) { return a.y >= 2024 && a.group; });
     var past = A.filter(function (a) { return a.y >= 2014 && a.y <= 2021 && a.group; });
     var rate = function (xs) { var ok = xs.filter(function (a) { return a.outcome === "승인"; }).length; return xs.length ? Math.round(ok / xs.length * 100) : null; };
@@ -2793,7 +2821,7 @@
       "</tr></thead><tbody>" + condRows.map(function (r) { return "<tr>" + r.map(function (c, i) { return "<td" + (i ? ' class="num"' : "") + ">" + c + "</td>"; }).join("") + "</tr>"; }).join("") + "</tbody></table></div>" +
       '<p class="snote">위는 통과율, 아래는 승인 건/청구 건입니다.</p>';
     // 3) 심사 소요일 (연도별 중앙값)
-    var W4 = halfW, H4 = H - 10, L = 44, R = 10, T = 22, B = 30, ih4 = H4 - T - B, band4 = (W4 - L - R) / years.length;
+    var W4 = halfW2, H4 = H - 10, L = 44, R = 10, T = 22, B = 30, ih4 = H4 - T - B, band4 = (W4 - L - R) / years.length;
     var dser = [{ key: "승인", css: "var(--bar)", f: function (a) { return a.outcome === "승인"; } }, { key: "철회·미승인", css: "var(--mk-tech)", f: function (a) { return a.outcome !== "승인"; } }];
     var dm = dser.map(function (s) {
       return years.map(function (y) {
@@ -2822,7 +2850,7 @@
     svgD += "</svg>";
     // 4) 승인사 계약 구성 (청구 연도 기준)
     var pItems = CO.map(function (c) { return { y: +(c.req || c.list_date).slice(0, 4), k: bioProfKey(c), x: { name: c.n } }; });
-    var svgP = bioStack({ years: years, W: halfW, H: H - 10, series: BIO_PROF, items: pItems, unit: "청구·승인", aria: "승인 회사의 계약 구성" });
+    var svgP = bioStack({ years: years, W: halfW2, H: H - 10, series: BIO_PROF, items: pItems, unit: "청구·승인", aria: "승인 회사의 계약 구성" });
 
     // 5) 명단
     var q = bioState.q.trim();
@@ -2865,6 +2893,7 @@
 
     app.innerHTML = '<div class="content">' + gsearchBox() +
       '<p class="notice">상장예비심사를 청구한 코스닥 신약개발사(2005~2026년, 경계 바이오 포함)의 결과와 청구 당시 프로필입니다. 신고서 제출 당시 신약개발사로 보기 어려운 소재·의료기기·진단·분석 플랫폼·바이오시밀러·CDMO 주업 회사는 뺐습니다. 승인 건은 상장 당시 증권신고서, 철회·미승인 건은 언론·공시로 조사했습니다. 기술성평가에서 이미 떨어져 청구하지 못한 회사는 포함되지 않습니다.</p>' + kpi +
+      '<div class="bio-cols"><div class="bio-r">' +
       '<section class="panel"><header><div><h2>연도별 상장예비심사 결과</h2></div></header>' +
       '<div class="pbody chart">' + bioLegend(BIO_RES, resItems) + svgRes + "</div></section>" +
       '<section class="panel"><header><div><h2>청구 시점 L/O 유무와 선두 임상 단계</h2></div></header>' +
@@ -2874,7 +2903,7 @@
       '<section class="panel"><header><div><h2>청구부터 결과까지 걸린 기간</h2></div></header><div class="pbody chart">' +
       '<div class="legend">' + dser.map(function (s) { return '<span><i class="ln-key" style="background:' + s.css + '"></i>' + s.key + "</span>"; }).join("") + "</div>" + svgD + "</div></section>" +
       '<section class="panel"><header><div><h2>승인 회사의 상장 당시 계약 구성</h2></div></header><div class="pbody chart">' + bioLegend(BIO_PROF, pItems) + svgP + "</div></section></div>" +
-      listPanel + failPanel +
+      '</div><div class="bio-l">' + listPanel + failPanel + "</div></div>" +
       '<p class="note">' + esc(bio.note) + " 출처: " + esc(bio.sources) + ". 생성 " + esc(bio.generated) + ".</p></div>";
     bindChart();
     bindBio(); bindGsearch();
