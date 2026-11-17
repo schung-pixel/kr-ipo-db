@@ -413,6 +413,32 @@
     });
     placeInd(document.querySelector(".tabs"));
   }
+  // ---------------------------------------------------------------- PC 화면(1061px 이상)
+  // 상단 한 줄(제목 · 탭 · 검색 · 테마), 목록 탭은 목록과 상세를 나란히(상세는 오른쪽에 고정)
+  var mqDesk = window.matchMedia("(min-width: 1061px)");
+  function isDock(tab) { return mqDesk.matches && (tab || view) === "list"; }
+  function syncDock(tab) { document.documentElement.classList.toggle("dock", isDock(tab)); }
+  var dockQuiet = false;
+  function openFirstDocked() {
+    var rows = filtered();
+    if (!rows.length) return;
+    dockQuiet = true; openSheet(rows[0].deal_id); dockQuiet = false;
+  }
+  // 검색창: PC에서는 상단 줄로 옮기고, 휴대폰 폭이 되면 본문 맨 위로 되돌림
+  function dockSearch() {
+    var top = document.querySelector("header.top");
+    if (!top) return;
+    var slot = top.querySelector(".tsrch");
+    if (!slot) { slot = document.createElement("div"); slot.className = "tsrch"; top.insertBefore(slot, top.querySelector(".topacts")); }
+    var fresh = document.querySelector("#app .srow"), held = slot.querySelector(".srow");
+    if (mqDesk.matches) {
+      if (fresh && fresh !== held) { slot.innerHTML = ""; slot.appendChild(fresh); }
+    } else if (held) {
+      var c = document.querySelector("#app .content");
+      if (c && !c.querySelector(".srow")) c.insertBefore(held, c.firstChild);
+      slot.innerHTML = "";
+    }
+  }
   var routeSeq = 0;
   function route() {
     if (typeof setNavUp === "function") setNavUp(false);
@@ -421,6 +447,7 @@
     var tab = h.indexOf("/stats") === 0 ? "stats" : h === "/cal" ? "cal" : mb || h === "/bio" ? "bio" : m ? (view || "list") : "list";
     setTabs(tab);
     hideTip();
+    syncDock(tab);
     if (!data) return;
     if (m) {
       if (!view) renderList();
@@ -432,12 +459,13 @@
       openBioSheet(decodeURIComponent(mb[1]));
       return;
     }
-    closeSheet();
+    if (!(isDock(tab) && sheetId)) closeSheet();   // PC 목록: 상세는 오른쪽에 계속 펼쳐 둠
     var draw = function () {
       if (tab === "stats") { if (view !== "stats") { renderStats(); window.scrollTo(0, 0); } }
       else if (tab === "bio") { if (view !== "bio") { renderBio(); window.scrollTo(0, 0); } }
       else if (tab === "cal") { if (view !== "cal") { renderCal(); window.scrollTo(0, 0); } }
       else if (view !== "list") { renderList(); window.scrollTo(0, 0); }
+      if (isDock(tab) && !sheetId) openFirstDocked();
     };
     // 탭을 바꿀 때는 표시 막대가 먼저 움직이기 시작한 뒤(두 프레임 뒤) 화면을 그립니다.
     // 목록처럼 무거운 화면을 바로 그리면 그동안 애니메이션이 멈췄다가 튀어 보입니다.
@@ -1230,7 +1258,12 @@
     var d = data.deals.filter(function (x) { return x.deal_id === id; })[0];
     var wasOpen = !sheet.hidden;
     sheet.hidden = false; shade.hidden = false; sheetId = nav ? nav.sid : id;
-    document.documentElement.classList.add("lock");
+    var docked = document.documentElement.classList.contains("dock");
+    if (!docked) document.documentElement.classList.add("lock");
+    document.querySelectorAll(".ledger .picked").forEach(function (x) { x.classList.remove("picked"); });
+    document.querySelectorAll('.ledger [data-id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]').forEach(function (x) {
+      x.classList.add("picked"); if (docked && !dockQuiet && x.offsetParent) x.scrollIntoView({ block: "nearest" });
+    });
     if (!wasOpen) { sheet.style.animation = "none"; void sheet.offsetWidth; sheet.style.animation = ""; }
     var titleEl = document.getElementById("sheet-title"), chipEl = document.getElementById("sheet-chip"), subEl = document.getElementById("sheet-sub");
     if (!d) {
@@ -1371,7 +1404,7 @@
     var slot = document.getElementById("bandviz-slot");
     var viz = bandViz(d, slot.clientWidth - 32);
     slot.outerHTML = viz || "";
-    if (!wasOpen) focusSheet();
+    if (!wasOpen && !dockQuiet) focusSheet();
   }
   document.getElementById("s-close").addEventListener("click", function () { closeTo(baseView()); });
   shade.addEventListener("click", function () { closeTo(baseView()); });
@@ -3339,7 +3372,16 @@
   }, { passive: true });
   syncTopH();
   window.addEventListener("resize", syncTopH);
-  if (window.MutationObserver) new MutationObserver(function () { requestAnimationFrame(syncTopH); }).observe(app, { childList: true });
+  if (window.MutationObserver) new MutationObserver(function () { dockSearch(); requestAnimationFrame(syncTopH); }).observe(app, { childList: true });
+  dockSearch();
+  var onDeskChange = function () {
+    dockSearch(); syncDock(); syncTopH(); placeInd(document.querySelector(".tabs"));
+    if (isDock()) document.documentElement.classList.remove("lock");
+    else if (sheetId && !sheet.hidden) document.documentElement.classList.add("lock");
+    if (isDock() && data && !sheetId) openFirstDocked();
+    if (!isDock() && view === "list" && sheetId && curPath().indexOf("/deal/") !== 0) closeSheet();
+  };
+  if (mqDesk.addEventListener) mqDesk.addEventListener("change", onDeskChange); else if (mqDesk.addListener) mqDesk.addListener(onDeskChange);
   var lastW = window.innerWidth, rt;
   window.addEventListener("resize", function () {
     clearTimeout(rt);

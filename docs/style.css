@@ -1360,3 +1360,50 @@ header.top nav.tabs, #app .srow .search {
 
 .chart .vlabel.sm { font-size: 10px; letter-spacing: -.02em; }
 
+
+/* ================= PC 화면(1061px 이상): 모바일을 키운 배치 대신 PC 전용 배치 =================
+   상단 한 줄(제목 · 탭 · 검색 · 테마, 스크롤해도 위에 고정), 일정 탭은 2~3단, 목록 탭은 목록과 상세를 나란히 */
+.tsrch { display: none; }
+@media (min-width: 1061px) {
+  header.top { position: sticky; top: 0; z-index: 30; grid-template-columns: auto auto minmax(0, 1fr) auto; grid-template-areas: "brand tabs srch acts";
+    gap: 20px; margin-block: 0 16px; padding-block: 12px; background: var(--bg); box-shadow: 0 0 0 100vmax var(--bg); clip-path: inset(0 -100vmax); }
+  header.top .brand { flex-direction: row; align-items: baseline; }
+  header.top nav.tabs { grid-template-columns: repeat(4, auto); height: 42px; }
+  header.top nav.tabs .tab { padding: 0 20px; }
+  header.top .tsrch { display: block; grid-area: srch; min-width: 0; }
+  header.top .tsrch .srow { margin: 0; padding: 0; position: static; }
+  header.top .tsrch .search { height: 42px; }
+  .nav-up header.top, .nav-up .sfilters { transform: none; }
+  .sfilters { top: calc(var(--toph, 66px) + 8px); }
+
+  /* 일정 탭: 브리핑·달력 | 딜별 공모 일정 (아래에 심사 현황) */
+  .cal-page { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); grid-template-rows: auto 1fr; gap: 16px; align-items: start; }
+  .cal-page > .srow { grid-column: 1 / -1; }
+  .cal-page > .brief { grid-column: 1; grid-row: 1; }
+  .cal-page > .calm { grid-column: 1; grid-row: 2; }
+  .cal-page > .dtable { grid-column: 2; grid-row: 1 / span 2; }
+  .cal-page > .panels { grid-column: 1 / -1; }
+
+  /* 목록 탭: 상세는 오른쪽에 고정, 목록은 그 왼쪽 */
+  html.dock #shade { display: none !important; }
+  html.dock #sheet { position: fixed; left: auto; right: max(24px, calc((100vw - 1840px) / 2 + 24px)); top: calc(var(--toph, 66px) + 4px); bottom: 16px;
+    width: clamp(460px, 40vw, 720px); max-height: none; transform: none; animation: none; z-index: 20; border-radius: 18px; border: 1px solid var(--line2); box-shadow: var(--sh1); }
+  html.dock #s-close { display: none; }
+  html.dock #app .content { margin-right: calc(clamp(460px, 40vw, 720px) + 16px); }
+  .deals tbody tr.picked td { background: var(--accent-soft); }
+  .deals tbody tr.picked td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+  .cards .card.picked { box-shadow: inset 0 0 0 2px var(--accent), var(--sh1); }
+}
+/* 넓은 화면(1400px 이상): 일정 탭 3단 — 브리핑·달력 | 딜별 공모 일정 | 심사 중·승인 후 대기 */
+@media (min-width: 1400px) {
+  .cal-page { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, .9fr); }
+  .cal-page > .panels { grid-column: 3; grid-row: 1 / span 2; grid-template-columns: minmax(0, 1fr); }
+}
+/* 상세를 옆에 띄운 목록이 표를 넣기에 좁으면(1800px 미만) 카드 목록으로 */
+@media (min-width: 1061px) and (max-width: 1799px) {
+  html.dock .ledger .scroll { display: none; }
+  html.dock .ledger { background: transparent; border: 0; box-shadow: none; overflow: visible; }
+  html.dock .ledger .cards { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  html.dock .ledger .cards .card { background: var(--surface); border: 1px solid var(--line2); border-radius: 14px; box-shadow: var(--sh1); padding: 12px 14px; }
+}
+@media (min-width: 1061px) and (max-width: 1799px) { html.dock .ledger .cards .card.picked { box-shadow: inset 0 0 0 2px var(--accent), var(--sh1); } }
