@@ -53019,6 +53019,8 @@ INSERT INTO "kind_corp" VALUES('넥스아이','넥스아이','493410','코스닥
 INSERT INTO "kind_corp" VALUES('영광와이케이엠씨','영광와이케이엠씨','345290','코스닥','기타 금속 가공제품 제조업','반도체 장비용 정밀부품, 디스플레이 장비용 정밀부품','2026-11-16','2026-11-16T05:19:45+09:00');
 INSERT INTO "kind_corp" VALUES('옵토닉스','옵토닉스','493260','코스닥','측정, 시험, 항해, 제어 및 기타 정밀기기 제조업; 광학기기 제외','링레이저 자이로스코프(RLG) 및 광섬유자이로스코프(FOG) 핵심 부품 제조','2026-11-17','2026-11-17T04:44:39+09:00');
 INSERT INTO "kind_corp" VALUES('아인스팩씨엔에스','아인스팩씨엔에스','206400','코스닥','실내건축 및 건축마무리 공사업','웹게임, 모바일게임','2014-12-10','2026-11-17T04:44:39+09:00');
+INSERT INTO "kind_corp" VALUES('에이엘로봇','에이엘로봇','471800','코스닥','특수 목적용 기계 제조업','로봇용 힘/토크센서, 융합 제어장치','2026-11-18','2026-11-18T03:41:45+09:00');
+INSERT INTO "kind_corp" VALUES('스튜디오쏠쏠','스튜디오쏠쏠','200350','코스닥','영화, 비디오물, 방송프로그램 제작 및 배급업','드라마 제작','2021-12-30','2026-11-18T03:41:45+09:00');
 CREATE TABLE kind_listing (
   name_key    TEXT PRIMARY KEY,
   corp_name   TEXT,
@@ -55101,9 +55103,9 @@ CREATE TABLE meta (
   key   TEXT PRIMARY KEY,
   value TEXT
 );
-INSERT INTO "meta" VALUES('last_list_date','2026-11-17');
+INSERT INTO "meta" VALUES('last_list_date','2026-11-18');
 INSERT INTO "meta" VALUES('schema_stage','2');
-INSERT INTO "meta" VALUES('kind_as_of','2026-11-17');
+INSERT INTO "meta" VALUES('kind_as_of','2026-11-18');
 INSERT INTO "meta" VALUES('kind_review_history','2026-11-14');
 CREATE TABLE review (
   deal_id               TEXT PRIMARY KEY,
