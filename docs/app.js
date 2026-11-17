@@ -2256,7 +2256,7 @@
   })();
 
   // ---------------------------------------------------------------- 기술특례 바이오 (케이스 스터디)
-  // data/biotech.json: 2005년 이후 기술특례 신약개발사 70개사의 상장 당시 증권신고서 정리와 상장예비심사 청구 건(승인·철회·미승인)
+  // data/biotech.json: 2005년 이후 기술특례 신약개발사 72개사(상장 예정 1곳 포함)의 상장 당시 증권신고서 정리와 상장예비심사 청구 건(승인·철회·미승인)
   var bio = null, bioByDeal = {}, bioByName = {};
   var bioState = { q: "" };
   function bioIndex() {
@@ -2857,7 +2857,7 @@
     var list = bioList();
     var coTxt = function (c) { return c.nco + '<span class="lo-n' + (c.nlo ? "" : " z") + '">(' + c.nlo + ")</span>"; };
     var rowsH = list.map(function (c) {
-      return '<tr class="go" tabindex="0" data-bio="' + esc(c.n) + '"><td class="c-date">' + esc(c.list_date) + '</td><td><span class="nm">' + hlName(c.n, q) + "</span>" +
+      return '<tr class="go" tabindex="0" data-bio="' + esc(c.n) + '"><td class="c-date">' + esc(bioLD(c)) + '</td><td><span class="nm">' + hlName(c.n, q) + "</span>" +
         (c.cat === "B" ? '<span class="tag b-etc" title="경계 분류: 개량신약·약물전달·세포치료 중심 개발사">경계</span>' : "") + (c.glo ? '<span class="tag b-tech" title="해외 상대방 L/O 포함">해외 L/O</span>' : "") + "</td>" +
         '<td class="hide-m">' + esc(c.desc || "") + '</td><td>' + esc(c.top || "-") + '</td><td class="num">' + coTxt(c) + '</td><td class="num hide-m">' + c.np + "</td></tr>";
     }).join("");
@@ -2865,7 +2865,7 @@
       return '<a class="bcard" href="#/bio/' + encodeURIComponent(c.n) + '">' +
         '<div class="b1"><span class="nm">' + hlName(c.n, q) + "</span>" + (c.cat === "B" ? '<span class="tag b-etc">경계</span>' : "") +
         (c.glo ? '<span class="tag b-tech">해외 L/O</span>' : "") + '<span class="stg">' + esc(c.top || "-") + "</span></div>" +
-        '<div class="b2"><span class="mono">' + esc(c.list_date) + "</span>" + (c.desc ? " · " + esc(c.desc) : "") + "</div>" +
+        '<div class="b2"><span class="mono">' + esc(bioLD(c)) + "</span>" + (c.desc ? " · " + esc(c.desc) : "") + "</div>" +
         '<div class="b3"><span>계약(L/O)<b>' + coTxt(c) + "</b></span><span>파이프라인<b>" + c.np + "</b></span></div></a>";
     }).join("");
     var listPanel = '<section class="panel bio-list"><header><div><h2>기술특례 신약개발사 명단 <span class="cnt">' + list.length + (list.length !== bio.companies.length ? " / " + bio.companies.length : "") + "</span></h2>" +
@@ -2910,6 +2910,8 @@
   }
   // ---- 바이오 명단·철회 명단 필터 (딜 목록과 같은 필터 버튼·패널)
   var BIO_STAGES = ["탐색·연구", "전임상", "임상 1상", "임상 2상", "임상 3상·허가심사", "상용화", "기재 불명확"];
+  // 예비심사 승인 후 아직 상장 전인 회사는 상장일 대신 '상장 예정'
+  function bioLD(c) { return c.list_date || "상장 예정"; }
   function bioEraOf(y) { for (var i = 0; i < BIO_ERAS.length; i++) if (y >= BIO_ERAS[i][1] && y <= BIO_ERAS[i][2]) return BIO_ERAS[i][0]; return ""; }
   function bioLoKey(c) { return c.nlo ? (c.glo ? "해외 L/O" : "국내 L/O만") : "L/O 없음"; }
   function bioFailStage(a) { return /확인/.test(a.stage || "") ? "확인 못함" : a.stage === "임상 3상" ? "임상 3상·허가심사" : a.stage; }
@@ -2918,7 +2920,7 @@
     c: [
       { k: "sort", t: "정렬", single: true, opts: [["-1", "상장일 최근순"], ["1", "상장일 오래된순"]] },
       { k: "cat", t: "분류", opts: [["A", "신약개발"], ["B", "경계(개량신약·약물전달·세포치료)"]], of: function (c) { return c.cat; } },
-      { k: "era", t: "상장 연도", opts: BIO_ERAS.map(function (e) { return [e[0], e[0]]; }), of: function (c) { return bioEraOf(+c.list_date.slice(0, 4)); } },
+      { k: "era", t: "상장 연도", opts: BIO_ERAS.map(function (e) { return [e[0], e[0]]; }), of: function (c) { return bioEraOf(+(c.list_date || c.req || "").slice(0, 4)); } },
       { k: "top", t: "선두 단계", opts: BIO_STAGES.map(function (s) { return [s, s]; }), of: function (c) { return c.top; } },
       { k: "lo", t: "기술이전(L/O)", opts: [["해외 L/O", "해외 상대방 L/O"], ["국내 L/O만", "국내 L/O만"], ["L/O 없음", "L/O 없음"]], of: bioLoKey },
       { k: "route", t: "상장 경로", opts: null, of: function (c) { return c.route || "기타"; } },
@@ -2983,7 +2985,7 @@
       if (!bioPass("c", c)) return false;
       if (q && findMatch(c.n, q) === -1 && findMatch((c.kind_name || "") + " " + (c.desc || ""), q) === -1 && !fuzzyMatch(c.n, q)) return false;
       return true;
-    }).sort(function (a, b) { return (a.list_date < b.list_date ? -1 : a.list_date > b.list_date ? 1 : a.n < b.n ? -1 : 1) * dir; });
+    }).sort(function (a, b) { var x = a.list_date || "9999", y = b.list_date || "9999"; return (x < y ? -1 : x > y ? 1 : a.n < b.n ? -1 : 1) * dir; });
   }
   function bioFails() {
     var dir = +bioF.f.sort;
@@ -3184,7 +3186,7 @@
     var h = withDeal ? '<h3 class="bio-hd">신약 개발 · 상장 당시 증권신고서 정리<span>기술특례 신약개발사 케이스 스터디</span></h3>' : "";
     if (c.basis === "최초 증권신고서") h += '<p class="notice warn">최초 증권신고서 기준입니다. 이후 정정 신고서에서 공모가·추정치가 바뀌었을 수 있습니다.</p>';
     if (c.biz && !hasCompany) h += '<section class="company" aria-label="회사 개요"><h3>회사 개요</h3><p>' + esc(c.biz) + '</p><div class="cmeta"><span><b>분류</b>' + esc(c.desc || "-") + "</span>" + (c.kind_name ? "<span><b>현재 사명</b>" + esc(c.kind_name) + "</span>" : "") + '</div><p class="csrc">증권신고서 사업의 개요를 바탕으로 요약' + (c.rcp ? " · " + dartLink(c.rcp) : "") + "</p></section>";
-    h += '<div class="terms' + (withDeal ? " t6" : "") + '">' + (withDeal ? "" : tm("상장일", esc(c.list_date)) + tm("희망 밴드", txt(c.band))) +
+    h += '<div class="terms' + (withDeal ? " t6" : "") + '">' + (withDeal ? "" : tm("상장일", esc(bioLD(c))) + tm("희망 밴드", txt(c.band))) +
       tm("기술평가", txt(c.grade && c.grade !== "기재 없음" ? c.grade.replace("+", "·") : "확인 못함"), esc(c.route || "")) +
       tm("심사 소요", c.rev_days ? int(c.rev_days) + "<small>일</small>" : "-", c.req ? "청구 " + esc(c.req) : "") +
       tm("계약(L/O)", int(c.nco) + "<small>(" + c.nlo + ")건</small>", "L/O·공동연구" + (c.glo ? " · 해외 L/O 포함" : "")) + tm("파이프라인", int(c.np) + "<small>개</small>") +
@@ -3214,7 +3216,7 @@
     document.title = c.n + " · 기술특례 바이오 · IPO Tracker";
     titleEl.textContent = c.n;
     chipEl.innerHTML = '<span class="tag b-tech">' + esc(c.route || "기술특례") + "</span>" + bioChips(c);
-    subEl.textContent = "상장 " + c.list_date + (c.lead ? " · " + c.lead.replace(/\s*\(.*$/, "") : "") + " · " + c.basis + " 기준";
+    subEl.textContent = (c.list_date ? "상장 " + c.list_date : "상장 예정") + (c.lead ? " · " + c.lead.replace(/\s*\(.*$/, "") : "") + " · " + c.basis + " 기준";
     setNav(nav.idx, nav.len, nav.prev, nav.next);
     sbody.innerHTML = '<p class="notice">IPO Tracker 수집 범위 밖의 공모라 경쟁률·확정가·보호예수 정보는 없습니다. 상장 당시 증권신고서 정리만 보여 드립니다.</p>' + bioDetail(c, false, false);
     sbody.scrollTop = 0;
