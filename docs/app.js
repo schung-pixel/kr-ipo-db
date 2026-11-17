@@ -161,8 +161,10 @@
     return r;
   }
   // NH 강조: 칩 대신 주관사 글자에서 파란색. 공동·인수단이면 대표주관사 뒤에 "NH(공동)"을 덧붙임
+  // 대표주관사가 여럿이고 그중 NH가 있으면 NH를 맨 앞에
+  function nhFirst(a) { var i = a.findIndex(function (n) { return n.indexOf(FOCUS_NAME) >= 0; }); return i > 0 ? [a[i]].concat(a.slice(0, i), a.slice(i + 1)) : a; }
   function uwHtml(d, q, full) {
-    var parts = splitNames(d.lead_underwriters).map(function (n) {
+    var parts = nhFirst(splitNames(d.lead_underwriters)).map(function (n) {
       var t = full ? n : uwShort(n), h = q ? highlight(t, q) : esc(t);
       return n.indexOf(FOCUS_NAME) >= 0 ? '<b class="focus-t">' + h + "</b>" : h;
     });
@@ -170,7 +172,7 @@
     if (r && r !== "대표") parts.push('<b class="focus-t">' + (full ? FOCUS_NAME : FOCUS_SHORT) + "(" + r + ")</b>");
     return parts.length ? parts.join(", ") : "주관사 미확인";
   }
-  function focusHi(s) { return splitNames(s).map(function (n) { return n.indexOf(FOCUS_NAME) >= 0 ? '<b class="focus-t">' + esc(n) + "</b>" : esc(n); }).join(", "); }
+  function focusHi(s) { return nhFirst(splitNames(s)).map(function (n) { return n.indexOf(FOCUS_NAME) >= 0 ? '<b class="focus-t">' + esc(n) + "</b>" : esc(n); }).join(", "); }
   function boardTag(d, brief) {   // brief: 목록 카드용으로 기술평가 등급을 빼고 "기술"만
     var m = d.board === "KOSPI" ? '<span class="tag b-ks" title="유가증권시장">KS</span>'
       : (d.board === "KOSDAQ" || d.board === "KOSDAQ_TECH") ? '<span class="tag b-kq" title="코스닥">KQ</span>' : "";
@@ -2428,11 +2430,11 @@
   function nmLink(id, nm) { return id ? '<a class="nm" href="#/deal/' + encodeURIComponent(id) + '">' + esc(nm) + "</a>" : '<span class="nm">' + esc(nm) + "</span>"; }
   function spText(s) {
     if (!s) return '<span class="dim">-</span>';
-    return s.split(/\s*,\s*/).map(function (x) { return x.indexOf(FOCUS_NAME) >= 0 ? '<b class="focus-t">' + esc(uwShort(x)) + "</b>" : esc(uwShort(x)); }).join(", ");
+    return nhFirst(s.split(/\s*,\s*/)).map(function (x) { return x.indexOf(FOCUS_NAME) >= 0 ? '<b class="focus-t">' + esc(uwShort(x)) + "</b>" : esc(uwShort(x)); }).join(", ");
   }
   // 좁은 표용: 주관사가 3곳 이상이면 첫 곳만 쓰고 "외 N"
   function spTextShort(s) {
-    var a = s ? s.split(/\s*,\s*/).filter(Boolean) : [];
+    var a = s ? nhFirst(s.split(/\s*,\s*/).filter(Boolean)) : [];
     return a.length >= 3 ? spText(a[0]) + ' <span class="dim">외 ' + (a.length - 1) + "</span>" : spText(s);
   }
   function medInt(xs) { var m = median(xs); return m == null ? null : Math.round(m); }

@@ -594,6 +594,8 @@ details.tv summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 .tag.b-ks, .tag.b-kq { background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
 .tag.b-ks { color: var(--ink); }
 .tag.b-kq { color: var(--muted); }
+/* KQ·KS: 영문 두 글자라 한글 칩보다 작아 보이므로 글자를 키우고 폭을 '기술' 칩과 맞춤 */
+.tag.b-ks, .tag.b-kq { justify-content: center; min-width: calc(var(--badge-fs) * 2 + 13.5px); font-size: calc(var(--badge-fs) + 1px); font-weight: 600; letter-spacing: .02em; }
 .tag.b-tech { color: var(--accent); background: var(--accent-soft); }
 .tag.b-route, .tag.b-spac { color: var(--muted); background: var(--neutral-soft); box-shadow: none; }
 .terms .v.hl, .summary .v.hl { color: var(--ink); font-weight: 600; }
