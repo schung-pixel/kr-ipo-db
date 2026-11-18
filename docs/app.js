@@ -424,9 +424,9 @@
     });
     placeInd(document.querySelector(".tabs"));
   }
-  // ---------------------------------------------------------------- PC 화면(1061px 이상)
+  // ---------------------------------------------------------------- PC 화면(720px 이상: 모니터 반쪽 창 포함)
   // 상단 한 줄(제목 · 탭 · 검색 · 테마), 목록 탭은 목록과 상세를 나란히(상세는 오른쪽에 고정)
-  var mqDesk = window.matchMedia("(min-width: 1061px)");
+  var mqDesk = window.matchMedia("(min-width: 720px)");
   function isDock(tab) { return mqDesk.matches && (tab || view) === "list"; }
   function syncDock(tab) { document.documentElement.classList.toggle("dock", isDock(tab)); }
   var dockQuiet = false;
@@ -551,7 +551,7 @@
   function opt(v, label, cur) { return '<option value="' + esc(v) + '"' + (v === cur ? " selected" : "") + ">" + esc(label) + "</option>"; }
 
   // ---- 드롭다운: 기본 <select>는 값과 change 이벤트를 그대로 맡고, 화면에는 자체 버튼과 목록을 보입니다.
-  //      PC는 버튼 아래 팝오버, 휴대폰(≤760px)은 아래에서 올라오는 시트로 엽니다.
+  //      PC는 버튼 아래 팝오버, 휴대폰(≤719px)은 아래에서 올라오는 시트로 엽니다.
   var ddOpen = null;
   var CHECK = '<svg class="ck" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   function ddLabel(sel) { var o = sel.options[sel.selectedIndex]; return o ? o.textContent : ""; }
@@ -575,7 +575,7 @@
   }
   function ddShow(sel, btn) {
     if (ddOpen) ddClose(false);
-    var mobile = window.matchMedia("(max-width: 760px)").matches;
+    var mobile = window.matchMedia("(max-width: 719px)").matches;
     var title = sel.getAttribute("aria-label") || "";
     var lid = "dd-" + sel.id;
     var h = "";
@@ -787,7 +787,7 @@
   function fpShow() {
     if (ddOpen) ddClose(false);
     var btn = document.getElementById("f-menu");
-    var mobile = window.matchMedia("(max-width: 760px)").matches;
+    var mobile = window.matchMedia("(max-width: 719px)").matches;
     var wrap = document.createElement("div");
     wrap.className = "dd-layer fp-layer" + (mobile ? " sheet-mode" : "");
     wrap.innerHTML = (mobile ? '<div class="dd-scrim"></div>' : "") +
@@ -1423,7 +1423,7 @@
   // 휴대폰: 시트 머리(손잡이 부분)를 잡아 아래로 끌면 닫힘. 충분히 내리거나 빠르게 튕기면 닫고, 아니면 제자리로
   (function () {
     var head = sheet.querySelector(".sheet-head"), y0 = null, t0 = 0, dy = 0, pid = null;
-    function mobile() { return window.matchMedia("(max-width: 760px)").matches; }
+    function mobile() { return window.matchMedia("(max-width: 719px)").matches; }
     head.addEventListener("pointerdown", function (e) {
       if (!mobile() || e.button > 0 || e.target.closest("a, button")) return;
       y0 = e.clientY; t0 = Date.now(); dy = 0; pid = e.pointerId;
@@ -1808,7 +1808,7 @@
 
     var W = Math.max(300, Math.min(app.clientWidth - 40, 1760)), H = W < 500 ? 240 : 280;
     var L = 48, R = 10, T = 24, B = 30, ih = H - T - B;
-    var halfW = window.innerWidth > 1060 ? Math.round((Math.min(app.clientWidth, 1792) - 16) / 2) - 38 : W;
+    var halfW = window.innerWidth > 719 ? Math.round((Math.min(app.clientWidth, 1792) - 16) / 2) - 38 : W;
 
     // ---- 1) 시장별 상장 추이 (누적 막대)
     var isAmt = state.metric === "amount";
@@ -3035,7 +3035,7 @@
   }
   function bfShow(sc, btn) {
     if (bfOpen) bfClose(false);
-    var mobile = window.matchMedia("(max-width: 760px)").matches;
+    var mobile = window.matchMedia("(max-width: 719px)").matches;
     var wrap = document.createElement("div");
     wrap.className = "dd-layer fp-layer" + (mobile ? " sheet-mode" : "");
     wrap.innerHTML = (mobile ? '<div class="dd-scrim"></div>' : "") +
