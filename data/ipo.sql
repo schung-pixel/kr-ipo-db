@@ -55121,9 +55121,9 @@ CREATE TABLE meta (
   key   TEXT PRIMARY KEY,
   value TEXT
 );
-INSERT INTO "meta" VALUES('last_list_date','2026-11-18');
+INSERT INTO "meta" VALUES('last_list_date','2026-11-19');
 INSERT INTO "meta" VALUES('schema_stage','2');
-INSERT INTO "meta" VALUES('kind_as_of','2026-11-18');
+INSERT INTO "meta" VALUES('kind_as_of','2026-11-19');
 INSERT INTO "meta" VALUES('kind_review_history','2026-11-14');
 CREATE TABLE review (
   deal_id               TEXT PRIMARY KEY,
