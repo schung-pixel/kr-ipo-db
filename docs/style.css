@@ -1444,3 +1444,7 @@ header.top nav.tabs, #app .srow .search {
   .bio-r { display: grid; gap: 16px; grid-column: 2; grid-row: 1; min-width: 0; }
   .bio-r > .panels.even { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* 승인 후 상장 대기: 헤더는 딜별 공모 일정 표와 같은 색·밑줄, 승인일·진행 열은 가운데(시안 A) */
+table.mini.rv.wait thead th { color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--line); }
+table.mini.rv.wait th:nth-child(n+3), table.mini.rv.wait td:nth-child(n+3) { text-align: center; padding-left: 4px; padding-right: 4px; }
