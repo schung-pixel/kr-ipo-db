@@ -2892,7 +2892,6 @@
       }).join("") + "</div></div></section>";
 
     app.innerHTML = '<div class="content">' + gsearchBox() +
-      '<p class="notice">상장예비심사를 청구한 코스닥 신약개발사(2005~2026년, 경계 바이오 포함)의 결과와 청구 당시 프로필입니다. 신고서 제출 당시 신약개발사로 보기 어려운 소재·의료기기·진단·분석 플랫폼·바이오시밀러·CDMO 주업 회사는 뺐습니다. 승인 건은 상장 당시 증권신고서, 철회·미승인 건은 언론·공시로 조사했습니다. 기술성평가에서 이미 떨어져 청구하지 못한 회사는 포함되지 않습니다.</p>' + kpi +
       '<div class="bio-cols"><div class="bio-r">' +
       '<section class="panel"><header><div><h2>연도별 상장예비심사 결과</h2></div></header>' +
       '<div class="pbody chart">' + bioLegend(BIO_RES, resItems) + svgRes + "</div></section>" +
