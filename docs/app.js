@@ -2891,7 +2891,7 @@
         return inList ? '<a class="bcard" href="#/bio/' + encodeURIComponent(a.name) + '">' + head + "</a>" : '<div class="bcard">' + head + "</div>";
       }).join("") + "</div></div></section>";
 
-    app.innerHTML = '<div class="content">' + gsearchBox() +
+    app.innerHTML = '<div class="content">' + gsearchBox() + kpi +
       '<div class="bio-cols"><div class="bio-r">' +
       '<section class="panel"><header><div><h2>연도별 상장예비심사 결과</h2></div></header>' +
       '<div class="pbody chart">' + bioLegend(BIO_RES, resItems) + svgRes + "</div></section>" +
