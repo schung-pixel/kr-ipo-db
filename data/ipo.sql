@@ -53040,6 +53040,7 @@ INSERT INTO "kind_corp" VALUES('옵토닉스','옵토닉스','493260','코스닥
 INSERT INTO "kind_corp" VALUES('아인스팩씨엔에스','아인스팩씨엔에스','206400','코스닥','실내건축 및 건축마무리 공사업','웹게임, 모바일게임','2014-12-10','2026-11-17T04:44:39+09:00');
 INSERT INTO "kind_corp" VALUES('에이엘로봇','에이엘로봇','471800','코스닥','특수 목적용 기계 제조업','로봇용 힘/토크센서, 융합 제어장치','2026-11-18','2026-11-18T03:41:45+09:00');
 INSERT INTO "kind_corp" VALUES('스튜디오쏠쏠','스튜디오쏠쏠','200350','코스닥','영화, 비디오물, 방송프로그램 제작 및 배급업','드라마 제작','2021-12-30','2026-11-18T03:41:45+09:00');
+INSERT INTO "kind_corp" VALUES('하나에어로','하나에어로','271160','코스닥','항공기,우주선 및 부품 제조업','항공기 치공구(39.52%), 항공기 조립(37.41%) 및 항공기부품(22.45%) 등','2026-11-20','2026-11-20T03:26:34+09:00');
 CREATE TABLE kind_listing (
   name_key    TEXT PRIMARY KEY,
   corp_name   TEXT,
@@ -55124,9 +55125,9 @@ CREATE TABLE meta (
   key   TEXT PRIMARY KEY,
   value TEXT
 );
-INSERT INTO "meta" VALUES('last_list_date','2026-11-19');
+INSERT INTO "meta" VALUES('last_list_date','2026-11-20');
 INSERT INTO "meta" VALUES('schema_stage','2');
-INSERT INTO "meta" VALUES('kind_as_of','2026-11-19');
+INSERT INTO "meta" VALUES('kind_as_of','2026-11-20');
 INSERT INTO "meta" VALUES('kind_review_history','2026-11-14');
 CREATE TABLE review (
   deal_id               TEXT PRIMARY KEY,
