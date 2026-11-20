@@ -2681,7 +2681,9 @@
         if (!a) return; b = b || a;
         if (a <= today && b >= today) {
           var x = dayNth({ a: a, b: b }, today), tx = a === today ? "시작" : b === today ? "마감" : x ? x[0] + "일차" : "진행";
-          evs.push({ o: o, h: lk + " " + k + " " + tx, k: k, lk: lk, tx: tx, d: d }); cnt[k]++;
+          // 진행 점: 수요예측 5칸, 청약 2칸. 마감일이면 다 채움
+          var tot = k === "청약" ? 2 : 5, n = b === today ? tot : a === today ? 1 : x ? Math.min(x[0], tot) : 1;
+          evs.push({ o: o, h: lk + " " + k + " " + tx, k: k, lk: lk, tx: tx, d: d, n: n, tot: tot }); cnt[k]++;
         } else if (a > today && (!nx || a < nx.dt)) nx = { dt: a, h: lk + " " + k + " 시작" };
       };
       if (c.lst === today) { evs.push({ o: 0, h: lk + " 상장", k: "상장", lk: lk, tx: "", d: d }); cnt["상장"]++; }
@@ -2691,7 +2693,9 @@
     evs.sort(function (a, b) { return a.o - b.o; });
     // 왼쪽 큰 날짜, 오른쪽 일정 한 줄씩(점 색은 달력과 같음)
     var KC = { "상장": 3, "청약": 1, "수요예측": 0 }, dt = dOf(today);
-    var body = evs.length ? evs.map(function (e) { return '<div class="ln"><i class="k-' + KC[e.k] + '"></i>' + e.lk + ' <span class="kk">' + e.k + (e.tx ? " " + e.tx : "") + "</span></div>"; }).join("")
+    var SK = { "수요예측": "수요", "청약": "일반", "상장": "상장" };
+    var dots = function (e) { var h = '<span class="pd" aria-label="' + e.tot + "일 중 " + e.n + '일차">'; for (var i = 1; i <= e.tot; i++) h += "<b" + (i <= e.n ? ' class="on"' : "") + "></b>"; return h + "</span>"; };
+    var body = evs.length ? evs.map(function (e) { return '<div class="ln"><i class="k-' + KC[e.k] + '"></i>' + e.lk + ' <span class="kk k-' + KC[e.k] + '">' + SK[e.k] + (e.tot ? dots(e) : '<span class="pd"></span>') + "</span></div>"; }).join("")
       : '<div class="emp">오늘은 공모 일정이 없습니다</div>' + (nx ? '<div class="nx">다음 · ' + md(nx.dt) + " " + nx.h + "</div>" : "");
     return '<section class="brief" aria-label="오늘의 공모 브리핑"><div class="dt"><b class="mono">' + dt.getDate() + "</b><span>" + (dt.getMonth() + 1) + "월 " + WD[dt.getDay()] + '</span></div><div class="bd">' + body + "</div></section>";
   }

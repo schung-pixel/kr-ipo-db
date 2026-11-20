@@ -1067,7 +1067,11 @@ header.top .brand .upd { font-size: 12px; color: var(--faint); font-family: var(
 .brief .ln i.k-3 { background: #6FD39C; } .brief .ln i.k-1 { background: #EE86AC; } .brief .ln i.k-0 { background: #8FB4E3; }
 .brief a { color: #fff; font-weight: 700; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .brief a:hover { text-decoration: underline; }
-.brief .kk { flex: none; font-size: 12px; opacity: .72; }
+.brief .kk { flex: none; font-size: 12px; margin-left: auto; padding-left: 8px; display: inline-flex; align-items: center; gap: 6px; color: rgba(255, 255, 255, .72); }   /* 오른쪽 정렬 */
+.brief .pd { display: inline-flex; gap: 3px; width: 42px; }   /* 점 칸 폭을 고정해 수요·일반·상장 글자가 한 줄로 맞춰짐 */   /* 며칠차 점: 채운 점 = 지난 날과 오늘 */
+.brief .pd b { width: 6px; height: 6px; border-radius: 50%; border: 1.3px solid currentColor; opacity: .5; box-sizing: border-box; }
+.brief .pd b.on { opacity: 1; background: currentColor; }
+.brief .kk.k-0 .pd { color: #8FB4E3; } .brief .kk.k-1 .pd { color: #EE86AC; }
 .brief .emp { font-size: 14px; font-weight: 600; }
 .brief .nx { font-size: 12px; opacity: .75; margin-top: 2px; } .brief .nx a { font-weight: 600; }
 /* 딜별 일정표: 회사당 한 줄, 진행 중 단계는 달력과 같은 색 */
