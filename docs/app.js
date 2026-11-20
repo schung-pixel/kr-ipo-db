@@ -3260,7 +3260,7 @@
     tgl.setAttribute("data-on", dark ? "dark" : "light");
     tgl.querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", String((b.dataset.t === "dark") === dark)); });
     var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", dark ? "#0F151C" : "#F4F6F9");
+    if (meta) meta.setAttribute("content", dark ? "#0C1624" : "#EEF4FA");
   }
   try { var savedTheme = localStorage.getItem("ipo-db-theme"); if (savedTheme) root.setAttribute("data-theme", savedTheme); } catch (e) { /* 무시 */ }
   tgl.querySelectorAll("button").forEach(function (b) {

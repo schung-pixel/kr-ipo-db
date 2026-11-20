@@ -1470,3 +1470,34 @@ table.mini.rv.wait th:nth-child(n+3), table.mini.rv.wait td:nth-child(n+3) { tex
 .wm .wm-t { display: block; height: .75em; width: auto; overflow: visible; }
 .wm .wm-a { display: block; width: 18px; height: 18px; flex: none; margin: -2px 0; }
 .wm .s1 { stop-color: var(--wm1); } .wm .s2 { stop-color: var(--wm2); } .wm .hd { stroke: var(--wm2); }
+
+/* 컬러 테마 A: NH투자증권 대표색(블루 #005BAC) + 옐로(#FDBA31) 포인트. 유리 질감은 그대로 */
+:root {
+  --nh-blue: #005BAC; --nh-yellow: #FDBA31;
+  --accent: #005BAC; --accent-soft: #E1EDF8; --bar: #005BAC;
+  --bg: #EEF4FA; --surface2: #E6EFF8; --line: #D2DEEC; --line2: #E0E9F3;
+  --head: #F5F9FD; --head-ink: #28507D;
+  --g1: rgba(0, 91, 172, .18); --g2: rgba(253, 186, 49, .16); --g3: rgba(0, 91, 172, .10);
+  --track: rgba(0, 91, 172, .07); --edge: rgba(0, 60, 120, .14);
+  --wm1: #005BAC; --wm2: #2E8BE6; --brief-bg: #005BAC; --brief-sh: rgba(0, 91, 172, .7); --focus: #005BAC;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --accent: #5FA8F0; --accent-soft: #12304F; --bar: #5FA8F0;
+    --bg: #0C1624; --surface: #122033; --surface2: #182A40; --head: #152539;
+    --g1: rgba(0, 91, 172, .22); --g2: rgba(253, 186, 49, .10);
+    --wm1: #9CC8F5; --wm2: #5FA8F0; --brief-bg: #0A3F78; --brief-sh: rgba(0, 0, 0, .6); --focus: #5FA8F0;
+  }
+}
+:root[data-theme="dark"] {
+  --accent: #5FA8F0; --accent-soft: #12304F; --bar: #5FA8F0;
+  --bg: #0C1624; --surface: #122033; --surface2: #182A40; --head: #152539;
+  --g1: rgba(0, 91, 172, .22); --g2: rgba(253, 186, 49, .10);
+  --wm1: #9CC8F5; --wm2: #5FA8F0; --brief-bg: #0A3F78; --brief-sh: rgba(0, 0, 0, .6); --focus: #5FA8F0;
+}
+.brief { background: var(--brief-bg); box-shadow: 0 10px 22px -14px var(--brief-sh); }
+.brief .dt b { color: var(--nh-yellow); }
+.wm .hd { stroke: var(--nh-yellow); } .wm .wm-a .s2 { stop-color: var(--nh-yellow); }
+.focus-t, .dtable .xr.focus .nm, .feedl li.focus .nm, .league tr.focus td:nth-child(2), .mini.uw tr.focus td:first-child { color: var(--focus); }
+:root[data-theme="dark"] .focus-t { color: var(--focus); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .focus-t { color: var(--focus); } }
