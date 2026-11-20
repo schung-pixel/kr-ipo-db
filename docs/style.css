@@ -1457,3 +1457,12 @@ table.mini.rv.wait th:nth-child(n+3), table.mini.rv.wait td:nth-child(n+3) { tex
   .cal-page .dtable .bh, .cal-page .dtable .xr { grid-template-columns: minmax(0, 1fr) 78px 70px 72px; gap: 6px; justify-content: stretch; }   /* 일정 2단의 좁은 칸: 휴대폰 열 폭 */
   .bio-cols, .bio-l, .bio-r { display: contents; }   /* 바이오: 명단 표가 좁아지므로 한 단 */
 }
+
+/* 상단 제목: 그라데이션 워드마크 + 상승 화살표(시안 G). 글자는 글꼴에 의존하지 않도록 윤곽선(path)으로 넣음 */
+:root { --wm1: #2B3A8C; --wm2: #4F7BFF; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --wm1: #B9C4FF; --wm2: #6FA0FF; } }
+:root[data-theme="dark"] { --wm1: #B9C4FF; --wm2: #6FA0FF; }
+.brand h1.wm { display: inline-flex; align-items: center; gap: 4px; font-size: 19px; line-height: 1; }
+.wm .wm-t { display: block; height: .75em; width: auto; overflow: visible; }
+.wm .wm-a { display: block; width: 18px; height: 18px; flex: none; margin: -2px 0; }
+.wm .s1 { stop-color: var(--wm1); } .wm .s2 { stop-color: var(--wm2); } .wm .hd { stroke: var(--wm2); }
