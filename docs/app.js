@@ -2496,11 +2496,11 @@
       if (!xs.length) return "";
       return '<div class="dg g-' + EV_ORDER[k] + '"><h4>' + k + " · " + xs.length + "건</h4>" + xs.map(function (e) {
         var d = e.d;
-        return '<a class="it' + (focusRole(d) ? " focus" : "") + '" href="#/deal/' + encodeURIComponent(d.deal_id) + '"><span class="nm">' + esc(name(d)) + "</span>" +
+        return '<a class="it' + (focusRole(d) ? " focus" : "") + '" href="#/deal/' + encodeURIComponent(d.deal_id) + '"><span class="l1"><span class="nm">' + esc(name(d)) + "</span>" +
           boardTag(d, true) + (isSpac(d) ? '<span class="tag b-spac">스팩</span>' : "") +
           (function () { var dn = dayNthHtml(e, day);   // 며칠차가 나오면 기간은 생략(기간은 툴팁으로)
             if (!dn && e.a === day && (!e.b || e.b === e.a)) return e.q ? '<span class="r mono"><em class="lq">' + e.q + "</em></span>" : "";   // 하루짜리 일정(상장 등)은 고른 날짜와 같아 생략
-            return dn ? '<span class="r mono" title="' + esc(rngT(e.a, e.b)) + '">' + dn + "</span>" : '<span class="r mono">' + esc(rngT(e.a, e.b)) + (e.q ? ' <em class="lq">' + e.q + "</em>" : "") + "</span>"; })() + '<span class="u">' + uwHtml(d) + (pxText(d) ? " · " + '<span class="mono">' + pxText(d) + "</span>" : "") + "</span></a>";
+            return dn ? '<span class="r mono" title="' + esc(rngT(e.a, e.b)) + '">' + dn + "</span>" : '<span class="r mono">' + esc(rngT(e.a, e.b)) + (e.q ? ' <em class="lq">' + e.q + "</em>" : "") + "</span>"; })() + '</span><span class="u">' + uwHtml(d) + (pxText(d) ? " · " + '<span class="mono">' + pxText(d) + "</span>" : "") + "</span></a>";
       }).join("") + "</div>";
     }).join("");
   }
