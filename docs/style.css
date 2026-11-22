@@ -1101,7 +1101,9 @@ header.top .brand .upd { font-size: 12px; color: var(--faint); font-family: var(
 @media (max-width: 719px) { .dtable .c0 .nm, .dtable .cc b { font-size: 12px; } }
 .dtable .cc small { display: inline; margin-left: 3px; font-size: 10px; color: var(--muted); white-space: nowrap; }
 .dtable .cc.done, .dtable .cc.na { color: var(--faint); }
-.dtable .cc.on { background: var(--cs); color: var(--c); } .dtable .cc.on b { font-weight: 700; }
+.dtable .cc.on { background: var(--c); color: #fff; } .dtable .cc.on b { font-weight: 700; } .dtable .cc.on small { color: rgba(255, 255, 255, .82); }   /* 진행 중 칸: 진한 색 + 흰 글자(NH 행 바탕과 구분) */
+:root[data-theme="dark"] .dtable .cc.on, :root[data-theme="dark"] .dtable .cc.on small { color: #0B1520; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .dtable .cc.on, :root:not([data-theme="light"]) .dtable .cc.on small { color: #0B1520; } }
 @media (min-width: 720px) {
   .dtable .bh, .dtable .xr { grid-template-columns: minmax(0, 340px) 120px 104px 76px; gap: 12px; justify-content: start; }
 }
