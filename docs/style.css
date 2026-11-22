@@ -1033,7 +1033,7 @@ header.top .brand .upd { font-size: 12px; color: var(--faint); font-family: var(
 .cdl .it { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 6px; padding: 8px 2px; border-top: 1px solid var(--line2); text-decoration: none; color: inherit; }
 .cdl .it .nm { font-weight: 600; overflow-wrap: anywhere; }
 /* 첫 줄: 회사명, 칩, 며칠차를 무조건 한 줄로. 넘치면 회사명만 말줄임, 칩 사이는 좁게 */
-.cdl .it .l1 { display: flex; align-items: center; gap: 5px; width: 100%; min-width: 0; }
+.cdl .it .l1 { display: flex; align-items: center; gap: 5px; width: 100%; min-width: 0; flex: 1 1 100%; contain: inline-size; }   /* contain: 긴 회사명이 카드와 화면 폭을 밀어 늘리지 않게 */
 .cdl .it .l1 .nm { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
 .cdl .it .l1 .tag { flex: none; margin-left: 0; }
 .cdl .it .l1 .r { flex: none; padding-left: 4px; }
