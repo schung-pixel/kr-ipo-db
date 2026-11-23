@@ -428,6 +428,9 @@
   // 상단 한 줄(제목 · 탭 · 검색 · 테마), 목록 탭은 목록과 상세를 나란히(상세는 오른쪽에 고정)
   var mqDesk = window.matchMedia("(min-width: 720px)");
   function isDock(tab) { return mqDesk.matches && (tab || view) === "list"; }
+  // PC 상단바 아래 흐림 띠: 조금이라도 스크롤했을 때만 보이게
+  (function () { var on = false; var f = function () { var v = window.scrollY > 2; if (v !== on) { on = v; document.documentElement.classList.toggle("scrolled", v); } };
+    window.addEventListener("scroll", f, { passive: true }); f(); })();
   function syncDock(tab) { document.documentElement.classList.toggle("dock", isDock(tab)); }
   var dockQuiet = false;
   function openFirstDocked() {

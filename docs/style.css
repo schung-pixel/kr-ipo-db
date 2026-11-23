@@ -1533,7 +1533,8 @@ table.mini.rv.wait th:nth-child(n+3), table.mini.rv.wait td:nth-child(n+3) { tex
   header.top::after { content: ""; position: absolute; top: 100%; left: -100vmax; right: -100vmax; height: 48px; pointer-events: none;
     -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
     -webkit-mask-image: linear-gradient(#000 30%, transparent); mask-image: linear-gradient(#000 30%, transparent);
-    background: linear-gradient(var(--bg) 15%, transparent); }
+    background: linear-gradient(var(--bg) 15%, transparent); opacity: 0; transition: opacity .2s; }
+  html.scrolled header.top::after { opacity: 1; }   /* 맨 위(스크롤 전)에서는 흐림 없음, 내리기 시작하면 나타남 */
   /* 목록 탭: 오른쪽 상세 상자 위에는 페이드를 씌우지 않음 */
   html.dock header.top::after { right: calc(clamp(460px, 40vw, 720px) + 32px); }
 }
