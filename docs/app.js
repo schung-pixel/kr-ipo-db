@@ -458,7 +458,8 @@
     var tab = h.indexOf("/stats") === 0 ? "stats" : h === "/cal" ? "cal" : mb || h === "/bio" ? "bio" : m ? (view || "list") : "list";
     setTabs(tab);
     hideTip();
-    syncDock(tab);
+    var switching = !!(view && view !== tab && !m && !mb);
+    if (!switching) syncDock(tab);   // 탭을 바꿀 때는 새 화면을 그리는 같은 프레임에서 바꿈(이전 화면이 잠깐 좁아지거나 넓어지는 현상 방지)
     if (!data) return;
     if (m) {
       if (!view) renderList();
@@ -470,8 +471,9 @@
       openBioSheet(decodeURIComponent(mb[1]));
       return;
     }
-    if (!(isDock(tab) && sheetId)) closeSheet();   // PC 목록: 상세는 오른쪽에 계속 펼쳐 둠
+    if (!switching && !(isDock(tab) && sheetId)) closeSheet();   // PC 목록: 상세는 오른쪽에 계속 펼쳐 둠
     var draw = function () {
+      if (switching) { syncDock(tab); if (!(isDock(tab) && sheetId)) closeSheet(); }
       if (tab === "stats") { if (view !== "stats") { renderStats(); window.scrollTo(0, 0); } }
       else if (tab === "bio") { if (view !== "bio") { renderBio(); window.scrollTo(0, 0); } }
       else if (tab === "cal") { if (view !== "cal") { renderCal(); window.scrollTo(0, 0); } }

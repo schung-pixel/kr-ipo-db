@@ -1515,3 +1515,26 @@ table.mini.rv.wait th:nth-child(n+3), table.mini.rv.wait td:nth-child(n+3) { tex
   .cal-page .wgrp tr.rest { display: table-row; }
   .cal-page .dtable .dgrp .more, .cal-page .wgrp > .more { display: none; }
 }
+
+/* 일정 탭 2열 보기(720~1399px): 승인 후 상장 대기를 오른쪽 열 딜별 공모 일정 아래로 */
+@media (min-width: 720px) and (max-width: 1399px) {
+  .cal-page { grid-template-rows: auto auto 1fr; }
+  .cal-page > .calm { grid-row: 2 / span 2; }
+  .cal-page > .panels { grid-column: 2; grid-row: 3; grid-template-columns: minmax(0, 1fr); }
+}
+/* 목록 탭: 오른쪽 상세 상자의 위쪽을 왼쪽 목록 첫 상자와 같은 높이로(본문 위 여백 16px에 맞춤) */
+@media (min-width: 720px) { html.dock #sheet { top: calc(var(--toph, 66px) + 16px); } }
+/* PC: 스크롤할 때 상단바 아래로 들어가는 내용이 잘리지 않고 흐려지며 사라지게(시안 D: 흐림 + 48px 페이드)
+   상단바 배경은 좌우로 넓힌 ::before로 그리고(아래로는 번지지 않게), ::after가 그 아래 페이드 띠 */
+@media (min-width: 720px) {
+  .wrap { overflow-x: clip; }   /* 좌우로 넓힌 상단바 배경이 가로 스크롤을 만들지 않게(clip은 sticky를 깨지 않음) */
+  header.top { box-shadow: none; clip-path: none; }
+  header.top::before { content: ""; position: absolute; top: 0; bottom: 0; left: -100vmax; right: -100vmax; background: var(--bg); z-index: -1; }
+  header.top::after { content: ""; position: absolute; top: 100%; left: -100vmax; right: -100vmax; height: 48px; pointer-events: none;
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    -webkit-mask-image: linear-gradient(#000 30%, transparent); mask-image: linear-gradient(#000 30%, transparent);
+    background: linear-gradient(var(--bg) 15%, transparent); }
+  /* 목록 탭: 오른쪽 상세 상자 위에는 페이드를 씌우지 않음 */
+  html.dock header.top::after { right: calc(clamp(460px, 40vw, 720px) + 32px); }
+}
+@media (min-width: 720px) and (max-width: 1060px) { html.dock header.top::after { right: calc(clamp(340px, 50vw, 520px) + 32px); } }
