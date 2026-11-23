@@ -1509,8 +1509,8 @@ table.mini.rv.wait th:nth-child(n+3), table.mini.rv.wait td:nth-child(n+3) { tex
 :root[data-theme="dark"] .focus-t { color: var(--focus); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .focus-t { color: var(--focus); } }
 
-/* PC(720px 이상) 일정 탭: 딜별 공모 일정과 승인 후 상장 대기는 접지 않고 전부 표시(휴대폰은 5건 + 더 보기 유지) */
-@media (min-width: 720px) {
+/* 일정 탭 3열 보기(1400px 이상)에서만 딜별 공모 일정과 승인 후 상장 대기를 접지 않고 전부 표시. 2열, 1열, 휴대폰은 5건 + 더 보기 */
+@media (min-width: 1400px) {
   .cal-page .dtable .dgrp .xr.rest { display: grid; }
   .cal-page .wgrp tr.rest { display: table-row; }
   .cal-page .dtable .dgrp .more, .cal-page .wgrp > .more { display: none; }
