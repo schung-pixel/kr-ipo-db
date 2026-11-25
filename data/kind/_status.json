@@ -1,17 +1,17 @@
 {
- "run_at": "2026-11-25T08:52:16+09:00",
+ "run_at": "2026-11-25T21:39:26+09:00",
  "fetch": "ok",
  "http_status": 200,
- "response_bytes": 195509,
- "rows": 331,
- "saved": 331,
+ "response_bytes": 196093,
+ "rows": 332,
+ "saved": 332,
  "approved": 206,
  "corp_list": 2770,
  "listing_sched": {
   "screens": {
-   "pubofrprogcom": 35
+   "pubofrprogcom": 36
   },
-  "saved": 35
+  "saved": 36
  },
  "src38": {
   "screens": {
