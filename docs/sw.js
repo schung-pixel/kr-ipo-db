@@ -1,10 +1,10 @@
 "use strict";
 // 앱 파일을 바꾸면 VERSION을 올려 이전 캐시를 비웁니다.
-var VERSION = "v161";
+var VERSION = "v162";
 var SHELL = "ipo-shell-" + VERSION;
 var DATA = "ipo-data";
 var FILES = ["./", "index.html", "style.css", "app.js", "manifest.webmanifest",
-  "icons/icon-192-v3.png", "icons/icon-512-v3.png", "icons/apple-touch-icon-v3.png"];
+  "icons/icon-192-v4.png", "icons/icon-512-v4.png", "icons/apple-touch-icon-v4.png"];
 
 self.addEventListener("install", function (e) {
   e.waitUntil(Promise.all([
