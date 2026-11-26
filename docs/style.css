@@ -1549,5 +1549,23 @@ table.mini.rv.wait th:nth-child(n+3), table.mini.rv.wait td:nth-child(n+3) { tex
 :root[data-theme="dark"] .cdl .dg.g-4 { --c: #A3ACB8; }
 .cdl .dg.g-4 .it .nm { color: var(--muted); }
 .wdt td.wst { font-size: 12px; color: var(--muted); }
-.mini.rv.wait.wdt col.w-s { width: 84px; }
-@media (max-width: 719px) { .mini.rv.wait.wdt col.w-u { width: 64px; } .mini.rv.wait.wdt col.w-s { width: 74px; } }
+.mini.rv.wait.wdt td:last-child, .mini.rv.wait.wdt th:last-child { padding-right: 6px; }
+
+/* 목록 탭: 상장 전 / 상장 완료 / 철회 전환 버튼 */
+.lseg { display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--surface2); margin: 12px 0 10px; }
+.lseg button { flex: 1; border: 0; background: none; padding: 8px 0; border-radius: 999px; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.lseg button b { font-weight: 700; margin-left: 2px; font-family: var(--f-mono); font-size: 12.5px; }
+.lseg button.on { background: var(--accent); color: #fff; box-shadow: 0 4px 12px -6px var(--accent); }
+:root[data-theme="dark"] .lseg button.on { color: #0B1520; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .lseg button.on { color: #0B1520; } }
+/* 최근 1개월 예심 철회·미승인 */
+.rvx { list-style: none; margin: 0; padding: 0; }
+.rvx li > a, .rvx li > .rx { display: flex; align-items: center; gap: 8px; padding: 8px 2px; border-top: 1px solid var(--line2); color: inherit; text-decoration: none; font-size: 13.5px; }
+.rvx li:first-child > a, .rvx li:first-child > .rx { border-top: 0; }
+.rvx .nm { font-weight: 600; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rvx .rk { flex: none; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 6px; }
+.rvx .rk.w { background: var(--wd-soft); color: #6B7480; }
+.rvx .rk.n { background: var(--danger-soft, #FDECEC); color: var(--danger, #B42318); }
+.rvx .rd { flex: none; margin-left: auto; color: var(--muted); font-size: 12.5px; }
+.rvx .uw { flex: none; width: 76px; text-align: right; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rvx li.focus > a, .rvx li.focus > .rx { background: color-mix(in srgb, #2b8ce6 9%, var(--surface)); }

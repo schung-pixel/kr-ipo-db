@@ -79,17 +79,17 @@
   })();
 
   var DEFAULTS = { status: "all", cand: "ipo", spac: false, year: "", board: "", sector: "", focus: "", q: "", sortKey: "date", sortDir: -1 };
-  var state = Object.assign({}, DEFAULTS, { sYear: "", sPeriod: "all", sUnit: "year", sWin: null, metric: "count", league: "count", fSeg: "all", fKey: "inst_demand_ratio", listScroll: 0 });
+  var state = Object.assign({}, DEFAULTS, { sYear: "", sPeriod: "all", sUnit: "year", sWin: null, metric: "count", league: "count", fSeg: "all", fKey: "inst_demand_ratio", listScroll: 0, lSeg: "pre" });
   try {
     var saved = JSON.parse(localStorage.getItem("ipo-db-view") || "null");
-    if (saved) ["status", "spac", "year", "board", "sector", "focus", "sortKey", "sortDir", "sPeriod", "sUnit", "sWin", "metric", "league", "fSeg", "fKey"].forEach(function (k) {
+    if (saved) ["status", "spac", "year", "board", "sector", "focus", "sortKey", "sortDir", "sPeriod", "sUnit", "sWin", "metric", "league", "fSeg", "fKey", "lSeg"].forEach(function (k) {
       if (k in saved) state[k] = saved[k];
     });
   } catch (e) { /* 저장소를 쓸 수 없으면 기본값으로 시작 */ }
   function persist() {
     try {
       var o = {};
-      ["status", "cand", "spac", "year", "board", "sector", "focus", "sortKey", "sortDir", "sPeriod", "sUnit", "sWin", "metric", "league", "fSeg", "fKey"].forEach(function (k) { o[k] = state[k]; });
+      ["status", "cand", "spac", "year", "board", "sector", "focus", "sortKey", "sortDir", "sPeriod", "sUnit", "sWin", "metric", "league", "fSeg", "fKey", "lSeg"].forEach(function (k) { o[k] = state[k]; });
       localStorage.setItem("ipo-db-view", JSON.stringify(o));
     } catch (e) { /* 무시 */ }
   }
@@ -434,9 +434,11 @@
   function syncDock(tab) { document.documentElement.classList.toggle("dock", isDock(tab)); }
   var dockQuiet = false;
   function openFirstDocked() {
-    var rows = filtered();
-    if (!rows.length) return;
-    dockQuiet = true; openSheet(rows[0].deal_id); dockQuiet = false;
+    // 화면에 보이는 목록(고른 묶음)의 첫 건을 오른쪽 상세에 띄움
+    var el = document.querySelector("#result .cards .card[data-id], #result table.deals tr[data-id]");
+    var id = el ? el.dataset.id : (filtered()[0] || {}).deal_id;
+    if (!id) return;
+    dockQuiet = true; openSheet(id); dockQuiet = false;
   }
   // 검색창: PC에서는 상단 줄로 옮기고, 휴대폰 폭이 되면 본문 맨 위로 되돌림
   function dockSearch() {
@@ -858,6 +860,23 @@
     { key: "retail", label: "일반청약", cls: "c-retail n" },
     { key: "amount", label: "공모액(억원)", cls: "c-amt n" }
   ];
+  // 최근 1개월 예심 철회·미승인(한국거래소 KIND 결정일 기준). 목록 탭 '예심 심사 중' 아래
+  function rvEndCard() {
+    if (state.q.trim()) return "";
+    var today = todayIso(), from = addDays(today, -30), byId = {};
+    data.deals.forEach(function (d) { byId[d.deal_id] = d; });
+    var xs = (data.reviews || []).filter(function (r) { return (r.r === "심사 철회" || r.r === "심사 미승인") && r.d && r.d >= from && r.d <= today && !/스팩|재상장/.test(r.t || ""); })
+      .sort(function (a, b) { return a.d < b.d ? 1 : a.d > b.d ? -1 : (a.n < b.n ? -1 : 1); });
+    if (!xs.length) return "";
+    var chev = '<svg class="chev" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></svg>';
+    var li = xs.map(function (r) {
+      var rej = r.r === "심사 미승인", d = r.id ? byId[r.id] : null;
+      var inner = '<span class="nm">' + esc(r.n) + '</span><span class="rk ' + (rej ? "n" : "w") + '">' + (rej ? "미승인" : "철회") + '</span><span class="rd mono" title="청구 ' + esc(r.f || "-") + ", 결정 " + esc(r.d) + '">' + r.d.slice(5).replace("-", ".") + '</span><span class="uw">' + spTextShort(r.s) + "</span>";
+      return "<li" + ((r.s || "").indexOf(FOCUS_NAME) >= 0 ? ' class="focus"' : "") + ">" + (d ? '<a href="#/deal/' + encodeURIComponent(d.deal_id) + '">' + inner + "</a>" : '<span class="rx">' + inner + "</span>") + "</li>";
+    }).join("");
+    return '<details class="rvgrp rvend" open><summary><span class="t">최근 1개월 예심 철회·미승인</span><span class="cnt">' + xs.length + "</span>" + chev + "</summary>" +
+      '<div class="rvsec"><ul class="rvx">' + li + "</ul></div></details>";
+  }
   function renderRows() {
     // 예심 단계(청구·승인) 회사는 목록 위 묶음 표로 따로 보여 줍니다. 진행 상태 필터로 예심 단계를 직접 고르면 일반 카드로 보입니다.
     var rows = filtered(), rvGroup = [];
@@ -867,12 +886,25 @@
       rows = rows.filter(function (d) { return !isPre(d); });
     }
     var box = document.getElementById("result");
-    if (!rows.length) {
+    if (!rows.length && !rvGroup.length) {
       box.innerHTML = '<div class="empty">조건에 맞는 공모 건이 없습니다. <button type="button" class="linkbtn" id="e-reset">필터 초기화</button></div>';
       document.getElementById("e-reset").addEventListener("click", resetFilters);
       return;
     }
     var q = state.q.trim();
+    // 공모 건은 상장 전 / 상장 완료 / 철회 중 고른 묶음만 보여 줌(예심 단계만 고른 경우는 나누지 않음)
+    var segBar = "";
+    if (!preOnly) {
+      var SEGS = [["pre", "상장 전"], ["done", "상장 완료"], ["wd", "철회"]];
+      var segOf = function (d) { return d.status === "withdrawn" ? "wd" : d.status === "completed" && !upcoming(d) ? "done" : "pre"; };
+      var segN = { pre: 0, done: 0, wd: 0 }; rows.forEach(function (d) { segN[segOf(d)]++; });
+      var seg = segN[state.lSeg] != null ? state.lSeg : "pre";
+      if (!segN[seg]) { var alt = SEGS.filter(function (x) { return segN[x[0]]; })[0]; if (alt && q) seg = alt[0]; }   // 검색 결과가 다른 묶음에만 있으면 그 묶음을 보여 줌
+      rows = rows.filter(function (d) { return segOf(d) === seg; });
+      segBar = '<div class="lseg" role="tablist">' + SEGS.map(function (x) {
+        return '<button type="button" role="tab" data-seg="' + x[0] + '" aria-selected="' + (x[0] === seg) + '"' + (x[0] === seg ? ' class="on"' : "") + ">" + x[1] + " <b>" + segN[x[0]] + "</b></button>";
+      }).join("") + "</div>";
+    }
     var html = '<div class="scroll"><table class="deals"><thead><tr>' + COLS.map(function (c) {
       var on = state.sortKey === c.key;
       return "<th class=\"" + c.cls + '"' + (on ? ' aria-sort="' + (state.sortDir > 0 ? "ascending" : "descending") + '"' : "") +
@@ -947,9 +979,13 @@
       var moreBtn = rv.length > SHOW ? moreBtnHtml("li") : "";
       var rvCard = rv.length ? card("예심 심사 중", rv.length,
         '<ul class="rvl mgrp">' + rv.map(function (d, i) { return i < SHOW ? row(d) : row(d).replace('<li class="', '<li class="rest '); }).join("") + moreBtn + "</ul>") : "";
-      grp = rvCard + apCard;
-    }
-    box.innerHTML = grp + html + "</tbody></table></div>" + cards;
+      grp = rvCard + rvEndCard() + apCard;
+    } else if (!preOnly) grp = rvEndCard();
+    box.innerHTML = grp + segBar + (rows.length ? html + "</tbody></table></div>" + cards : '<div class="empty">이 묶음에 해당하는 공모 건이 없습니다.</div>');
+    box.querySelectorAll(".lseg [data-seg]").forEach(function (b) {
+      b.addEventListener("click", function () { state.lSeg = b.dataset.seg; persist(); renderRows(); if (isDock("list")) openFirstDocked(); });
+    });
+    if (!rows.length) return;
     box.querySelectorAll("th .sort").forEach(function (b) {
       b.addEventListener("click", function () {
         var k = b.dataset.key;
@@ -2780,14 +2816,13 @@
     var wfrom = addDays(today, -30);
     var wds = data.deals.filter(function (d) { return d.status === "withdrawn" && d.is_ipo_candidate === 1 && d.withdrawn_dt && d.withdrawn_dt >= wfrom && d.withdrawn_dt <= today; })
       .sort(function (a, b) { return a.withdrawn_dt < b.withdrawn_dt ? 1 : a.withdrawn_dt > b.withdrawn_dt ? -1 : (name(a) < name(b) ? -1 : 1); });
-    var wstage = function (d) { return d.final_price ? "가격확정 후" : d.demand_start && d.demand_start <= d.withdrawn_dt ? "수요예측 후" : "신고 후"; };
     var wdRows = wds.map(function (d, wi) {
       var trc = (focusRole(d) ? "focus" : "") + (wi >= 5 ? " rest" : "");
       return "<tr" + (trc.trim() ? ' class="' + trc.trim() + '"' : "") + "><td>" + nmLink(d.deal_id, name(d)) + '</td><td title="' + esc(d.lead_underwriters || "") + '">' + spTextShort(d.lead_underwriters) +
-        '</td><td class="num mono" title="철회신고서 제출 ' + esc(d.withdrawn_dt) + '">' + md(d.withdrawn_dt) + '</td><td class="wst" title="최초 신고 ' + esc(d.first_filing_dt || "-") + '">' + wstage(d) + "</td></tr>";
+        '</td><td class="num mono" title="철회신고서 제출 ' + esc(d.withdrawn_dt) + '">' + md(d.withdrawn_dt) + "</td></tr>";
     }).join("");
     var wdPanel = '<section class="panel"><header><div><h2>최근 1개월 공모 철회 <span class="cnt">' + wds.length + "</span></h2></div></header>" +
-      (wds.length ? '<div class="pbody mgrp wgrp"><div class="scroll"><table class="mini rv wait wdt"><colgroup><col class="w-n"><col class="w-u"><col class="w-d"><col class="w-s"></colgroup><thead><tr><th>회사</th><th>주관사</th><th class="num">철회일</th><th>철회 단계</th></tr></thead><tbody>' + wdRows + "</tbody></table></div>" + (wds.length > 5 ? moreBtnHtml("div") : "") + "</div>"
+      (wds.length ? '<div class="pbody mgrp wgrp"><div class="scroll"><table class="mini rv wait wdt"><colgroup><col class="w-n"><col class="w-u"><col class="w-d"></colgroup><thead><tr><th>회사</th><th>주관사</th><th class="num">철회일</th></tr></thead><tbody>' + wdRows + "</tbody></table></div>" + (wds.length > 5 ? moreBtnHtml("div") : "") + "</div>"
         : '<div class="pbody"><div class="empty">최근 1개월 안에 공모를 철회한 회사가 없습니다.</div></div>') + "</section>";
 
     app.innerHTML = '<div class="content cal-page">' + gsearchBox() + briefing(today) + monthPanel(today) + dealTable(today) +
