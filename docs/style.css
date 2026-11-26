@@ -1552,10 +1552,15 @@ table.mini.rv.wait th:nth-child(n+3), table.mini.rv.wait td:nth-child(n+3) { tex
 .mini.rv.wait.wdt td:last-child, .mini.rv.wait.wdt th:last-child { padding-right: 6px; }
 
 /* 목록 탭: 상장 전 / 상장 완료 / 철회 전환 버튼 */
-.lseg { display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--surface2); margin: 12px 0 10px; }
-.lseg button { flex: 1; border: 0; background: none; padding: 8px 0; border-radius: 999px; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.lseg { position: relative; display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--surface2); margin: 12px 0 10px; }
+.lseg .lind { position: absolute; top: 4px; bottom: 4px; left: 4px; width: 0; border-radius: 999px; background: var(--accent); box-shadow: 0 4px 12px -6px var(--accent);
+  transition: transform .22s cubic-bezier(.3, .7, .2, 1), width .22s cubic-bezier(.3, .7, .2, 1); pointer-events: none; }   /* 선택 표시: 버튼 사이를 미끄러져 이동 */
+.lseg button { position: relative; flex: 1; border: 0; background: none; padding: 8px 0; border-radius: 999px; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--muted); cursor: pointer; transition: color .22s; }
 .lseg button b { font-weight: 700; margin-left: 2px; font-family: var(--f-mono); font-size: 12.5px; }
-.lseg button.on { background: var(--accent); color: #fff; box-shadow: 0 4px 12px -6px var(--accent); }
+.lseg button.on { color: #fff; }
+#result .lseg ~ * { transition: opacity .18s; }
+#result.swap .lseg ~ * { opacity: .35; }   /* 목록을 바꾸는 동안 잠깐 흐리게 */
+@media (prefers-reduced-motion: reduce) { .lseg .lind, .lseg button, #result .lseg ~ * { transition: none; } }
 :root[data-theme="dark"] .lseg button.on { color: #0B1520; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .lseg button.on { color: #0B1520; } }
 /* 최근 1개월 예심 철회·미승인 */

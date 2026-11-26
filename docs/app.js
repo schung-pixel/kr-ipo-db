@@ -901,7 +901,21 @@
       var seg = segN[state.lSeg] != null ? state.lSeg : "pre";
       if (!segN[seg]) { var alt = SEGS.filter(function (x) { return segN[x[0]]; })[0]; if (alt && q) seg = alt[0]; }   // 검색 결과가 다른 묶음에만 있으면 그 묶음을 보여 줌
       rows = rows.filter(function (d) { return segOf(d) === seg; });
-      segBar = '<div class="lseg" role="tablist">' + SEGS.map(function (x) {
+      // 상장 전: 기본 정렬(날짜)일 때는 상장에 가까운 단계부터. 상장 예정 → 가격 확정 → 수요예측 진행·종료 → 수요예측 예정 → 일정 미정
+      if (seg === "pre" && state.sortKey === "date") {
+        var today0 = asOf();
+        var rk = function (d) {
+          if (upcoming(d)) return [0, d.listing_dt];
+          if (priceStage(d)) return [1, lstOf(d).dt || pricingDate(d) || "9999"];
+          if (d.demand_start && d.demand_start <= today0) return [2, d.demand_end || d.demand_start];
+          if (d.demand_start) return [3, d.demand_start];
+          return [4, "9999", d.first_filing_dt || ""];
+        };
+        rows = rows.map(function (d) { return { d: d, k: rk(d) }; }).sort(function (a, b) {
+          return a.k[0] - b.k[0] || (a.k[1] < b.k[1] ? -1 : a.k[1] > b.k[1] ? 1 : (b.k[2] || "") < (a.k[2] || "") ? -1 : (b.k[2] || "") > (a.k[2] || "") ? 1 : (name(a.d) < name(b.d) ? -1 : 1));
+        }).map(function (x) { return x.d; });
+      }
+      segBar = '<div class="lseg" role="tablist"><i class="lind" aria-hidden="true"></i>' + SEGS.map(function (x) {
         return '<button type="button" role="tab" data-seg="' + x[0] + '" aria-selected="' + (x[0] === seg) + '"' + (x[0] === seg ? ' class="on"' : "") + ">" + x[1] + " <b>" + segN[x[0]] + "</b></button>";
       }).join("") + "</div>";
     }
@@ -982,9 +996,27 @@
       grp = rvCard + rvEndCard() + apCard;
     } else if (!preOnly) grp = rvEndCard();
     box.innerHTML = grp + segBar + (rows.length ? html + "</tbody></table></div>" + cards : '<div class="empty">이 묶음에 해당하는 공모 건이 없습니다.</div>');
-    box.querySelectorAll(".lseg [data-seg]").forEach(function (b) {
-      b.addEventListener("click", function () { state.lSeg = b.dataset.seg; persist(); renderRows(); if (isDock("list")) openFirstDocked(); });
-    });
+    // 전환 버튼: 선택 표시가 미끄러지듯 옮겨 간 뒤(0.22초) 목록을 바꿈
+    var lsegEl = box.querySelector(".lseg");
+    if (lsegEl) {
+      var place = function (btn, anim) {
+        var ind = lsegEl.querySelector(".lind"); if (!ind || !btn) return;
+        if (!anim) ind.style.transition = "none";
+        ind.style.width = btn.offsetWidth + "px"; ind.style.transform = "translateX(" + (btn.offsetLeft - 4) + "px)";
+        if (!anim) { void ind.offsetWidth; ind.style.transition = ""; }
+      };
+      place(lsegEl.querySelector("button.on"), false);
+      lsegEl.querySelectorAll("[data-seg]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          if (b.classList.contains("on")) return;
+          lsegEl.querySelectorAll("button").forEach(function (x) { x.classList.toggle("on", x === b); x.setAttribute("aria-selected", x === b ? "true" : "false"); });
+          place(b, true);
+          state.lSeg = b.dataset.seg; persist();
+          var res = document.getElementById("result"); if (res) res.classList.add("swap");
+          setTimeout(function () { renderRows(); var r2 = document.getElementById("result"); if (r2) r2.classList.remove("swap"); if (isDock("list")) openFirstDocked(); }, 220);
+        });
+      });
+    }
     if (!rows.length) return;
     box.querySelectorAll("th .sort").forEach(function (b) {
       b.addEventListener("click", function () {
