@@ -1539,3 +1539,15 @@ table.mini.rv.wait th:nth-child(n+3), table.mini.rv.wait td:nth-child(n+3) { tex
   html.dock header.top::after { right: calc(clamp(460px, 40vw, 720px) + 32px); }
 }
 @media (min-width: 720px) and (max-width: 1060px) { html.dock header.top::after { right: calc(clamp(340px, 50vw, 520px) + 32px); } }
+
+/* 공모 철회: 달력 회색 점, 날짜별 목록 회색 묶음, 최근 1개월 철회 표 */
+:root { --wd: #9AA3AF; --wd-soft: #EEF0F3; }
+:root[data-theme="dark"] { --wd: #7D8794; --wd-soft: #1C2633; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --wd: #7D8794; --wd-soft: #1C2633; } }
+.cd.m1 .mdots i.k-4, .cal-lg i.k-4 { background: var(--wd); }
+.cdl .dg.g-4 { --c: #6B7480; --cs: var(--wd-soft); }
+:root[data-theme="dark"] .cdl .dg.g-4 { --c: #A3ACB8; }
+.cdl .dg.g-4 .it .nm { color: var(--muted); }
+.wdt td.wst { font-size: 12px; color: var(--muted); }
+.mini.rv.wait.wdt col.w-s { width: 84px; }
+@media (max-width: 719px) { .mini.rv.wait.wdt col.w-u { width: 64px; } .mini.rv.wait.wdt col.w-s { width: 74px; } }

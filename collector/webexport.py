@@ -270,6 +270,12 @@ def build_payload(conn) -> dict:
                          "ORDER BY corp_code, rcept_no"):
         filings_by_corp.setdefault(f["corp_code"], []).append(f)
 
+    # 철회신고서 접수일(공모 달력과 최근 철회 목록에 씀)
+    wd_by_corp: dict[str, list] = {}
+    for f in _rows(conn, "SELECT rcept_no, corp_code, rcept_dt FROM filing "
+                         "WHERE report_nm LIKE '%철회신고서%' ORDER BY corp_code, rcept_no"):
+        wd_by_corp.setdefault(f["corp_code"], []).append(f)
+
     # 같은 기업의 딜은 최초 접수번호 순으로 구간을 나눠 공시를 배정합니다(접수번호는 날짜 순).
     starts: dict[str, list] = {}
     for d in deals:
@@ -286,6 +292,11 @@ def build_payload(conn) -> dict:
              "doc_kind": f["doc_kind"], "tags": f["tags"], "rm": f["rm"]}
             for f in filings_by_corp.get(d["corp_code"], [])
             if d["first_rcept_no"] <= f["rcept_no"] < hi]
+        # 철회일: 구간 안 첫 철회신고서 접수일, 없으면(철회 간주) 마지막 신고서 접수일
+        d["withdrawn_dt"] = None
+        if d.get("status") == "withdrawn":
+            w = [f["rcept_dt"] for f in wd_by_corp.get(d["corp_code"], []) if d["first_rcept_no"] <= f["rcept_no"] < hi]
+            d["withdrawn_dt"] = w[0] if w else d.get("latest_filing_dt")
 
         estk = d["estk_rcept_no"] if d["is_ipo_candidate"] == 1 else None
         d["underwriters"] = _rows(

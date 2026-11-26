@@ -2394,7 +2394,7 @@
     while (true) { if (t.getDay() !== 0 && t.getDay() !== 6) { k++; if (k >= n) break; } t.setDate(t.getDate() - 1); }
     return isoOf(t);
   }
-  var EV_ORDER = { "수요예측": 0, "청약": 1, "납입": 2, "상장": 3 };
+  var EV_ORDER = { "수요예측": 0, "청약": 1, "납입": 2, "상장": 3, "철회": 4 };
   // 상장일: 실적보고서 확정 > 예정일(38커뮤니케이션·KIND) > 납입일+N영업일 예상
   // 상장일 출처 설명: 예정(38커뮤니케이션·KIND) 또는 예상(납입일 + N영업일)
   function lstNote(d) {
@@ -2412,7 +2412,8 @@
   function calEvents() {
     var ev = [];
     data.deals.forEach(function (d) {
-      if (d.status === "withdrawn" || d.is_ipo_candidate !== 1) return;
+      if (d.is_ipo_candidate !== 1) return;
+      if (d.status === "withdrawn") { if (d.withdrawn_dt) ev.push({ k: "철회", a: d.withdrawn_dt, b: d.withdrawn_dt, d: d }); return; }   // 공모 철회: 철회신고서 제출일에 회색 점
       if (d.demand_start) ev.push({ k: "수요예측", a: d.demand_start, b: d.demand_end || d.demand_start, d: d });
       var s = kdates(d.subscription_raw);
       if (s.length) ev.push({ k: "청약", a: s[0], b: s[s.length - 1] >= s[0] ? s[s.length - 1] : s[0], d: d });
@@ -2496,7 +2497,7 @@
   }
   function dayList(evs, day) {
     if (!evs.length) return '<div class="empty">이날 확인된 공모 일정이 없습니다.</div>';
-    return ["상장", "청약", "수요예측"].map(function (k) {
+    return ["상장", "청약", "수요예측", "철회"].map(function (k) {
       var xs = evs.filter(function (e) { return e.k === k; });
       if (!xs.length) return "";
       return '<div class="dg g-' + EV_ORDER[k] + '"><h4>' + k + " · " + xs.length + "건</h4>" + xs.map(function (e) {
@@ -2514,7 +2515,7 @@
     if (!calMonth) calMonth = today.slice(0, 7);
     if (!calDay) calDay = today;
     var DE = dayEvents(), ST = {};
-    calEvents().forEach(function (e) { if (e.k !== "납입") { var o = ST[e.a] = ST[e.a] || { "수요예측": 0, "청약": 0, "상장": 0 }; o[e.k]++; } });
+    calEvents().forEach(function (e) { if (e.k !== "납입") { var o = ST[e.a] = ST[e.a] || { "수요예측": 0, "청약": 0, "상장": 0, "철회": 0 }; o[e.k]++; } });
     var y = +calMonth.slice(0, 4), mo = +calMonth.slice(5, 7);
     var first = new Date(y, mo - 1, 1), start = isoOf(new Date(y, mo - 1, 1 - first.getDay()));
     var cells = "", t = start;
@@ -2522,7 +2523,7 @@
       var inMon = t.slice(0, 7) === calMonth, w = dOf(t).getDay(), st = ST[t];
       if (k === 35 && !inMon) break;
       var ks = {}; (DE[t] || []).forEach(function (e) { ks[e.k] = 1; });
-      var dots = ["수요예측", "청약", "상장"].filter(function (k) { return ks[k]; }).map(function (k) { return '<i class="k-' + EV_ORDER[k] + '"></i>'; }).join("");
+      var dots = ["수요예측", "청약", "상장", "철회"].filter(function (k) { return ks[k]; }).map(function (k) { return '<i class="k-' + EV_ORDER[k] + '"></i>'; }).join("");
       cells += '<button type="button" class="cd m1' + (inMon ? "" : " out") + (t === today ? " today" : "") + (t === calDay ? " sel" : "") + (w === 0 ? " sun" : w === 6 ? " sat" : "") +
         '" data-day="' + t + '" aria-label="' + esc(mdw(t)) + ((DE[t] || []).length ? " 일정 " + DE[t].length + "건" : "") + '"><span class="dn">' + dOf(t).getDate() + '</span><span class="mdots">' + dots + "</span></button>";
       t = addDays(t, 1);
@@ -2532,7 +2533,7 @@
       '<div class="cnav"><button type="button" class="xbtn" data-mon="-1" aria-label="이전 달"><svg viewBox="0 0 16 16"><path d="M10 3L5 8l5 5"/></svg></button>' +
       '<b class="mono">' + y + "." + ("0" + mo).slice(-2) + '</b><button type="button" class="xbtn" data-mon="1" aria-label="다음 달"><svg viewBox="0 0 16 16"><path d="M6 3l5 5-5 5"/></svg></button>' +
       '<button type="button" class="linkbtn" data-mon="0">오늘</button></div></header>' +
-      '<div class="pbody"><div class="legend cal-lg">' + ["수요예측", "청약", "상장"].map(function (k) { return '<span><i class="k-' + EV_ORDER[k] + '"></i>' + k + "</span>"; }).join("") + '</div><div class="cgrid">' + ["일", "월", "화", "수", "목", "금", "토"].map(function (x, i) { return '<span class="cw' + (i === 0 ? " sun" : i === 6 ? " sat" : "") + '">' + x + "</span>"; }).join("") + cells + "</div>" +
+      '<div class="pbody"><div class="legend cal-lg">' + ["수요예측", "청약", "상장", "철회"].map(function (k) { return '<span><i class="k-' + EV_ORDER[k] + '"></i>' + k + "</span>"; }).join("") + '</div><div class="cgrid">' + ["일", "월", "화", "수", "목", "금", "토"].map(function (x, i) { return '<span class="cw' + (i === 0 ? " sun" : i === 6 ? " sat" : "") + '">' + x + "</span>"; }).join("") + cells + "</div>" +
       '<h3 class="cday">' + esc(mdw(calDay)) + ' <span class="dim">' + sel.length + "건</span></h3>" + '<div class="cdl">' + dayList(sel, calDay) + "</div></div></section>";
   }
   // 딜별 일정표(S1): 회사마다 수요예측·청약·상장 날짜를 나란히, 진행 중인 단계는 강조색
@@ -2775,8 +2776,22 @@
     var waitPanel = '<section class="panel"><header><div><h2>승인 후 상장 대기 <span class="cnt">' + waiting.length + "</span></h2></div></header>" +
       '<div class="pbody mgrp wgrp"><div class="scroll"><table class="mini rv wait"><colgroup><col class="w-n"><col class="w-u"><col class="w-d"><col class="w-s"></colgroup><thead><tr><th>회사</th><th>주관사</th><th class="num">승인일</th><th>진행</th></tr></thead><tbody>' + waitRows + "</tbody></table></div>" + (waiting.length > 5 ? moreBtnHtml("div") : "") + "</div></section>";
 
+    // 최근 1개월 공모 철회(철회신고서 제출일 기준, 최신순). 표는 승인 후 상장 대기와 같은 형식
+    var wfrom = addDays(today, -30);
+    var wds = data.deals.filter(function (d) { return d.status === "withdrawn" && d.is_ipo_candidate === 1 && d.withdrawn_dt && d.withdrawn_dt >= wfrom && d.withdrawn_dt <= today; })
+      .sort(function (a, b) { return a.withdrawn_dt < b.withdrawn_dt ? 1 : a.withdrawn_dt > b.withdrawn_dt ? -1 : (name(a) < name(b) ? -1 : 1); });
+    var wstage = function (d) { return d.final_price ? "가격확정 후" : d.demand_start && d.demand_start <= d.withdrawn_dt ? "수요예측 후" : "신고 후"; };
+    var wdRows = wds.map(function (d, wi) {
+      var trc = (focusRole(d) ? "focus" : "") + (wi >= 5 ? " rest" : "");
+      return "<tr" + (trc.trim() ? ' class="' + trc.trim() + '"' : "") + "><td>" + nmLink(d.deal_id, name(d)) + '</td><td title="' + esc(d.lead_underwriters || "") + '">' + spTextShort(d.lead_underwriters) +
+        '</td><td class="num mono" title="철회신고서 제출 ' + esc(d.withdrawn_dt) + '">' + md(d.withdrawn_dt) + '</td><td class="wst" title="최초 신고 ' + esc(d.first_filing_dt || "-") + '">' + wstage(d) + "</td></tr>";
+    }).join("");
+    var wdPanel = '<section class="panel"><header><div><h2>최근 1개월 공모 철회 <span class="cnt">' + wds.length + "</span></h2></div></header>" +
+      (wds.length ? '<div class="pbody mgrp wgrp"><div class="scroll"><table class="mini rv wait wdt"><colgroup><col class="w-n"><col class="w-u"><col class="w-d"><col class="w-s"></colgroup><thead><tr><th>회사</th><th>주관사</th><th class="num">철회일</th><th>철회 단계</th></tr></thead><tbody>' + wdRows + "</tbody></table></div>" + (wds.length > 5 ? moreBtnHtml("div") : "") + "</div>"
+        : '<div class="pbody"><div class="empty">최근 1개월 안에 공모를 철회한 회사가 없습니다.</div></div>') + "</section>";
+
     app.innerHTML = '<div class="content cal-page">' + gsearchBox() + briefing(today) + monthPanel(today) + dealTable(today) +
-      '<div class="panels even">' + waitPanel + "</div></div>";   // 심사 중 표는 목록 탭의 '예심 심사 중' 카드와 겹쳐 삭제
+      '<div class="panels even">' + waitPanel + wdPanel + "</div></div>";   // 심사 중 표는 목록 탭의 '예심 심사 중' 카드와 겹쳐 삭제
     bindCal();
     bindGsearch();
   }
