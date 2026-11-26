@@ -53117,6 +53117,8 @@ INSERT INTO "kind_corp" VALUES('스튜디오쏠쏠','스튜디오쏠쏠','200350
 INSERT INTO "kind_corp" VALUES('하나에어로','하나에어로','271160','코스닥','항공기,우주선 및 부품 제조업','항공기 치공구(39.52%), 항공기 조립(37.41%) 및 항공기부품(22.45%) 등','2026-11-20','2026-11-20T03:26:34+09:00');
 INSERT INTO "kind_corp" VALUES('엠비디','엠비디','498150','코스닥','의료용 기기 제조업','3D 세포배양 플랫폼 및 서비스','2026-11-24','2026-11-24T06:36:07+09:00');
 INSERT INTO "kind_corp" VALUES('한국첨단솔루션','한국첨단솔루션','223310','코스닥','상품 종합 도매업','건강기능식품','2015-12-24','2026-11-26T04:29:44+09:00');
+INSERT INTO "kind_corp" VALUES('에이치스틸','에이치스틸','0061P0','코넥스','기타 금속 가공제품 제조업','컬러강판','2026-11-27','2026-11-27T08:45:42+09:00');
+INSERT INTO "kind_corp" VALUES('온길넥스트','온길 넥스트','309930','코스닥','기타 생활용품 소매업','기업인수합병','2018-12-20','2026-11-27T08:45:42+09:00');
 CREATE TABLE kind_listing (
   name_key    TEXT PRIMARY KEY,
   corp_name   TEXT,
@@ -55207,7 +55209,7 @@ CREATE TABLE meta (
 );
 INSERT INTO "meta" VALUES('last_list_date','2026-11-27');
 INSERT INTO "meta" VALUES('schema_stage','2');
-INSERT INTO "meta" VALUES('kind_as_of','2026-11-26');
+INSERT INTO "meta" VALUES('kind_as_of','2026-11-27');
 INSERT INTO "meta" VALUES('kind_review_history','2026-11-14');
 CREATE TABLE review (
   deal_id               TEXT PRIMARY KEY,
