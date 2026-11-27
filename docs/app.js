@@ -2113,11 +2113,15 @@
         names.forEach(function (n) { var r = lg[n] = lg[n] || { name: n, count: 0, amount: 0, tech: 0 }; r.count++; if (d.offer_amount) r.amount += d.offer_amount / names.length; if (d.board === "KOSDAQ_TECH") r.tech++; });
       });
       var lk = ["amount", "tech"].indexOf(state.league) >= 0 ? state.league : "count";
-      var L = Object.keys(lg).map(function (k) { return lg[k]; }).sort(function (a, b) { return b[lk] - a[lk] || b.count - a.count; });
+      // 같은 값이면 같은 순위(1, 1, 3 …), 동률 안에서는 NH투자증권을 맨 위에
+      var L = Object.keys(lg).map(function (k) { return lg[k]; }).sort(function (a, b) {
+        return b[lk] - a[lk] || (b.name === FOCUS_NAME) - (a.name === FOCUS_NAME) || b.count - a.count || a.name.localeCompare(b.name, "ko");
+      });
+      L.forEach(function (r, i) { r.rank = i && L[i - 1][lk] === r[lk] ? L[i - 1].rank : i + 1; });
       var mx = L.length ? Math.max(1, L[0][lk]) : 1;
       head = '<th class="rank">순위</th><th>대표주관</th><th class="num">건수</th><th class="num">기술특례</th><th class="num">공모액(억)</th><th class="bar-cell"><span class="sr">막대</span></th>';
       rows = L.map(function (r, i) {
-        return '<tr class="go' + (r.name === FOCUS_NAME ? " focus" : "") + '" tabindex="0" data-uw="' + esc(r.name) + '"><td class="rank">' + (i + 1) + "</td><td>" + esc(r.name) + '</td><td class="num">' + r.count + '</td><td class="num">' + r.tech + '</td><td class="num">' + eok(r.amount) +
+        return '<tr class="go' + (r.name === FOCUS_NAME ? " focus" : "") + '" tabindex="0" data-uw="' + esc(r.name) + '"><td class="rank">' + r.rank + "</td><td>" + esc(r.name) + '</td><td class="num">' + r.count + '</td><td class="num">' + r.tech + '</td><td class="num">' + eok(r.amount) +
           '</td><td class="bar-cell"><div class="hbar" style="width:' + (r[lk] / mx * 100).toFixed(1) + '%"></div></td></tr>';
       });
       ctl2 = segBtns("data-l", [["count", "건수순"], ["amount", "공모액순"], ["tech", "기술특례순"]], lk);
