@@ -1674,3 +1674,39 @@ table.mini.sect tr.go:hover td { background: var(--surface2); }
 @media (prefers-reduced-motion: reduce) { .panel.flash { animation: none; } }
 table.mini.bkt th.bar-cell, table.mini.bkt td.bar-cell { width: 22%; min-width: 50px; }
 #st-uw table.mini.uw th.bar-cell, #st-uw table.mini.uw td.bar-cell { width: 18%; min-width: 48px; }
+
+/* ===== 바이오 탭 개편(B안): 핵심 지표 표, 주제 탭, PC(1061px~)는 왼쪽 명단 고정 ===== */
+.bio-page[data-st] .sg { display: none; }
+.bio-page[data-st="rv"] .sg.g-rv, .bio-page[data-st="cd"] .sg.g-cd, .bio-page[data-st="vl"] .sg.g-vl, .bio-page[data-st="gr"] .sg.g-gr,
+.bio-page[data-st="ls"] .sg.g-ls, .bio-page[data-st="fl"] .sg.g-fl { display: grid; }
+.bio-page .stabs { display: flex; gap: 2px; padding: 4px; border-radius: 999px; background: var(--track); overflow-x: auto; scrollbar-width: none; max-width: 100%; justify-self: start; }
+.bio-page .stabs::-webkit-scrollbar { display: none; }
+.bio-page .stabs button { flex: none; border: 0; background: none; height: 34px; padding: 0 13px; border-radius: 999px; font-size: 13.5px; color: var(--muted); white-space: nowrap; }
+.bio-page .stabs button[aria-selected="true"] { background: var(--accent); color: #fff; font-weight: 600; }
+.bio-page > .bio-cols > .bio-r > .panel, .bio-page .bio-l > .panel { margin-bottom: 0; }
+@media (max-width: 1060px) {
+  .bio-page .stabs { margin: 2px 0 12px; }
+  .bio-page .panel.score { margin-bottom: 12px; }
+}
+@media (min-width: 720px) { .bio-page .stabs button { height: 36px; padding: 0 16px; font-size: 14px; } }
+@media (min-width: 1061px) {
+  .bio-page .bio-l .sg { display: grid; }   /* PC: 명단과 철회·미승인 명단은 왼쪽 열에 늘 보임 */
+  .bio-page .stabs .t-ls, .bio-page .stabs .t-fl { display: none; }
+  .bio-page .bscgs { grid-template-columns: minmax(0, 1fr); }
+}
+.bio-page .panel.flash { animation: stflash 1.2s ease-out; }
+/* 조건별 통과율 색상표 */
+table.mini.bio-heat th { white-space: normal; line-height: 1.3; vertical-align: bottom; text-align: center; }
+table.mini.bio-heat th:first-child { text-align: left; }
+table.mini.bio-heat td.hc { text-align: center; padding: 6px 4px; background: color-mix(in srgb, var(--accent) var(--a), transparent); line-height: 1.2; }
+table.mini.bio-heat td.hc b { display: block; font-family: var(--f-mono); font-size: 13.5px; font-weight: 600; }
+table.mini.bio-heat td.hc small { display: block; font-family: var(--f-mono); font-size: 10.5px; opacity: .75; }
+table.mini.bio-heat td.hc[data-hi] { color: #fff; }
+table.mini.bio-heat td.hc + td.hc { border-left: 2px solid var(--surface); }
+table.mini.bio-heat tr.tot td { border-top: 2px solid var(--line); font-weight: 600; }
+.bio-page #bio-val .fgrid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+@media (max-width: 719px) { .bio-page #bio-val .fgrid { grid-template-columns: minmax(0, 1fr); } }
+.bio-page #bio-val .fgrid .minih, .bio-page #bio-val > .pbody > .minih { margin: 4px 0 6px; }
+.bio-page #bio-val .bar-cell, .bio-page #bio-val th.bar-cell { width: 30%; }
+table.mini.bio-heat td.hc small, table.mini.bio-heat td.hc b { white-space: nowrap; }
+@media (max-width: 719px) { table.mini.bio-heat td.hc small { font-size: 9.5px; } table.mini.bio-heat td, table.mini.bio-heat th { padding-left: 3px; padding-right: 3px; } }
