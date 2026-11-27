@@ -1576,3 +1576,9 @@ table.mini.rv.wait th:nth-child(n+3), table.mini.rv.wait td:nth-child(n+3) { tex
 .rvx li.focus > a, .rvx li.focus > .rx { background: color-mix(in srgb, #2b8ce6 9%, var(--surface)); }
 /* 달력 점: 한 줄에 최대 2개, 두 줄까지(수요예측, 청약 / 상장, 철회). 칸 높이는 두 줄 기준으로 고정 */
 .cd.m1 .mdots { flex-wrap: wrap; justify-content: center; align-content: flex-start; column-gap: 4px; row-gap: 3px; width: 20px; height: 19px; margin-left: auto; margin-right: auto; }
+/* 공모 달력 높이 축소(시안 C): 칸 여백, 점 7px, 날짜 원 28px(PC 31px) */
+.cgrid > .cd.m1 { padding: 2px 0 3px; gap: 3px; }
+.cd.m1 .mdots { width: 18px; height: 16px; row-gap: 2px; }
+.cd.m1 .mdots i { width: 7px; height: 7px; }
+.cd.m1 .dn { width: 28px; height: 28px; }
+@media (min-width: 720px) { .cd.m1 .dn { width: 31px; height: 31px; } }
