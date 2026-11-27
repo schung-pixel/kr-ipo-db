@@ -587,16 +587,17 @@
     var lid = "dd-" + sel.id;
     var h = "";
     var item = function (o) {
-      if (o.hidden) return "";
-      var on = o.selected;
+      if (o.hidden || (o.dataset.m && !mobile)) return "";
+      var on = o.dataset.on != null ? o.dataset.on === "1" : o.selected;
       return '<button type="button" role="option" class="dd-o" tabindex="-1" data-v="' + esc(o.value) + '" aria-selected="' + on + '"><span>' + esc(o.textContent) + "</span>" + CHECK + "</button>";
     };
     Array.prototype.forEach.call(sel.children, function (c) {
       if (c.tagName === "OPTGROUP") {
-        var lbl = c.getAttribute("label");
+        var lbl = c.getAttribute("label"), its = Array.prototype.map.call(c.children, item).join("");
+        if (!its) return;
         h += '<div class="dd-g' + (c.dataset.grid ? " grid" : "") + '" role="group"' + (lbl ? ' aria-label="' + esc(lbl) + '"' : "") + ">" +
           (lbl ? '<div class="dd-h" aria-hidden="true">' + esc(lbl) + "</div>" : '<div class="dd-sep" aria-hidden="true"></div>') +
-          '<div class="dd-items">' + Array.prototype.map.call(c.children, item).join("") + "</div></div>";
+          '<div class="dd-items">' + its + "</div></div>";
       } else h += item(c);
     });
     var wrap = document.createElement("div");
@@ -2229,8 +2230,9 @@
       '<optgroup label="빠른 선택">' + opt("all", "전체 기간", custom ? "" : state.sPeriod) + opt("5y", "최근 5년", custom ? "" : state.sPeriod) + opt("3y", "최근 3년", custom ? "" : state.sPeriod) + "</optgroup>" +
       '<optgroup label="연도별" data-grid="1">' + ys.map(function (y) { return opt(y, y + "년", custom ? "" : state.sPeriod); }).join("") + "</optgroup></select></label>" +
       '<div class="flabel"><span class="fl-t">단위</span>' + segBtns("data-u", [["year", "연"], ["quarter", "분기"], ["month", "월"]], unit) + "</div>" +
-      boardSelect("s-board") + '<span class="sw-d">' + spacSw("s-spac") + "</span></div>" +
-      '<div class="sopt-m">' + spacSw("s-spac-m") + "</div>";
+      boardSelect("s-board").replace("</select>", '<optgroup label="스팩"><option value="__spac" data-m="1" data-on="' + (state.spac ? 1 : 0) + '">스팩 포함</option></optgroup></select>')
+        .replace(/(<option value=""[^>]*>)전체 시장</, "$1" + (state.spac ? "전체 시장+스팩" : "전체 시장") + "<") +
+      '<span class="sw-d">' + spacSw("s-spac") + "</span></div>";
     var top = gsearchBox("stat") + head + sfChips();
     if (!ys.length) { app.innerHTML = '<div class="content">' + top + '<div class="ledger"><div class="empty">상장 건이 없습니다.</div></div></div>'; bindStats(); return; }
     var wf = win[0], wt = win[1];
@@ -2470,7 +2472,11 @@
     var wr = document.getElementById("s-win-reset");
     if (wr) wr.addEventListener("click", resetWin);
     var bs = document.getElementById("s-board");
-    if (bs) bs.addEventListener("change", function (e) { state.board = e.target.value; persist(); renderStats(); });
+    if (bs) bs.addEventListener("change", function (e) {
+      if (e.target.value === "__spac") state.spac = !state.spac;   // 휴대폰: 시장 목록 맨 아래 '스팩 포함' 켜고 끄기
+      else state.board = e.target.value;
+      persist(); renderStats();
+    });
     app.querySelectorAll(".s-spac").forEach(function (sp) {
       sp.addEventListener("change", function (e) { state.spac = e.target.checked; persist(); renderStats(); });
     });
