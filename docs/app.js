@@ -893,12 +893,12 @@
     }
     var q = state.q.trim();
     // 공모 건은 상장 전 / 상장 완료 / 철회 중 고른 묶음만 보여 줌(예심 단계만 고른 경우는 나누지 않음)
-    var segBar = "";
+    var segBar = "", seg = "";
     if (!preOnly) {
       var SEGS = [["pre", "상장 전"], ["done", "상장 완료"], ["wd", "철회"]];
       var segOf = function (d) { return d.status === "withdrawn" ? "wd" : d.status === "completed" && !upcoming(d) ? "done" : "pre"; };
       var segN = { pre: 0, done: 0, wd: 0 }; rows.forEach(function (d) { segN[segOf(d)]++; });
-      var seg = segN[state.lSeg] != null ? state.lSeg : "pre";
+      seg = segN[state.lSeg] != null ? state.lSeg : "pre";
       if (!segN[seg]) { var alt = SEGS.filter(function (x) { return segN[x[0]]; })[0]; if (alt && q) seg = alt[0]; }   // 검색 결과가 다른 묶음에만 있으면 그 묶음을 보여 줌
       rows = rows.filter(function (d) { return segOf(d) === seg; });
       // 상장 전: 기본 정렬(날짜)일 때는 상장에 가까운 단계부터. 상장 예정 → 가격 확정 → 수요예측 진행·종료 → 수요예측 예정 → 일정 미정
@@ -951,7 +951,7 @@
         : '<span class="lbl">밴드</span><span class="b">' + bandCell + "</span>";
       var hasRatio = d.inst_demand_ratio != null || d.retail_ratio != null;
       cards += '<a class="card' + fc + '" href="' + href + '" data-id="' + esc(d.deal_id) + '">' +
-        '<div class="r1"><span class="nmw"><span class="nm">' + hlName(name(d), q) + '</span>' + (tags ? '<span class="tags">' + tags + "</span>" : "") + "</span>" + chip(d) + "</div>" +
+        '<div class="r1"><span class="nmw"><span class="nm">' + hlName(name(d), q) + '</span>' + (tags ? '<span class="tags">' + tags + "</span>" : "") + "</span>" + (seg === "done" || seg === "wd" ? "" : chip(d)) + "</div>" +   // 상장 완료, 철회 묶음은 모두 같은 상태라 칩 생략
         '<div class="r2">' + (d.listing_dt ? '상장 <span class="mono">' + esc(d.listing_dt) + "</span>" : d.demand_start && d.status !== "withdrawn" ? '수요예측 <span class="mono">' + esc(demandText(d, true)) + "</span>" : (d.status === "approved" ? "예심 승인 " : d.status === "review" ? "예심 청구 " : "신고 ") + '<span class="mono">' + esc(d.first_filing_dt) + "</span>") + " · " + uwHtml(d, q) + "</div>" +
         '<div class="r3"><span class="price">' + price + "</span>" + (!hasRatio && d.offer_amount != null ? '<span class="amt r3a">공모액<b>' + eok(d.offer_amount) + "억</b></span>" : "") + "</div>" +
         (hasRatio
