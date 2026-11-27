@@ -79,17 +79,17 @@
   })();
 
   var DEFAULTS = { status: "all", cand: "ipo", spac: false, year: "", board: "", sector: "", focus: "", q: "", sortKey: "date", sortDir: -1 };
-  var state = Object.assign({}, DEFAULTS, { sYear: "", sPeriod: "all", sUnit: "year", sWin: null, metric: "count", league: "count", fSeg: "all", fKey: "inst_demand_ratio", listScroll: 0, lSeg: "pre" });
+  var state = Object.assign({}, DEFAULTS, { sYear: "", sPeriod: "all", sUnit: "year", sWin: null, metric: "count", league: "count", fSeg: "all", fKey: "inst_demand_ratio", listScroll: 0, lSeg: "pre", sF: [], sTab: "ov", bKey: "inst", vBy: "method", uView: "perf" });
   try {
     var saved = JSON.parse(localStorage.getItem("ipo-db-view") || "null");
-    if (saved) ["status", "spac", "year", "board", "sector", "focus", "sortKey", "sortDir", "sPeriod", "sUnit", "sWin", "metric", "league", "fSeg", "fKey", "lSeg"].forEach(function (k) {
+    if (saved) ["status", "spac", "year", "board", "sector", "focus", "sortKey", "sortDir", "sPeriod", "sUnit", "sWin", "metric", "league", "fSeg", "fKey", "lSeg", "sF", "sTab", "bKey", "vBy", "uView"].forEach(function (k) {
       if (k in saved) state[k] = saved[k];
     });
   } catch (e) { /* 저장소를 쓸 수 없으면 기본값으로 시작 */ }
   function persist() {
     try {
       var o = {};
-      ["status", "cand", "spac", "year", "board", "sector", "focus", "sortKey", "sortDir", "sPeriod", "sUnit", "sWin", "metric", "league", "fSeg", "fKey", "lSeg"].forEach(function (k) { o[k] = state[k]; });
+      ["status", "cand", "spac", "year", "board", "sector", "focus", "sortKey", "sortDir", "sPeriod", "sUnit", "sWin", "metric", "league", "fSeg", "fKey", "lSeg", "sF", "sTab", "bKey", "vBy", "uView"].forEach(function (k) { o[k] = state[k]; });
       localStorage.setItem("ipo-db-view", JSON.stringify(o));
     } catch (e) { /* 무시 */ }
   }
@@ -1724,22 +1724,6 @@
     }).join("") + "</div>";
   }
 
-  // ---- 상장일 유통물량 통계: 연도별 유통가능 비율, 유통물량과 경쟁률의 관계(스팩 제외, 상장 완료 건)
-  function spearman(xs, ys) {
-    var n = xs.length;
-    if (n < 5) return null;
-    var rank = function (a) {
-      var o = a.map(function (v, i) { return [v, i]; }).sort(function (p, q) { return p[0] - q[0]; }), r = new Array(n);
-      for (var i = 0; i < n;) { var j = i; while (j + 1 < n && o[j + 1][0] === o[i][0]) j++; for (var k = i; k <= j; k++) r[o[k][1]] = (i + j) / 2; i = j + 1; }
-      return r;
-    };
-    var a = rank(xs), b = rank(ys), ma = (n - 1) / 2, sab = 0, saa = 0, sbb = 0;
-    for (var i = 0; i < n; i++) { sab += (a[i] - ma) * (b[i] - ma); saa += (a[i] - ma) * (a[i] - ma); sbb += (b[i] - ma) * (b[i] - ma); }
-    var r = saa && sbb ? sab / Math.sqrt(saa * sbb) : 0;
-    // 유의성(근사): t = r√((n−2)/(1−r²)), |t| > 1.97 이면 5% 수준
-    var t = Math.abs(r) < 1 ? r * Math.sqrt((n - 2) / (1 - r * r)) : 99;
-    return { r: r, n: n, sig: Math.abs(t) > 1.97 };
-  }
   function quant(a, q) {
     a = a.filter(function (v) { return v != null; }).sort(function (x, y) { return x - y; });
     if (!a.length) return null;
@@ -1748,7 +1732,7 @@
   }
   var FSEG = [["all", "전체"], ["KOSDAQ", "코스닥 일반"], ["KOSDAQ_TECH", "기술특례"]];
   var FBUCK = [[0, 25, "25% 미만"], [25, 30, "25~30%"], [30, 35, "30~35%"], [35, 40, "35~40%"], [40, 101, "40% 이상"]];
-  function rhoTxt(c) { return c ? '<span class="rho' + (c.sig ? " sig" : "") + '">' + (c.r >= 0 ? "+" : "−") + Math.abs(c.r).toFixed(2) + "</span>" : '<span class="dim">-</span>'; }
+  // ---- 상장일 유통물량 통계(스팩 제외, 상장 완료 건): 연도별 유통가능 비율, 유통 구간별 경쟁률
   function floatPanel(deals, periodText, W, halfW, H) {
     var f0 = function (d) { return d.lockup && d.lockup.float0 ? d.lockup.float0.pct : null; };
     var ds = deals.filter(function (d) { return !isSpac(d) && f0(d) != null; });
@@ -1759,15 +1743,13 @@
     var boards = [["KOSPI", "유가", "var(--mk-ks)"], ["KOSDAQ", "코스닥 일반", "var(--mk-kq)"], ["KOSDAQ_TECH", "기술특례", "var(--mk-tech)"]];
     if (state.board) boards = boards.filter(function (b) { return b[0] === state.board; });
     var medOf = function (xs, b) { return median(xs.filter(function (d) { return !b || seriesOf(d) === b; }).map(f0)); };
-    var corrOf = function (xs) { xs = xs.filter(function (d) { return inSeg(d) && d[key] > 0; }); return spearman(xs.map(f0), xs.map(function (d) { return d[key]; })); };
-    var all = ds.filter(inSeg), cAll = corrOf(ds);
+    var all = ds.filter(inSeg);
     var ctrl = '<div class="fctl">' + segBtns("data-fs", FSEG, seg) + segBtns("data-fk", [["inst_demand_ratio", "수요예측"], ["retail_ratio", "일반청약"]], key) + "</div>";
     var hd = '<header><div><h2>상장일 유통물량</h2>' + "</div>" + ctrl + "</header>";
-    if (!ds.length) return '<section class="panel fpanel">' + hd + '<div class="pbody"><div class="empty">유통물량을 읽은 상장 건이 없습니다.</div></div></section>';
+    var open = '<section class="panel fpanel sg g-fl wide" id="st-float">';
+    if (!ds.length) return open + hd + '<div class="pbody"><div class="empty">유통물량을 읽은 상장 건이 없습니다.</div></div></section>';
     var kpi = '<div class="cmp f4">' +
-      '<div><span class="k">상장일 유통가능 중앙값</span><span class="v">' + pct1(median(all.map(f0))) + '</span><span class="s">' + all.length + "건 · 가운데 50% " + pct1(quant(all.map(f0), .25)) + "~" + pct1(quant(all.map(f0), .75)) + "</span></div>" +
-      '<div><span class="k">유통물량과 ' + keyLabel + " 경쟁률</span><span class=\"v\">" + rhoTxt(cAll) + '</span><span class="s">' + (cAll ? cAll.n + "건 · " + (cAll.r < -0.1 ? "유통물량이 많을수록 경쟁률이 낮은 편" : cAll.r > 0.1 ? "유통물량이 많을수록 경쟁률이 높은 편" : "뚜렷한 관계 없음") : "표본 부족") + "</span></div></div>";
-    // 유통 구간별 경쟁률 중앙값
+      '<div><span class="k">상장일 유통가능 중앙값</span><span class="v">' + pct1(median(all.map(f0))) + '</span><span class="s">' + all.length + "건, 가운데 50% " + pct1(quant(all.map(f0), .25)) + "~" + pct1(quant(all.map(f0), .75)) + "</span></div></div>";
     var bk = FBUCK.map(function (b) {
       var xs = all.filter(function (d) { var x = f0(d); return x >= b[0] && x < b[1] && d[key] > 0; });
       return { label: b[2], n: xs.length, med: median(xs.map(function (d) { return d[key]; })) };
@@ -1775,23 +1757,20 @@
     var bmax = Math.max.apply(null, bk.map(function (b) { return b.med || 0; }).concat([1]));
     var bucketTbl = '<table class="mini fbk"><thead><tr><th>상장일 유통가능</th><th class="num">건수</th><th class="num">' + keyLabel + ' 경쟁률 중앙값</th><th class="bar-cell"><span class="sr">막대</span></th></tr></thead><tbody>' +
       bk.map(function (b) { return "<tr><td>" + b.label + '</td><td class="num">' + b.n + '</td><td class="num">' + (b.med != null && b.n >= 3 ? ratio(b.med, 0) : "-") + '</td><td class="bar-cell"><div class="hbar" style="width:' + (b.n >= 3 && b.med ? b.med / bmax * 100 : 0).toFixed(1) + '%"></div></td></tr>'; }).join("") + "</tbody></table>";
-    // 연도별 표
     var yearTbl = '<table class="mini fyr"><thead><tr><th>연도</th><th class="num">건수</th><th class="num">유통가능 중앙값</th>' +
-      boards.map(function (b) { return '<th class="num">' + b[1] + "</th>"; }).join("") + '<th class="num">가운데 50%</th><th class="num">상관 · ' + keyLabel + "</th></tr></thead><tbody>" +
+      boards.map(function (b) { return '<th class="num">' + b[1] + "</th>"; }).join("") + '<th class="num">가운데 50%</th></tr></thead><tbody>' +
       years.slice().reverse().map(function (y) {
         var xs = byY[y], sx = xs.filter(inSeg);
         return "<tr><td>" + y + '</td><td class="num">' + sx.length + '</td><td class="num"><b>' + pct1(median(sx.map(f0))) + "</b></td>" +
           boards.map(function (b) { var m = medOf(xs, b[0]); return '<td class="num">' + (m != null ? pct1(m) : "-") + "</td>"; }).join("") +
-          '<td class="num">' + pct1(quant(sx.map(f0), .25)) + "~" + pct1(quant(sx.map(f0), .75)) + '</td><td class="num">' + rhoTxt(corrOf(xs)) + "</td></tr>";
+          '<td class="num">' + pct1(quant(sx.map(f0), .25)) + "~" + pct1(quant(sx.map(f0), .75)) + "</td></tr>";
       }).join("") + "</tbody></table>";
     var Lp = 44, Rp = 10, Tp = 20, Bp = 28;
-    // 연도별 중앙값 선 그래프(시장별)
     var lineChart = function (w, h) {
       var ih = h - Tp - Bp, band = (w - Lp - Rp) / years.length, top = Math.max(60, Math.ceil(Math.max.apply(null, years.map(function (y) { return Math.max(medOf(byY[y]) || 0, quant(byY[y].filter(inSeg).map(f0), .75) || 0, Math.max.apply(null, boards.map(function (b) { return medOf(byY[y], b[0]) || 0; }))); })) / 20) * 20);
       var svg = '<svg data-w="' + w + '" viewBox="0 0 ' + w + " " + h + '" role="img" aria-label="연도별 상장일 유통가능 비율 중앙값">' + frame(w, h, Lp, Rp, Tp, Bp, top, years.map(function (y) { return years.length > 8 ? "'" + y.slice(2) : y; }), function (x) { return Math.round(x) + "%"; });
       var px = function (i) { return Lp + band * i + band / 2; }, py = function (x) { return Tp + ih - Math.min(x, top) / top * ih; };
       var q1 = years.map(function (y) { return quant(byY[y].filter(inSeg).map(f0), .25); }), q3 = years.map(function (y) { return quant(byY[y].filter(inSeg).map(f0), .75); });
-      // 가운데 50% 띠: 값이 있는 연도끼리 이어진 구간마다 따로 그립니다(표본 3건 미만 연도는 끊음)
       var runs = [], cur = [];
       years.forEach(function (y, i) { if (q1[i] != null && byY[y].filter(inSeg).length >= 3) cur.push(i); else if (cur.length) { runs.push(cur); cur = []; } });
       if (cur.length) runs.push(cur);
@@ -1811,30 +1790,432 @@
       return svg + "</svg>";
     };
     var legendB = '<div class="legend">' + boards.map(function (b) { return '<span><i class="ln-key" style="background:' + b[2] + '"></i>' + b[1] + "</span>"; }).join("") + '<span><i class="iqr-key"></i>가운데 50%(' + FSEG.filter(function (f) { return f[0] === seg; })[0][1] + ")</span></div>";
-    // 연도별 상관 막대(0 기준)
-    var rhoBars = function (w, h) {
-      var ih = h - Tp - Bp, band = (w - Lp - Rp) / years.length, mid = Tp + ih / 2, svg = '<svg data-w="' + w + '" viewBox="0 0 ' + w + " " + h + '" role="img" aria-label="연도별 순위상관">';
-      [-1, -0.5, 0, 0.5, 1].forEach(function (t) { var y = mid - t * ih / 2; svg += '<line class="' + (t === 0 ? "axis" : "grid") + '" x1="' + Lp + '" x2="' + (w - Rp) + '" y1="' + y + '" y2="' + y + '"/><text x="' + (Lp - 6) + '" y="' + (y + 4) + '" text-anchor="end">' + (t > 0 ? "+" : "") + t + "</text>"; });
-      years.forEach(function (y, i) {
-        var c = corrOf(byY[y]), bw = Math.min(26, band * .6), x = Lp + band * i + (band - bw) / 2;
-        svg += '<text x="' + (Lp + band * i + band / 2) + '" y="' + (h - 8) + '" text-anchor="middle">' + (years.length > 8 ? "'" + y.slice(2) : y) + "</text>";
-        if (!c) return;
-        var hh = Math.abs(c.r) * ih / 2;
-        svg += colHit(Lp + band * i, Tp, band, ih, "<b>" + y + "년</b>" + tipRow("", "순위상관", (c.r >= 0 ? "+" : "") + c.r.toFixed(2) + (c.sig ? " (유의)" : "")) + tipRow("", "표본", c.n + "건"), y + "년") +
-          '<rect class="rb' + (c.sig ? " sig" : "") + '" x="' + x + '" y="' + (c.r >= 0 ? mid - hh : mid) + '" width="' + bw + '" height="' + Math.max(1, hh) + '" rx="3"/></g>';
-      });
-      return svg + "</svg>";
-    };
     var body = kpi + '<div class="fgrid"><div><h3 class="minih">연도별 유통가능 비율 중앙값</h3>' + legendB + '<div class="chart">' + lineChart(halfW, H - 30) + '</div></div>' +
-      '<div><h3 class="minih">연도별 순위상관 · ' + keyLabel + " 경쟁률</h3>" + '<div class="chart">' + rhoBars(halfW, H - 30) + "</div>" +
-      '<h3 class="minih">유통 구간별 ' + keyLabel + " 경쟁률</h3>" + bucketTbl + "</div></div>" +
+      '<div><h3 class="minih">유통 구간별 ' + keyLabel + " 경쟁률</h3>" + bucketTbl + "</div></div>" +
       '<details class="tv"><summary>연도별 표로 보기</summary><div class="scroll">' + yearTbl + "</div></details>";
-    return '<section class="panel fpanel">' + hd + '<div class="pbody">' + body + "</div></section>";
+    return open + hd + '<div class="pbody">' + body + "</div></section>";
   }
+
+  // ================================================================ 통계 공통
+  var STAT_TABS = [["ov", "시장 추이"], ["px", "가격 결정"], ["af", "상장 후 성과"], ["uw", "주관사"], ["sc", "심사와 일정"], ["tc", "기술특례"], ["fl", "유통물량"]];
+  // 검색창 '통계로 이동' 항목: [이름, 탭, 패널 id, 찾는 말]
+  var STAT_ITEMS = [
+    ["핵심 지표", "", "st-score", "요약 올해 작년 동기 비교"],
+    ["상장 추이", "ov", "st-trend", "건수 공모액 시장 연도별 분기별 월별"],
+    ["경쟁률 추이", "ov", "st-comp", "수요예측 일반청약 경쟁률"],
+    ["업종별 현황", "ov", "st-sector", "업종 섹터 산업"],
+    ["밴드 대비 확정가 위치", "px", "st-band", "밴드 상단 하단 초과 미달 확정가"],
+    ["의무보유확약 비율", "px", "st-commit", "확약 락업 의무보유"],
+    ["공모가 산정(할인율, 적용 배수)", "px", "st-val", "할인율 PER EV/EBITDA PSR 배수 밸류에이션 산정 근거 공모가"],
+    ["상장 후 성과", "af", "st-after", "시초가 종가 수익률 하회 상장일 주가 따상 2배"],
+    ["구간별 상장일 성과", "af", "st-bucket", "경쟁률 구간 확약 구간 공모액 구간 수익률"],
+    ["주관사별 실적과 조건", "uw", "st-uw", "주관사 순위 수수료 예심 실적 승인율 리그테이블 하우스"],
+    ["심사와 공모 일정", "sc", "st-sched", "예심 심사기간 승인율 정정 기재정정 철회 소요일 신고서"],
+    ["기술특례 분석", "tc", "st-tech", "기술특례 기술평가 등급 성장성 추천 트랙"],
+    ["상장일 유통물량", "fl", "st-float", "유통 유통가능 물량 오버행"]
+  ];
+  var GRADES = ["AAA", "AA", "A", "BBB", "BB", "B"];
+  var SF_LABEL = { uw: "주관", sec: "업종", gr: "기술평가" };
+  function sfList() { return Array.isArray(state.sF) ? state.sF : []; }
+  // 표본 조건: 종류가 다르면 모두 만족(AND), 같은 종류끼리는 하나라도 만족(OR)
+  function sfBy() { var by = {}; sfList().forEach(function (x) { (by[x.k] = by[x.k] || []).push(x.v); }); return by; }
+  function sampleOk(d) {
+    var by = sfBy();
+    if (by.uw && !uwSet(d).some(function (n) { return by.uw.indexOf(n) >= 0; })) return false;
+    if (by.sec && by.sec.indexOf(d.sector) < 0) return false;
+    if (by.gr && !(d.tech_grades && splitNames(d.tech_grades).some(function (g) { return by.gr.indexOf(g) >= 0; }))) return false;
+    return true;
+  }
+  // 예심 현황(KIND)은 업종, 등급을 모르므로 주관사 조건만 적용
+  function rvSampleOk(r) {
+    var u = sfBy().uw;
+    return !u || splitNames(r.s).map(uwKey).some(function (n) { return u.indexOf(n) >= 0; });
+  }
+  function sfOnlyUw() { return sfList().every(function (x) { return x.k === "uw"; }); }
+  function sfChips() {
+    var f = sfList();
+    if (!f.length) return '<div class="sfchips" hidden></div>';
+    return '<div class="sfchips" role="group" aria-label="표본 조건"><span class="sfl">표본</span>' + f.map(function (x, i) {
+      return '<button type="button" class="sfc" data-sfx="' + i + '" aria-label="' + esc(SF_LABEL[x.k] + " " + x.v) + ' 조건 빼기"><small>' + SF_LABEL[x.k] + "</small>" + esc(x.v) + '<span aria-hidden="true">×</span></button>';
+    }).join("") + (f.length > 1 ? '<button type="button" class="linkbtn" id="sf-clear">모두 지우기</button>' : "") + "</div>";
+  }
+  function sfAdd(k, v) {
+    var f = sfList().slice();
+    if (!f.some(function (x) { return x.k === k && x.v === v; })) f.push({ k: k, v: v });
+    state.sF = f; persist();
+  }
+  function statSearchHits(q) {
+    q = q.trim();
+    if (!q) return null;
+    var lq = q.toLowerCase(), uw = {}, sec = {};
+    data.deals.forEach(function (d) {
+      if (!listDate(d) || isSpac(d)) return;
+      uwSet(d).forEach(function (n) { uw[n] = (uw[n] || 0) + 1; });
+      if (d.sector) sec[d.sector] = (sec[d.sector] || 0) + 1;
+    });
+    var on = function (k, v) { return sfList().some(function (x) { return x.k === k && x.v === v; }); };
+    var hit = function (s) { return findMatch(s, lq) !== -1; };
+    var add = [];
+    Object.keys(uw).filter(function (n) { return !on("uw", n) && (hit(n) || hit(uwShort(n))); }).sort(function (a, b) { return uw[b] - uw[a]; }).slice(0, 5)
+      .forEach(function (n) { add.push({ k: "uw", v: n, t: "대표주관 " + uw[n] + "건" }); });
+    Object.keys(sec).filter(function (s) { return !on("sec", s) && hit(s); }).sort(function (a, b) { return sec[b] - sec[a]; }).slice(0, 4)
+      .forEach(function (s) { add.push({ k: "sec", v: s, t: sec[s] + "건" }); });
+    var g = q.toUpperCase().replace(/등급$/, "").trim();
+    if (GRADES.indexOf(g) >= 0 && !on("gr", g)) add.push({ k: "gr", v: g, t: "평가 등급에 " + g + " 포함" });
+    Object.keys(BOARD_SHORT).forEach(function (b) {
+      if (state.board !== b && (hit(BOARD_SHORT[b]) || hit(BOARDS[b]) || (b === "KOSPI" && hit("유가")))) add.push({ k: "mk", v: b, t: "시장 조건(위 시장 선택과 같음)" });
+    });
+    var go = STAT_ITEMS.filter(function (it) { return hit(it[0]) || it[3].split(" ").some(function (w) { return w.toLowerCase().indexOf(lq) === 0 || hit(w); }); }).slice(0, 5);
+    return { add: add, go: go };
+  }
+  function statSearchDraw(qi, dd) {
+    var r = statSearchHits(qi.value);
+    if (!r) { dd.hidden = true; qi.setAttribute("aria-expanded", "false"); return; }
+    var lbl = function (x) { return x.k === "mk" ? BOARDS[x.v] : x.v; };
+    dd.innerHTML = (r.add.length ? '<div class="gdh">표본 좁히기</div>' + r.add.map(function (x) {
+      return '<button type="button" class="gri sfi" data-k="' + x.k + '" data-v="' + esc(x.v) + '"><span class="ktag">' + (x.k === "mk" ? "시장" : SF_LABEL[x.k]) + '</span><span class="nm">' + esc(lbl(x)) + '</span><span class="gst">' + esc(x.t) + "</span></button>";
+    }).join("") : "") +
+      (r.go.length ? '<div class="gdh">통계로 이동</div>' + r.go.map(function (it) {
+        var tab = STAT_TABS.filter(function (t) { return t[0] === it[1]; })[0];
+        return '<button type="button" class="gri sgo" data-tab="' + it[1] + '" data-id="' + it[2] + '"><span class="ktag go">이동</span><span class="nm">' + esc(it[0]) + '</span><span class="gst">' + (tab ? esc(tab[1]) : "맨 위") + "</span></button>";
+      }).join("") : "") +
+      (!r.add.length && !r.go.length ? '<div class="gdh">"' + esc(qi.value.trim()) + '"에 맞는 주관사, 업종, 등급, 통계가 없습니다.</div>' : "");
+    dd.hidden = false; qi.setAttribute("aria-expanded", "true");
+  }
+  function statGo(tab, id) {
+    var c = app.querySelector(".stat-page");
+    if (!c) return;
+    if (tab) setStatTab(tab);
+    var el = document.getElementById(id);
+    if (!el) return;
+    var y = el.getBoundingClientRect().top + window.scrollY - (window.innerWidth > 719 ? 150 : 120);
+    window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+    el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
+  }
+  function setStatTab(t) {
+    var c = app.querySelector(".stat-page");
+    if (!c) return;
+    state.sTab = t; c.dataset.st = t; persist();
+    c.querySelectorAll(".stabs button").forEach(function (x) {
+      var on = x.dataset.st === t;
+      x.setAttribute("aria-selected", on ? "true" : "false");
+      if (on && x.scrollIntoView && window.innerWidth <= 719) x.scrollIntoView({ block: "nearest", inline: "center" });
+    });
+  }
+  function d1Ret(d, k) { return d[k] && d.final_price ? (d[k] / d.final_price - 1) * 100 : null; }
+  function isNum(v) { return v != null && !isNaN(v); }
+  function shareOf(xs, f) { return xs.length ? xs.filter(f).length / xs.length * 100 : null; }
+  function upRate(ds) {
+    var pd = ds.filter(function (d) { return position(d); });
+    return pd.length ? pd.filter(function (d) { var p = position(d); return p === "상단" || p === "초과"; }).length / pd.length * 100 : null;
+  }
+  function commitOf(d) { return d.lockup && d.lockup.commit ? d.lockup.commit.ratio : null; }
+  function sgnPct(v, dg) { return v == null ? "-" : (v > 0 ? "+" : "") + v.toFixed(dg == null ? 1 : dg) + "%"; }
+  function pct0(v) { return v == null ? "-" : Math.round(v) + "%"; }
+  function avgOf(xs) { xs = xs.filter(isNum); return xs.length ? xs.reduce(function (a, b) { return a + b; }, 0) / xs.length : null; }
+  function f1(v, u) { return v == null ? "-" : v.toLocaleString("ko-KR", { maximumFractionDigits: 1, minimumFractionDigits: 1 }) + (u || ""); }
+  function discTxt(v) { return v == null ? "-" : v < 0 ? "할증 " + f1(-v, "%") : f1(v, "%"); }
+  function decidedReviews() { return (data.reviews || []).filter(function (r) { return rvIpo(r) && rvKind(r) !== "pending" && rvKind(r) !== "other" && r.f && r.d && rvSampleOk(r); }); }
+  function withdrawnDeals() {
+    return data.deals.filter(function (d) { return d.status === "withdrawn" && d.is_ipo_candidate === 1 && d.withdrawn_dt && !isSpac(d) && boardOk(d, state.board) && sampleOk(d); });
+  }
+
+  // ---- 핵심 지표: 기준 기간과 1년 전 같은 기간 비교
+  function scoreRanges() {
+    var today = asOf(), y = today.slice(0, 4), p = state.sPeriod;
+    var Y = !state.sWin && /^\d{4}$/.test(p) && p <= y ? p : y, cur = Y === y;
+    var to = cur ? today : Y + "-12-31", py = String(+Y - 1);
+    return { a: [Y + "-01-01", to], b: [py + "-01-01", py + to.slice(4)], cur: cur, Y: Y, PY: py, to: to };
+  }
+  function scoreMetrics(rg) {
+    var inR = function (dt) { return dt && dt >= rg[0] && dt <= rg[1]; };
+    var ds = listedDeals().filter(function (d) { return sampleOk(d) && inR(listDate(d)); });
+    var ns = ds.filter(function (d) { return !isSpac(d); });
+    var cl = ns.map(function (d) { return d1Ret(d, "d1_close"); }).filter(isNum);
+    var kq = ns.filter(function (d) { return d.board === "KOSDAQ" || d.board === "KOSDAQ_TECH"; });
+    var rv = decidedReviews().filter(function (r) { return rvKind(r) === "approved" && inR(r.d); });
+    var am = ns.filter(function (d) { return d.amendment_count != null; });
+    return {
+      n: ds.length, amt: ds.reduce(function (a, d) { return a + (d.offer_amount || 0); }, 0) / 1e8,
+      amtMed: median(ns.map(function (d) { return d.offer_amount ? d.offer_amount / 1e8 : null; })),
+      inst: median(ns.map(function (d) { return d.inst_demand_ratio; })), ret: median(ns.map(function (d) { return d.retail_ratio; })),
+      up: upRate(ns), commit: median(ns.map(commitOf)),
+      open: median(ns.map(function (d) { return d1Ret(d, "d1_open"); })), close: median(cl), below: shareOf(cl, function (v) { return v < 0; }),
+      rvd: median(rv.map(function (r) { return daysBetween(r.f, r.d); })),
+      f2l: median(ns.map(function (d) { return d.first_filing_dt && listDate(d) ? daysBetween(d.first_filing_dt, listDate(d)) : null; })),
+      amend2: shareOf(am, function (d) { return d.amendment_count >= 2; }),
+      wd: withdrawnDeals().filter(function (d) { return inR(d.withdrawn_dt); }).length,
+      techsh: shareOf(kq, function (d) { return d.board === "KOSDAQ_TECH"; })
+    };
+  }
+  function scorePanel() {
+    var rg = scoreRanges(), a = scoreMetrics(rg.a), b = scoreMetrics(rg.b);
+    var dNum = function (u, dg) { return function (x, y) { var v = x - y, r = dg ? Math.round(v * 10) / 10 : Math.round(v); return (r > 0 ? "+" : "") + (dg ? r.toFixed(1) : int(r)) + u; }; };
+    var dAmt = function (x, y) { var v = x - y; return (v > 0 ? "+" : v < 0 ? "-" : "") + jo(Math.abs(v)); };
+    var cnt = function (u) { return function (v) { return int(v) + u; }; };
+    var G = [
+      ["공모 규모", [["상장 건수", "n", cnt("건"), dNum("건"), "ov", "st-trend"], ["공모액 합계", "amt", jo, dAmt, "ov", "st-trend"], ["공모액 중앙값", "amtMed", function (v) { return int(Math.round(v)) + "억"; }, dNum("억"), "ov", "st-trend"]]],
+      ["수요와 가격", [["수요예측 경쟁률", "inst", function (v) { return ratio(v, 0); }, dNum(""), "ov", "st-comp"], ["일반청약 경쟁률", "ret", function (v) { return ratio(v, 0); }, dNum(""), "ov", "st-comp"],
+        ["상단 이상 확정", "up", pct0, dNum("%p"), "px", "st-band"], ["확약 비율", "commit", pct1, dNum("%p", 1), "px", "st-commit"]]],
+      ["상장 후 성과", [["시초가 수익률", "open", function (v) { return sgnPct(v); }, dNum("%p", 1), "af", "st-after"], ["종가 수익률", "close", function (v) { return sgnPct(v); }, dNum("%p", 1), "af", "st-after"],
+        ["종가 하회 비율", "below", pct0, dNum("%p"), "af", "st-after"]]],
+      ["심사와 일정", [["예심 심사기간", "rvd", function (v) { return Math.round(v) + "일"; }, dNum("일"), "sc", "st-sched"], ["신고서~상장", "f2l", function (v) { return Math.round(v) + "일"; }, dNum("일"), "sc", "st-sched"],
+        ["기재정정 2회+", "amend2", pct0, dNum("%p"), "sc", "st-sched"], ["공모 철회", "wd", cnt("건"), dNum("건"), "sc", "st-sched"], ["기술특례 비중", "techsh", pct0, dNum("%p"), "tc", "st-tech"]]]
+    ];
+    var ca = rg.Y, cb = rg.PY + (rg.cur ? " 동기" : "");
+    var groups = G.map(function (g) {
+      return '<table class="mini scg"><thead><tr><th>' + g[0] + '</th><th class="num">' + ca + '</th><th class="num">' + cb + '</th><th class="num">차이</th></tr></thead><tbody>' +
+        g[1].map(function (r) {
+          var x = a[r[1]], y = b[r[1]];
+          var dv = isNum(x) && isNum(y) ? r[3](x, y) : "-", sg = isNum(x) && isNum(y) ? (x > y ? "up" : x < y ? "dn" : "") : "";
+          return '<tr class="go" tabindex="0" data-go="' + r[4] + "|" + r[5] + '"><td>' + r[0] + ' <span class="gchev" aria-hidden="true">›</span></td><td class="num"><b>' + (isNum(x) ? r[2](x) : "-") + '</b></td><td class="num dim">' + (isNum(y) ? r[2](y) : "-") +
+            '</td><td class="num dv ' + sg + '">' + dv + "</td></tr>";
+        }).join("") + "</tbody></table>";
+    }).join("");
+    var sub = (rg.cur ? rg.Y + "년 1.1~" + md(rg.to) + ", " + rg.PY + "년 같은 기간과 비교" : rg.Y + "년, " + rg.PY + "년과 비교") + ". 비율과 중앙값은 스팩 제외";
+    return '<section class="panel score wide" id="st-score"><header><div><h2>핵심 지표</h2><p class="psub">' + esc(sub) + "</p></div></header>" +
+      '<div class="pbody"><div class="scgs">' + groups + '</div><p class="snote">행을 누르면 해당 통계로 이동합니다. 기간을 연도로 고르면 그 연도와 전년을 비교합니다. 기술특례 비중은 코스닥 상장 중 비율, 신고서~상장은 첫 증권신고서 제출일부터 상장일까지입니다.' + (sfOnlyUw() ? "" : " 예심 심사기간은 주관사 조건만 적용됩니다.") + "</p></div></section>";
+  }
+
+  // ---- 음수가 있는 막대(종가 수익률 등): 0 기준선, 위아래 눈금
+  function niceStep(v) { var p = Math.pow(10, Math.floor(Math.log10(v || 1))), n = v / p; return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p; }
+  function signedFrame(W, H, L, R, T, B, lo, hi, step, labels, fmtY) {
+    var ih = H - T - B, y = function (v) { return T + (hi - v) / (hi - lo) * ih; }, svg = "";
+    for (var v = lo; v <= hi + 1e-9; v += step) svg += '<line class="' + (Math.abs(v) < 1e-9 ? "axis" : "grid") + '" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '"/><text x="' + (L - 6) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + fmtY(v) + "</text>";
+    var band = (W - L - R) / labels.length, widest = Math.max.apply(null, labels.map(function (s) { return s.length; })), stp = Math.max(1, Math.ceil((widest * 7 + 10) / band));
+    labels.forEach(function (s, i) { if (i % stp === 0) svg += '<text x="' + (L + band * i + band / 2) + '" y="' + (H - 10) + '" text-anchor="middle">' + s + "</text>"; });
+    return { svg: svg, y: y };
+  }
+
+  // ---- 상장 후 성과: 공모가 대비 시초가, 종가(스팩 제외)
+  function afterPanel(byK, keys, labels, unit, W, H) {
+    var MIN = 3, L = 48, R = 10, T = 24, B = 30, ih = H - T - B;
+    var rows = byK.map(function (ds) {
+      var xs = ds.filter(function (d) { return !isSpac(d) && isNum(d1Ret(d, "d1_close")); }), cl = xs.map(function (d) { return d1Ret(d, "d1_close"); });
+      return { n: xs.length, base: ds.filter(function (d) { return !isSpac(d); }).length, open: xs.length >= MIN ? median(xs.map(function (d) { return d1Ret(d, "d1_open"); })) : null, close: xs.length >= MIN ? median(cl) : null,
+        below: xs.length >= MIN ? shareOf(cl, function (v) { return v < 0; }) : null, dbl: xs.length >= MIN ? shareOf(cl, function (v) { return v >= 100; }) : null };
+    });
+    var allX = [].concat.apply([], byK).filter(function (d) { return !isSpac(d) && isNum(d1Ret(d, "d1_close")); }), allC = allX.map(function (d) { return d1Ret(d, "d1_close"); });
+    var allBase = [].concat.apply([], byK).filter(function (d) { return !isSpac(d); }).length;
+    var kpi = '<div class="cmp f4 af4">' + [
+      ["시초가 수익률 중앙값", sgnPct(median(allX.map(function (d) { return d1Ret(d, "d1_open"); })))],
+      ["종가 수익률 중앙값", sgnPct(median(allC))],
+      ["종가 공모가 하회", pct0(shareOf(allC, function (v) { return v < 0; }))],
+      ["종가 2배 이상", pct0(shareOf(allC, function (v) { return v >= 100; }))]
+    ].map(function (k) { return '<div><span class="k">' + k[0] + '</span><span class="v">' + k[1] + "</span></div>"; }).join("") + "</div>";
+    var vals = rows.map(function (r) { return r.close; }).concat(rows.map(function (r) { return r.open; })).filter(isNum);
+    var mx = Math.max.apply(null, vals.concat([10])), mn = Math.min.apply(null, vals.concat([0]));
+    var step = niceStep((mx - mn) / 4), hi = Math.ceil(mx / step) * step, lo = Math.floor(mn / step) * step;
+    var fr = signedFrame(W, H, L, R, T, B, lo, hi, step, labels, function (v) { return Math.round(v) + "%"; });
+    var band = (W - L - R) / keys.length, bw = Math.min(unit === "year" ? 34 : 18, band * 0.6);
+    var svg = '<svg data-w="' + W + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="상장일 종가 수익률 중앙값 추이">' + fr.svg;
+    var opath = "", pen = false;
+    rows.forEach(function (r, i) {
+      var x = L + band * i + (band - bw) / 2, cx = L + band * i + band / 2, y0 = fr.y(0);
+      var tipH = "<b>" + unitTitle(keys[i], unit) + " 상장 (스팩 제외)</b>" + tipRow("var(--accent)", "종가 수익률 중앙값", sgnPct(r.close)) + tipRow("var(--ln-inst)", "시초가 수익률 중앙값", sgnPct(r.open)) +
+        tipRow("", "종가 공모가 하회", pct0(r.below)) + tipRow("", "종가 2배 이상", pct0(r.dbl)) + tipRow("", "주가 확보", r.n + "/" + r.base + "건");
+      var bar = "";
+      if (r.close != null) {
+        var yv = fr.y(r.close), h = Math.abs(yv - y0);
+        bar = '<rect class="rbar' + (r.close < 0 ? " neg" : "") + (i === rows.length - 1 ? " last" : "") + '" x="' + x + '" y="' + Math.min(yv, y0) + '" width="' + bw + '" height="' + Math.max(1, h) + '" rx="3"/>';
+        if (keys.length <= 14) bar += '<text class="vlabel" x="' + cx + '" y="' + (r.close >= 0 ? yv - 5 : yv + 12) + '" text-anchor="middle">' + Math.round(r.close) + "</text>";
+      }
+      if (r.open != null) { opath += (pen ? "L" : "M") + cx.toFixed(1) + "," + fr.y(r.open).toFixed(1); pen = true; } else pen = false;
+      svg += colHit(L + band * i, T, band, ih, tipH, unitTitle(keys[i], unit) + " 종가 수익률 " + sgnPct(r.close)) + bar + (r.open != null ? '<circle class="dot" style="fill:var(--ln-inst)" cx="' + cx + '" cy="' + fr.y(r.open) + '" r="' + (keys.length > 30 ? 2.5 : 3.5) + '"/>' : "") + "</g>";
+    });
+    svg += '<path class="ln thin" style="stroke:var(--ln-inst)" d="' + opath + '"/></svg>';
+    var legend = '<div class="legend"><span><i style="background:var(--accent)"></i>종가 수익률 중앙값</span><span><i class="ln-key" style="background:var(--ln-inst)"></i>시초가 수익률 중앙값</span>' +
+      '<span class="fnote">공모가 대비. 주가를 확보한 건이 ' + MIN + "건 미만인 기간은 비움</span></div>";
+    var tbl = table([unit === "year" ? "연도" : unit === "quarter" ? "분기" : "월", "건수", "시초가", "종가", "하회", "2배 이상"],
+      keys.map(function (k, i) { var r = rows[i]; return [unitTitle(k, unit), r.n + "/" + r.base, sgnPct(r.open), sgnPct(r.close), pct0(r.below), pct0(r.dbl)]; }).reverse(), [1, 2, 3, 4, 5]);
+    return '<section class="panel sg g-af wide" id="st-after"><header><div><h2>상장 후 성과</h2><p class="psub">상장일 시초가, 종가의 공모가 대비 수익률 (' + allX.length + "/" + allBase + "건)</p></div></header>" +
+      '<div class="pbody chart">' + kpi + legend + svg + '<details class="tv"><summary>표로 보기</summary>' + tbl + "</details>" +
+      '<p class="snote">2023년 6월 26일부터 상장일 가격제한폭이 공모가의 60~400%로 넓어져 그 전후 수익률은 직접 비교에 주의가 필요합니다.</p></div></section>';
+  }
+  var BKT = {
+    inst: { label: "수요예측 경쟁률", get: function (d) { return d.inst_demand_ratio; }, b: [[0, 200, "200:1 미만"], [200, 500, "200~500:1"], [500, 1000, "500~1000:1"], [1000, 1500, "1000~1500:1"], [1500, 1e9, "1500:1 이상"]] },
+    commit: { label: "의무보유확약 비율", get: commitOf, b: [[0, 5, "5% 미만"], [5, 10, "5~10%"], [10, 20, "10~20%"], [20, 101, "20% 이상"]] },
+    amt: { label: "공모액", get: function (d) { return d.offer_amount ? d.offer_amount / 1e8 : null; }, b: [[0, 100, "100억 미만"], [100, 200, "100~200억"], [200, 500, "200~500억"], [500, 1000, "500~1000억"], [1000, 1e9, "1000억 이상"]] },
+    mk: { label: "시장", get: seriesOf, cat: [["KOSPI", "유가증권"], ["KOSDAQ", "코스닥 일반"], ["KOSDAQ_TECH", "기술특례"]] }
+  };
+  function bucketPanel(deals) {
+    var key = BKT[state.bKey] ? state.bKey : "inst", B = BKT[key];
+    var xs = deals.filter(function (d) { return !isSpac(d) && isNum(d1Ret(d, "d1_close")); });
+    var groups = B.cat ? B.cat.map(function (c) { return [c[1], xs.filter(function (d) { return B.get(d) === c[0]; })]; })
+      : B.b.map(function (b) { return [b[2], xs.filter(function (d) { var v = B.get(d); return isNum(v) && v >= b[0] && v < b[1]; })]; });
+    var meds = groups.map(function (g) { return g[1].length >= 3 ? median(g[1].map(function (d) { return d1Ret(d, "d1_close"); })) : null; });
+    var mx = Math.max.apply(null, meds.filter(isNum).map(Math.abs).concat([1]));
+    var rows = groups.map(function (g, i) {
+      var c = g[1].map(function (d) { return d1Ret(d, "d1_close"); }), m = meds[i], ok = g[1].length >= 3;
+      return "<tr><td>" + g[0] + '</td><td class="num">' + g[1].length + '</td><td class="num">' + (ok ? sgnPct(median(g[1].map(function (d) { return d1Ret(d, "d1_open"); }))) : "-") + '</td><td class="num"><b>' + (ok ? sgnPct(m) : "-") + '</b></td><td class="num">' + (ok ? pct0(shareOf(c, function (v) { return v < 0; })) : "-") +
+        '</td><td class="bar-cell"><div class="hbar' + (m < 0 ? " neg" : "") + '" style="width:' + (ok && m != null ? Math.abs(m) / mx * 100 : 0).toFixed(1) + '%"></div></td></tr>';
+    }).join("");
+    return '<section class="panel sg g-af" id="st-bucket"><header><div><h2>구간별 상장일 성과</h2></div>' +
+      segBtns("data-bk", [["inst", "경쟁률"], ["commit", "확약"], ["amt", "공모액"], ["mk", "시장"]], key) + "</header>" +
+      '<div class="pbody"><div class="scroll"><table class="mini sect bkt"><thead><tr><th>' + B.label + '</th><th class="num">건수</th><th class="num">시초가</th><th class="num">종가</th><th class="num">하회</th><th class="bar-cell"><span class="sr">종가 막대</span></th></tr></thead><tbody>' + rows + "</tbody></table></div>" +
+      '<p class="snote">공모가 대비 중앙값, 하회는 종가가 공모가보다 낮은 비율입니다. 3건 미만 구간은 비웁니다.</p></div></section>';
+  }
+  // ---- 의무보유확약 비율 추이(스팩 제외)
+  function commitPanel(byK, keys, labels, unit, W, H) {
+    var L = 44, R = 10, T = 24, B = 30, ih = H - T - B;
+    var rows = byK.map(function (ds) { var v = ds.filter(function (d) { return !isSpac(d); }).map(commitOf).filter(isNum); return { n: v.length, m: v.length >= 3 ? median(v) : null, q3: v.length >= 3 ? quant(v, .75) : null }; });
+    var top = Math.max(10, Math.ceil(Math.max.apply(null, rows.map(function (r) { return r.m || 0; }).concat([1])) / 5) * 5);
+    var band = (W - L - R) / keys.length, bw = Math.min(unit === "year" ? 30 : 16, band * 0.6);
+    var svg = '<svg data-w="' + W + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="의무보유확약 비율 중앙값 추이">' + frame(W, H, L, R, T, B, top, labels, function (v) { return Math.round(v) + "%"; });
+    rows.forEach(function (r, i) {
+      var x = L + band * i + (band - bw) / 2, h = r.m != null ? r.m / top * ih : 0;
+      svg += colHit(L + band * i, T, band, ih, "<b>" + unitTitle(keys[i], unit) + "</b>" + tipRow("var(--accent)", "확약 비율 중앙값", r.m != null ? pct1(r.m) : "-") + tipRow("", "상위 25%", r.q3 != null ? pct1(r.q3) : "-") + tipRow("", "확약 자료", r.n + "건"), unitTitle(keys[i], unit)) +
+        (r.m != null ? '<path class="rbar' + (i === rows.length - 1 ? " last" : "") + '" d="' + barPath(x, T + ih - h, bw, Math.max(1, h), 3) + '"/>' + (keys.length <= 14 ? '<text class="vlabel" x="' + (x + bw / 2) + '" y="' + (T + ih - h - 5) + '" text-anchor="middle">' + (Math.round(r.m * 10) / 10) + "</text>" : "") : "") + "</g>";
+    });
+    return '<section class="panel sg g-px" id="st-commit"><header><div><h2>의무보유확약 비율</h2><p class="psub">기관 배정 물량 중 확약 비율의 중앙값</p></div></header><div class="pbody chart">' + svg + "</svg></div></section>";
+  }
+  // ---- 공모가 산정 근거: 기준을 바꿔 가며(방법, 시장, 업종, 주관사)
+  function valPanel(deals) {
+    var vds = deals.filter(function (d) { return !isSpac(d) && d.val && (d.val.disc_low != null || d.val.value); });
+    var by = ["method", "board", "sector", "uw"].indexOf(state.vBy) >= 0 ? state.vBy : "method";
+    var row = function (label, ds, showMul) {
+      var lo = avgOf(ds.map(function (d) { return d.val.disc_low; })), hi = avgOf(ds.map(function (d) { return d.val.disc_high; }));
+      var fd = median(ds.map(function (d) { return d.val.final_disc; })), mu = median(ds.map(function (d) { return d.val.multiple; }));
+      return "<tr" + (label === FOCUS_NAME ? ' class="focus"' : "") + "><td>" + esc(label) + '</td><td class="num">' + ds.length + '</td><td class="num">' + (lo != null ? f1(lo) + "~" + f1(hi, "%") : "-") +
+        '</td><td class="num">' + discTxt(fd) + '</td><td class="num">' + (showMul && mu != null ? f1(mu, "배") : "-") + "</td></tr>";
+    };
+    var VM = ["PER", "EV/EBITDA", "PSR"], rows = "", note = "";
+    if (by === "method") rows = VM.map(function (m) { return [m, vds.filter(function (d) { return d.val.method === m; })]; }).concat([["기타", vds.filter(function (d) { return VM.indexOf(d.val.method) < 0; })]])
+      .filter(function (r) { return r[1].length; }).map(function (r) { return row(r[0], r[1], r[0] !== "기타"); }).join("");
+    else if (by === "board") rows = [["코스닥 기술특례", "KOSDAQ_TECH"], ["코스닥 일반", "KOSDAQ"], ["유가증권", "KOSPI"]].map(function (b) { return [b[0], vds.filter(function (d) { return d.board === b[1]; })]; })
+      .filter(function (r) { return r[1].length; }).map(function (r) { return row(r[0], r[1], false); }).join("");
+    else if (by === "sector") {
+      var ps = {};
+      vds.filter(function (d) { return d.val.method === "PER" && d.sector; }).forEach(function (d) { (ps[d.sector] = ps[d.sector] || []).push(d); });
+      rows = Object.keys(ps).filter(function (k) { return ps[k].length >= 3; }).sort(function (a, b) { return ps[b].length - ps[a].length; }).map(function (k) { return row(k, ps[k], true); }).join("");
+      note = "PER을 적용한 딜만, 3건 이상인 업종입니다.";
+    } else {
+      var ug = {};
+      vds.forEach(function (d) { uwSet(d).forEach(function (n) { (ug[n] = ug[n] || []).push(d); }); });
+      rows = Object.keys(ug).filter(function (k) { return ug[k].length >= 5; }).sort(function (a, b) { return ug[b].length - ug[a].length; }).map(function (k) { return row(k, ug[k], false); }).join("");
+      note = "대표주관 5건 이상인 주관사입니다. 공동 대표주관은 각 주관사에 모두 셉니다.";
+    }
+    return '<section class="panel sg g-px wide" id="st-val"><header><div><h2>공모가 산정 근거</h2><p class="psub">밴드 할인율은 평균, 확정가 할인율과 적용 배수는 중앙값</p></div>' +
+      segBtns("data-vb", [["method", "방법"], ["board", "시장"], ["sector", "업종"], ["uw", "주관사"]], by) + "</header>" +
+      '<div class="pbody">' + (rows ? '<div class="scroll"><table class="mini sect"><thead><tr><th>구분</th><th class="num">건수</th><th class="num">밴드 할인율</th><th class="num">확정가 할인율</th><th class="num">적용 배수</th></tr></thead><tbody>' + rows + "</tbody></table></div>" + (note ? '<p class="snote">' + note + "</p>" : "")
+        : '<div class="empty">선택한 조건에 산정 근거를 읽은 상장 건이 없습니다.</div>') + "</div></section>";
+  }
+  // ---- 주관사: 실적, 공모 조건, 예심, 상장 후 성과를 한 표에서 바꿔 보기
+  function uwPanel(deals, wf, wt) {
+    var view0 = ["perf", "terms", "review", "after"].indexOf(state.uView) >= 0 ? state.uView : "perf";
+    var head = "", rows = [], note = "", ctl2 = "";
+    var focusTr = function (n, extra) { return "<tr" + (n.indexOf(FOCUS_NAME) >= 0 ? ' class="focus' + (extra ? " " + extra : "") + '"' : extra ? ' class="' + extra + '"' : ""); };
+    if (view0 === "perf") {
+      var lg = {};
+      deals.forEach(function (d) {
+        var names = uwSet(d);
+        names.forEach(function (n) { var r = lg[n] = lg[n] || { name: n, count: 0, amount: 0, tech: 0 }; r.count++; if (d.offer_amount) r.amount += d.offer_amount / names.length; if (d.board === "KOSDAQ_TECH") r.tech++; });
+      });
+      var lk = ["amount", "tech"].indexOf(state.league) >= 0 ? state.league : "count";
+      var L = Object.keys(lg).map(function (k) { return lg[k]; }).sort(function (a, b) { return b[lk] - a[lk] || b.count - a.count; });
+      var mx = L.length ? Math.max(1, L[0][lk]) : 1;
+      head = '<th class="rank">순위</th><th>대표주관</th><th class="num">건수</th><th class="num">기술특례</th><th class="num">공모액(억)</th><th class="bar-cell"><span class="sr">막대</span></th>';
+      rows = L.map(function (r, i) {
+        return '<tr class="go' + (r.name === FOCUS_NAME ? " focus" : "") + '" tabindex="0" data-uw="' + esc(r.name) + '"><td class="rank">' + (i + 1) + "</td><td>" + esc(r.name) + '</td><td class="num">' + r.count + '</td><td class="num">' + r.tech + '</td><td class="num">' + eok(r.amount) +
+          '</td><td class="bar-cell"><div class="hbar" style="width:' + (r[lk] / mx * 100).toFixed(1) + '%"></div></td></tr>';
+      });
+      ctl2 = segBtns("data-l", [["count", "건수순"], ["amount", "공모액순"], ["tech", "기술특례순"]], lk);
+      note = "공모액은 공동 대표주관이면 나눠서 셉니다. 행을 누르면 해당 주관사의 상장 건 목록으로 이동합니다.";
+    } else if (view0 === "review") {
+      var sp = {};
+      decidedReviews().filter(function (r) { var m = mIdx(r.d.slice(0, 7)); return m >= wf && m <= wt; }).forEach(function (r) {
+        splitNames(r.s || "미확인").map(uwKey).forEach(function (s) {
+          var o = sp[s] = sp[s] || { s: s, n: 0, ok: 0, rej: 0, wd: 0, durs: [] }, k = rvKind(r);
+          o.n++; if (k === "approved") { o.ok++; o.durs.push(daysBetween(r.f, r.d)); } else if (k === "rejected") o.rej++; else o.wd++;
+        });
+      });
+      head = '<th>주관사</th><th class="num">결과</th><th class="num">승인</th><th class="num">철회</th><th class="num">미승인</th><th class="num">승인율</th><th class="num">심사기간</th>';
+      rows = Object.keys(sp).map(function (k) { return sp[k]; }).sort(function (a, b) { return b.n - a.n || b.ok - a.ok; }).map(function (o) {
+        return focusTr(o.s) + "><td>" + esc(o.s) + '</td><td class="num">' + o.n + '</td><td class="num">' + o.ok + '</td><td class="num">' + (o.wd || '<span class="dim">0</span>') + '</td><td class="num">' + (o.rej || '<span class="dim">0</span>') +
+          '</td><td class="num"><b>' + Math.round(o.ok / o.n * 100) + '%</b></td><td class="num">' + (o.durs.length ? medInt(o.durs) + "일" : "-") + "</td></tr>";
+      });
+      note = "예심 결과일 기준. 심사기간은 승인 건의 청구일부터 결과일까지 중앙값입니다. 출처: 한국거래소 KIND 상장예비심사 현황." + (sfOnlyUw() ? "" : " 업종, 등급 조건은 적용되지 않습니다.");
+    } else {
+      var ug = {};
+      deals.filter(function (d) { return !isSpac(d); }).forEach(function (d) { uwSet(d).forEach(function (n) { (ug[n] = ug[n] || []).push(d); }); });
+      var ks = Object.keys(ug).filter(function (k) { return ug[k].length >= 5; }).sort(function (a, b) { return ug[b].length - ug[a].length; });
+      if (view0 === "terms") {
+        head = '<th>대표주관</th><th class="num">건수</th><th class="num">수수료율</th><th class="num">밴드 할인율</th><th class="num">확정가 할인율</th><th class="num">상단 이상</th><th class="num">수요예측</th>';
+        rows = ks.map(function (k) {
+          var ds = ug[k], fees = ds.map(function (d) { return structInfo(d).fee; }).filter(function (v) { return v != null && v > 0 && v < 15; }), vs = ds.filter(function (d) { return d.val; });
+          var lo = avgOf(vs.map(function (d) { return d.val.disc_low; })), hi = avgOf(vs.map(function (d) { return d.val.disc_high; }));
+          return focusTr(k) + "><td>" + esc(k) + '</td><td class="num">' + ds.length + '</td><td class="num">' + (fees.length ? f1(avgOf(fees), "%") : "-") + '</td><td class="num">' + (lo != null ? f1(lo) + "~" + f1(hi, "%") : "-") +
+            '</td><td class="num">' + discTxt(median(vs.map(function (d) { return d.val.final_disc; }))) + '</td><td class="num">' + pct0(upRate(ds)) + '</td><td class="num">' + (median(ds.map(function (d) { return d.inst_demand_ratio; })) != null ? ratio(median(ds.map(function (d) { return d.inst_demand_ratio; })), 0) : "-") + "</td></tr>";
+        });
+        note = "대표주관 5건 이상(스팩 제외). 수수료율은 평균, 할인율은 밴드 평균과 확정가 중앙값입니다.";
+      } else {
+        head = '<th>대표주관</th><th class="num">건수</th><th class="num">시초가</th><th class="num">종가</th><th class="num">하회</th><th class="num">2배 이상</th>';
+        rows = ks.map(function (k) {
+          var xs = ug[k].filter(function (d) { return isNum(d1Ret(d, "d1_close")); }), c = xs.map(function (d) { return d1Ret(d, "d1_close"); }), ok = xs.length >= 3;
+          return focusTr(k) + "><td>" + esc(k) + '</td><td class="num">' + xs.length + '</td><td class="num">' + (ok ? sgnPct(median(xs.map(function (d) { return d1Ret(d, "d1_open"); }))) : "-") + '</td><td class="num"><b>' + (ok ? sgnPct(median(c)) : "-") +
+            '</b></td><td class="num">' + (ok ? pct0(shareOf(c, function (v) { return v < 0; })) : "-") + '</td><td class="num">' + (ok ? pct0(shareOf(c, function (v) { return v >= 100; })) : "-") + "</td></tr>";
+        });
+        note = "대표주관 5건 이상(스팩 제외). 공모가 대비 상장일 수익률 중앙값입니다.";
+      }
+    }
+    var TOP = 15, more = rows.length > TOP;
+    var tb = function (rs) { return '<div class="scroll"><table class="mini sect uw' + (view0 === "perf" ? "" : " uwx") + '"><thead><tr>' + head + "</tr></thead><tbody>" + rs.join("") + "</tbody></table></div>"; };
+    return '<section class="panel sg g-uw wide" id="st-uw"><header><div><h2>주관사</h2></div>' + segBtns("data-uv", [["perf", "실적"], ["terms", "공모 조건"], ["review", "예심"], ["after", "상장 후"]], view0) + "</header>" +
+      '<div class="pbody">' + (ctl2 ? '<div class="uwctl">' + ctl2 + "</div>" : "") + (rows.length ? tb(rows.slice(0, TOP)) + (more ? '<details class="tv"><summary>나머지 ' + (rows.length - TOP) + "개사 보기</summary>" + tb(rows.slice(TOP)) + "</details>" : "") : '<div class="empty">선택한 조건에 해당하는 주관사가 없습니다.</div>') +
+      '<p class="snote">' + note + "</p></div></section>";
+  }
+  // ---- 심사와 공모 일정(연 단위): 예심 심사기간, 신고서 제출부터 상장, 기재정정, 공모 철회
+  function schedPanel(wf, wt, W, H) {
+    var y0 = +mKey(wf).slice(0, 4), y1 = +mKey(wt).slice(0, 4), years = [];
+    for (var y = y0; y <= y1; y++) years.push(String(y));
+    var RV = decidedReviews(), WD = withdrawnDeals();
+    var LS = listedDeals().filter(function (d) { return !isSpac(d) && sampleOk(d); });
+    var rows = years.map(function (y) {
+      var rv = RV.filter(function (r) { return r.d.slice(0, 4) === y; }), ok = rv.filter(function (r) { return rvKind(r) === "approved"; });
+      var ls = LS.filter(function (d) { return listDate(d).slice(0, 4) === y; }), am = ls.filter(function (d) { return d.amendment_count != null; });
+      var wd = WD.filter(function (d) { return d.withdrawn_dt.slice(0, 4) === y; }).length;
+      return { y: y, rvn: rv.length, okr: rv.length ? ok.length / rv.length * 100 : null, rvd: ok.length >= 3 ? median(ok.map(function (r) { return daysBetween(r.f, r.d); })) : null,
+        f2l: ls.length >= 3 ? median(ls.map(function (d) { return d.first_filing_dt ? daysBetween(d.first_filing_dt, listDate(d)) : null; })) : null,
+        am2: am.length >= 3 ? shareOf(am, function (d) { return d.amendment_count >= 2; }) : null, wd: wd, wdr: wd + ls.length ? wd / (wd + ls.length) * 100 : null, ls: ls.length };
+    });
+    var L = 44, R = 10, T = 24, B = 30, ih = H - T - B, labels = years.map(function (y) { return years.length > 8 ? "'" + y.slice(2) : y; });
+    var top = niceMax(Math.max.apply(null, rows.map(function (r) { return Math.max(r.rvd || 0, r.f2l || 0); }).concat([10])));
+    var band = (W - L - R) / years.length, bw = Math.min(30, band * 0.55);
+    var svg = '<svg data-w="' + W + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="연도별 예심 심사기간과 신고서 제출부터 상장까지 일수">' + frame(W, H, L, R, T, B, top, labels, function (v) { return Math.round(v) + "일"; });
+    var lp = "", pen = false, py = function (v) { return T + ih - v / top * ih; };
+    rows.forEach(function (r, i) {
+      var x = L + band * i + (band - bw) / 2, cx = L + band * i + band / 2;
+      var tipH = "<b>" + r.y + "년</b>" + tipRow("var(--accent)", "예심 심사기간 중앙값", r.rvd != null ? Math.round(r.rvd) + "일" : "-") + tipRow("var(--ln-retail)", "신고서 제출부터 상장", r.f2l != null ? Math.round(r.f2l) + "일" : "-") +
+        tipRow("", "예심 승인율", pct0(r.okr) + " (" + r.rvn + "건)") + tipRow("", "공모 철회", r.wd + "건");
+      svg += colHit(L + band * i, T, band, ih, tipH, r.y + "년") + (r.rvd != null ? '<path class="rbar' + (i === rows.length - 1 ? " last" : "") + '" d="' + barPath(x, py(r.rvd), bw, Math.max(1, T + ih - py(r.rvd)), 3) + '"/>' +
+        (years.length <= 14 ? '<text class="vlabel" x="' + cx + '" y="' + (py(r.rvd) - 5) + '" text-anchor="middle">' + Math.round(r.rvd) + "</text>" : "") : "") +
+        (r.f2l != null ? '<circle class="dot" style="fill:var(--ln-retail)" cx="' + cx + '" cy="' + py(r.f2l) + '" r="3.5"/>' : "") + "</g>";
+      if (r.f2l != null) { lp += (pen ? "L" : "M") + cx.toFixed(1) + "," + py(r.f2l).toFixed(1); pen = true; } else pen = false;
+    });
+    svg += '<path class="ln thin" style="stroke:var(--ln-retail)" d="' + lp + '"/></svg>';
+    var legend = '<div class="legend"><span><i style="background:var(--accent)"></i>예심 심사기간 중앙값</span><span><i class="ln-key" style="background:var(--ln-retail)"></i>신고서 제출부터 상장까지 중앙값</span></div>';
+    var tbl = '<div class="scroll"><table class="mini sect sch"><thead><tr><th>연도</th><th class="num">예심 결과</th><th class="num">승인율</th><th class="num">심사기간</th><th class="num">신고~상장</th><th class="num">기재정정 2회+</th><th class="num">공모 철회</th></tr></thead><tbody>' +
+      rows.slice().reverse().map(function (r) {
+        return "<tr><td>" + r.y + '</td><td class="num">' + r.rvn + '</td><td class="num">' + pct0(r.okr) + '</td><td class="num"><b>' + (r.rvd != null ? Math.round(r.rvd) + "일" : "-") + '</b></td><td class="num">' + (r.f2l != null ? Math.round(r.f2l) + "일" : "-") +
+          '</td><td class="num">' + pct0(r.am2) + '</td><td class="num">' + r.wd + (r.wdr != null && r.wd ? ' <span class="dim">(' + Math.round(r.wdr) + "%)</span>" : "") + "</td></tr>";
+      }).join("") + "</tbody></table></div>";
+    // 분기별 심사기간은 접어 둡니다
+    var qs = {};
+    RV.filter(function (r) { var m = mIdx(r.d.slice(0, 7)); return m >= wf && m <= wt; }).forEach(function (r) {
+      var q = r.d.slice(0, 4) + " Q" + (Math.floor((+r.d.slice(5, 7) - 1) / 3) + 1), o = qs[q] = qs[q] || { q: q, n: 0, ok: 0, durs: [] };
+      o.n++; if (rvKind(r) === "approved") { o.ok++; o.durs.push(daysBetween(r.f, r.d)); }
+    });
+    var qTbl = '<div class="scroll"><table class="mini rv q"><thead><tr><th>분기</th><th class="num">결과</th><th class="num">승인율</th><th class="num">심사기간</th></tr></thead><tbody>' +
+      Object.keys(qs).sort().reverse().map(function (k) { var o = qs[k], m = medInt(o.durs); return "<tr><td>" + esc(o.q) + '</td><td class="num">' + o.n + '</td><td class="num">' + Math.round(o.ok / o.n * 100) + '%</td><td class="num">' + (m != null ? m + "일" : "-") + "</td></tr>"; }).join("") + "</tbody></table></div>";
+    return '<section class="panel sg g-sc wide" id="st-sched"><header><div><h2>심사와 공모 일정</h2><p class="psub">연 단위, 스팩 제외</p></div></header>' +
+      '<div class="pbody chart">' + legend + svg + tbl + '<details class="tv"><summary>분기별 심사기간 보기</summary>' + qTbl + "</details>" +
+      '<p class="snote">심사기간은 예심 청구일부터 승인일까지(KIND), 신고서 제출부터 상장은 첫 증권신고서 제출일부터 상장일까지입니다. 기재정정 2회 이상은 [기재정정] 증권신고서가 2번 이상 나온 상장 건의 비율, 공모 철회 괄호는 철회÷(상장+철회)입니다.' + (sfOnlyUw() ? "" : " 예심 수치에는 업종, 등급 조건이 적용되지 않습니다.") + "</p></div></section>";
+  }
+
   function renderStats() {
     document.title = "통계 · IPO Tracker";
     view = "stats";
-    var all = listedDeals();
+    var all = listedDeals().filter(sampleOk);
     var ys = Array.from(new Set(data.deals.map(listDate).filter(Boolean).map(function (s) { return s.slice(0, 4); }))).sort().reverse();
     ys = ys.filter(function (y) { return y <= asOf().slice(0, 4); });
     var unit = state.sUnit || "year";
@@ -1850,7 +2231,8 @@
       '<div class="flabel"><span class="fl-t">단위</span>' + segBtns("data-u", [["year", "연"], ["quarter", "분기"], ["month", "월"]], unit) + "</div>" +
       boardSelect("s-board") + '<span class="sw-d">' + spacSw("s-spac") + "</span></div>" +
       '<div class="sopt-m">' + spacSw("s-spac-m") + "</div>";
-    if (!ys.length) { app.innerHTML = '<div class="content">' + gsearchBox() + head + '<div class="ledger"><div class="empty">상장 건이 없습니다.</div></div></div>'; bindStats(); return; }
+    var top = gsearchBox("stat") + head + sfChips();
+    if (!ys.length) { app.innerHTML = '<div class="content">' + top + '<div class="ledger"><div class="empty">상장 건이 없습니다.</div></div></div>'; bindStats(); return; }
     var wf = win[0], wt = win[1];
     statNow = { from: wf, to: wt, b0: bnd[0], b1: bnd[1] };
     var deals = all.filter(function (d) { var m = mIdx(listDate(d).slice(0, 7)); return m >= wf && m <= wt; });
@@ -1863,21 +2245,6 @@
     var byK = keys.map(function () { return []; });
     deals.forEach(function (d) { var i = idx[unitKey(listDate(d), unit)]; if (i != null) byK[i].push(d); });
     var periodText = winText(wf, wt);
-
-    // ---- KPI
-    var totalAmt = deals.reduce(function (s, d) { return s + (d.offer_amount || 0); }, 0) / 1e8;
-    var posD = deals.filter(function (d) { return position(d); });
-    var upper = posD.filter(function (d) { var p = position(d); return p === "상단" || p === "초과"; }).length;
-    var kq = deals.filter(function (d) { return !isSpac(d) && (d.board === "KOSDAQ" || d.board === "KOSDAQ_TECH"); });
-    var techN = kq.filter(function (d) { return d.board === "KOSDAQ_TECH"; }).length;
-    var instMed = median(deals.filter(function (d) { return !isSpac(d); }).map(function (d) { return d.inst_demand_ratio; }));
-    var estN = deals.filter(function (d) { return !d.listing_dt; }).length;
-    var kpi = '<section class="summary s5" aria-label="요약">' +
-      kpiTile(int(deals.length), "건", "상장 건수 · " + periodText) +
-      kpiTile(jo(totalAmt).replace(/(조|억)$/, ""), /조$/.test(jo(totalAmt)) ? "조원" : "억원", "공모액 합계") +
-      kpiTile(posD.length ? Math.round(upper / posD.length * 100) : "-", posD.length ? "%" : "", "밴드 상단 이상 확정 (" + posD.length + "건 기준)", true) +
-      kpiTile(kq.length ? Math.round(techN / kq.length * 100) : "-", kq.length ? "%" : "", "코스닥 중 기술특례 (" + techN + "/" + kq.length + "건)") +
-      kpiTile(instMed != null ? ratio(instMed, 0).replace(":1", "") : "-", instMed != null ? ":1" : "", "수요예측 경쟁률 중앙값 (스팩 제외)") + "</section>";
 
     var W = Math.max(300, Math.min(app.clientWidth - 40, 1760)), H = W < 500 ? 240 : 280;
     var L = 48, R = 10, T = 24, B = 30, ih = H - T - B;
@@ -1911,7 +2278,6 @@
       var tipH = "<b>" + unitTitle(keys[i], unit) + " 상장 " + byK[i].length + "건</b>" +
         series.slice().reverse().map(function (s) { return tipRow(s.css, s.label, isAmt ? jo(o[s.key]) + "원" : o[s.key] + "건"); }).join("") +
         (isAmt ? "" : tipRow("", "공모액", jo(byK[i].reduce(function (a, d) { return a + (d.offer_amount || 0); }, 0) / 1e8) + "원"));
-      // 값 표시는 막대를 다 그린 뒤 겹침을 검사해 넣습니다(아래 placeLabels)
       lblCand.push({ i: i, cx: x + bw / 2, top: T + ih - (tots[i] / top1) * ih, bx: x, full: isAmt ? jo(tots[i]) : int(tots[i]),
         short: isAmt ? (Math.round(tots[i] / 1000) / 10).toFixed(1) : int(tots[i]), v: tots[i] });
       svg1 += colHit(L + band * i, T, band, ih, tipH, unitTitle(keys[i], unit) + " " + byK[i].length + "건") + segs + "%%LBL" + i + "%%</g>";
@@ -1927,11 +2293,10 @@
         var ds = byK[i], c = {};
         STAT_SERIES.forEach(function (s) { c[s.key] = 0; });
         ds.forEach(function (d) { c[seriesOf(d)]++; });
-        var pd = ds.filter(function (d) { return position(d); }), up = pd.filter(function (d) { var p = position(d); return p === "상단" || p === "초과"; }).length;
         var ns = ds.filter(function (d) { return !isSpac(d); });
         var im = median(ns.map(function (d) { return d.inst_demand_ratio; })), rm = median(ns.map(function (d) { return d.retail_ratio; }));
         return [unitTitle(k, unit), String(ds.length), String(c.KOSPI), String(c.KOSDAQ), String(c.KOSDAQ_TECH)].concat(state.spac ? [String(c.SPAC)] : [])
-          .concat([jo(ds.reduce(function (a, d) { return a + (d.offer_amount || 0); }, 0) / 1e8), im != null ? ratio(im, 0) : "-", rm != null ? ratio(rm, 0) : "-", pd.length ? Math.round(up / pd.length * 100) + "%" : "-"]);
+          .concat([jo(ds.reduce(function (a, d) { return a + (d.offer_amount || 0); }, 0) / 1e8), im != null ? ratio(im, 0) : "-", rm != null ? ratio(rm, 0) : "-", pct0(upRate(ds))]);
       }).reverse(), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
     // ---- 2) 경쟁률 중앙값 추이 (선)
@@ -1943,7 +2308,7 @@
     var med = LN.map(function (s, si) { return byK.map(function (ds, i) { return enough(si, i) ? median(ds.filter(function (d) { return !isSpac(d); }).map(function (d) { return d[s.key]; })) : null; }); });
     var mx = Math.max.apply(null, med[0].concat(med[1]).filter(function (v) { return v != null; }).concat([1]));
     var top2 = niceMax(mx), W2 = halfW, H2 = H - 10, ih2 = H2 - T - B, band2 = (W2 - L - R) / keys.length;
-    var svg2 = '<svg data-w="' + W2 + '" data-l="' + L + '" data-r="' + R + '" viewBox="0 0 ' + W2 + " " + H2 + '" role="img" aria-label="수요예측·일반청약 경쟁률 중앙값 추이">' +
+    var svg2 = '<svg data-w="' + W2 + '" data-l="' + L + '" data-r="' + R + '" viewBox="0 0 ' + W2 + " " + H2 + '" role="img" aria-label="수요예측, 일반청약 경쟁률 중앙값 추이">' +
       frame(W2, H2, L, R, T, B, top2, labels, function (v) { return int(Math.round(v)); });
     var px = function (i) { return L + band2 * i + band2 / 2; }, py = function (v) { return T + ih2 - (v / top2) * ih2; };
     LN.forEach(function (s, si) {
@@ -1959,7 +2324,6 @@
       svg2 += colHit(L + band2 * i, T, band2, ih2, tipH, unitTitle(k, unit)) + '<line class="xh" x1="' + px(i) + '" x2="' + px(i) + '" y1="' + T + '" y2="' + (T + ih2) + '"/>' +
         LN.map(function (s, si) { var v = med[si][i]; return v == null ? "" : '<circle class="dot" style="fill:' + s.css + '" cx="' + px(i) + '" cy="' + py(v) + '" r="' + (keys.length > 30 ? 2.5 : 4) + '"/>'; }).join("") + "</g>";
     });
-    // 마지막 값 직접 표시
     LN.forEach(function (s, si) {
       for (var i = keys.length - 1; i >= 0; i--) if (med[si][i] != null) {
         svg2 += '<text class="vlabel" x="' + Math.min(px(i), W2 - R - 4) + '" y="' + (py(med[si][i]) - 9) + '" text-anchor="end">' + s.label + " " + int(Math.round(med[si][i])) + "</text>";
@@ -1995,10 +2359,9 @@
     var posTot = {}; POS.forEach(function (p) { posTot[p] = pc.reduce(function (a, o) { return a + o[p]; }, 0); });
     var legend3 = '<div class="legend">' + POS.map(function (p) { return '<span><i style="background:var(--pos-' + POS_KEY[p] + ')"></i>' + p + " " + posTot[p] + "</span>"; }).join("") + "</div>";
 
-    var techPanel = "", leaguePanel = "", sectorPanel = "", valPanel = "", uwPanel = "", floatP = "";
+    var rest = "";
     if (!statFast) (function () {
-    floatP = floatPanel(deals, periodText, W, halfW, H);   // 기술특례·주관사 표는 제스처가 끝난 뒤에만 다시 계산
-    // ---- 4) 기술특례 분석
+    // ---- 기술특례 분석
     var tech = deals.filter(function (d) { return d.board === "KOSDAQ_TECH" && !isSpac(d); });
     var grp = {};
     tech.forEach(function (d) {
@@ -2013,155 +2376,61 @@
     gradeGroups = { grp: grp, period: periodText };
     var gkeys = Object.keys(grp).sort(function (a, b) { return gradeRank(a) - gradeRank(b) || grp[b].length - grp[a].length; });
     var gmax = Math.max.apply(null, gkeys.map(function (g) { return grp[g].length; }).concat([1]));
+    var closeMed = function (ds) { var c = ds.map(function (d) { return d1Ret(d, "d1_close"); }).filter(isNum); return c.length >= 3 ? median(c) : null; };
     var gradeRows = gkeys.map(function (g) {
-      var ds = grp[g], im = median(ds.map(function (d) { return d.inst_demand_ratio; })), rm = median(ds.map(function (d) { return d.retail_ratio; }));
-      var pd = ds.filter(function (d) { return position(d); }), up = pd.filter(function (d) { var p = position(d); return p === "상단" || p === "초과"; }).length;
+      var ds = grp[g], im = median(ds.map(function (d) { return d.inst_demand_ratio; }));
       return '<tr class="go" tabindex="0" data-grade="' + esc(g) + '"><td><span class="gtag">' + esc(g) + ' <span class="gchev" aria-hidden="true">›</span></span></td><td class="num">' + ds.length + '</td><td class="bar-cell"><div class="hbar t" style="width:' + (ds.length / gmax * 100).toFixed(1) + '%"></div></td><td class="num">' +
-        (im != null ? ratio(im, 0) : "-") + '</td><td class="num">' + (rm != null ? ratio(rm, 0) : "-") + '</td><td class="num">' + (pd.length ? Math.round(up / pd.length * 100) + "%" : "-") + "</td></tr>";
+        (im != null ? ratio(im, 0) : "-") + '</td><td class="num">' + pct0(upRate(ds)) + '</td><td class="num">' + sgnPct(closeMed(ds)) + "</td></tr>";
     }).join("");
     var routes = {};
     tech.forEach(function (d) { var r = d.tech_track || "기타"; routes[r] = (routes[r] || 0) + 1; });
     var nonTechKq = deals.filter(function (d) { return d.board === "KOSDAQ" && !isSpac(d); });
     var cmp = [["기술특례", tech], ["코스닥 일반", nonTechKq]].map(function (r) {
-      var ds = r[1], pd = ds.filter(function (d) { return position(d); }), up = pd.filter(function (d) { var p = position(d); return p === "상단" || p === "초과"; }).length;
-      return '<div><span class="k">' + r[0] + '</span><span class="v">' + (median(ds.map(function (d) { return d.inst_demand_ratio; })) != null ? Math.round(median(ds.map(function (d) { return d.inst_demand_ratio; }))) + "<small>:1</small>" : "-") +
-        '</span><span class="s">상단 이상 ' + (pd.length ? Math.round(up / pd.length * 100) + "%" : "-") + " · 공모액 중앙값 " + (median(ds.map(function (d) { return d.offer_amount; })) != null ? jo(median(ds.map(function (d) { return d.offer_amount; })) / 1e8) : "-") + "</span></div>";
+      var ds = r[1], im = median(ds.map(function (d) { return d.inst_demand_ratio; })), am = median(ds.map(function (d) { return d.offer_amount; }));
+      return '<div><span class="k">' + r[0] + '</span><span class="v">' + (im != null ? Math.round(im) + "<small>:1</small>" : "-") +
+        '</span><span class="s">상단 이상 ' + pct0(upRate(ds)) + ", 종가 " + sgnPct(closeMed(ds)) + ", 공모액 중앙값 " + (am != null ? jo(am / 1e8) : "-") + "</span></div>";
     }).join("");
-    techPanel = '<section class="panel tech"><header><div><h2>기술특례 분석</h2>' + "</div></header>" +
+    var techPanel = '<section class="panel tech sg g-tc wide" id="st-tech"><header><div><h2>기술특례 분석</h2>' + "</div></header>" +
       '<div class="pbody">' + (tech.length ? '<div class="cmp">' + cmp + "</div>" +
         '<div class="routes">' + Object.keys(routes).sort(function (a, b) { return routes[b] - routes[a]; }).map(function (r) { return '<span class="chip-s">' + esc(r) + " <b>" + routes[r] + "</b></span>"; }).join("") + "</div>" +
-        '<div class="scroll"><table class="mini grades"><thead><tr><th>평가 등급</th><th class="num">건수</th><th class="bar-cell"><span class="sr">건수 막대</span></th><th class="num">수요예측</th><th class="num">일반청약</th><th class="num">상단 이상</th></tr></thead><tbody>' + gradeRows + "</tbody></table></div>"
+        '<div class="scroll"><table class="mini grades"><thead><tr><th>평가 등급</th><th class="num">건수</th><th class="bar-cell"><span class="sr">건수 막대</span></th><th class="num">수요예측</th><th class="num">상단 이상</th><th class="num">종가</th></tr></thead><tbody>' + gradeRows + "</tbody></table></div>" +
+        '<p class="snote">경쟁률과 종가 수익률(공모가 대비)은 중앙값입니다. 등급을 누르면 해당 회사 목록이 열립니다.</p>'
         : '<div class="empty">선택한 조건에 기술특례 상장 건이 없습니다.</div>') + "</div></section>";
 
-    // ---- 4-2) 업종별 현황(스팩 제외)
+    // ---- 업종별 현황(스팩 제외)
     var sg = {};
     deals.forEach(function (d) { if (!isSpac(d) && d.sector) (sg[d.sector] = sg[d.sector] || []).push(d); });
     var skeys = Object.keys(sg).sort(function (a, b) { return sg[b].length - sg[a].length; });
     var smax = Math.max.apply(null, skeys.map(function (k) { return sg[k].length; }).concat([1]));
     var sectorRows = skeys.map(function (k) {
       var ds = sg[k], im = median(ds.map(function (d) { return d.inst_demand_ratio; }));
-      var cm = ds.map(function (d) { return d.lockup && d.lockup.commit ? d.lockup.commit.ratio : null; }).filter(function (v) { return v != null; });
-      var pd = ds.filter(function (d) { return position(d); }), up = pd.filter(function (d) { var p = position(d); return p === "상단" || p === "초과"; }).length;
       var amt = ds.reduce(function (a, d) { return a + (d.offer_amount || 0); }, 0);
-      return '<tr><td>' + esc(k) + '</td><td class="num">' + ds.length + '</td><td class="bar-cell"><div class="hbar" style="width:' + (ds.length / smax * 100).toFixed(1) + '%"></div></td><td class="num">' + eok(amt) +
-        '</td><td class="num">' + (im != null ? ratio(im, 0) : "-") + '</td><td class="num">' + (cm.length ? pct1(cm.reduce(function (a, v) { return a + v; }, 0) / cm.length) : "-") +
-        '</td><td class="num">' + (pd.length ? Math.round(up / pd.length * 100) + "%" : "-") + "</td></tr>";
+      return '<tr class="go" tabindex="0" data-sec="' + esc(k) + '"><td>' + esc(k) + '</td><td class="num">' + ds.length + '</td><td class="bar-cell"><div class="hbar" style="width:' + (ds.length / smax * 100).toFixed(1) + '%"></div></td><td class="num">' + eok(amt) +
+        '</td><td class="num">' + (im != null ? ratio(im, 0) : "-") + '</td><td class="num">' + pct0(upRate(ds)) + '</td><td class="num">' + sgnPct(closeMed(ds)) + "</td></tr>";
     }).join("");
-    sectorPanel = '<section class="panel sectors"><header><div><h2>업종별 현황</h2>' + "</div></header>" +
-      '<div class="pbody">' + (skeys.length ? '<div class="scroll"><table class="mini sect"><thead><tr><th>업종</th><th class="num">건수</th><th class="bar-cell"><span class="sr">막대</span></th><th class="num">공모액(억)</th><th class="num">수요예측</th><th class="num">확약비율</th><th class="num">상단 이상</th></tr></thead><tbody>' + sectorRows + "</tbody></table></div>"
+    var sectorPanel = '<section class="panel sectors sg g-ov" id="st-sector"><header><div><h2>업종별 현황</h2>' + "</div></header>" +
+      '<div class="pbody">' + (skeys.length ? '<div class="scroll"><table class="mini sect"><thead><tr><th>업종</th><th class="num">건수</th><th class="bar-cell"><span class="sr">막대</span></th><th class="num">공모액(억)</th><th class="num">수요예측</th><th class="num">상단 이상</th><th class="num">종가</th></tr></thead><tbody>' + sectorRows + "</tbody></table></div>" +
+        '<p class="snote">업종을 누르면 그 업종으로 표본을 좁힙니다. 종가는 공모가 대비 상장일 종가 수익률 중앙값입니다.</p>'
         : '<div class="empty">선택한 조건에 상장 건이 없습니다.</div>') + "</div></section>";
 
-    // ---- 4-3) 공모가 산정 근거(밸류에이션)
-    var vds = deals.filter(function (d) { return !isSpac(d) && d.val && (d.val.disc_low != null || d.val.value); });
-    var nAll = deals.filter(function (d) { return !isSpac(d); }).length;
-    var avg = function (xs) { xs = xs.filter(function (v) { return v != null; }); return xs.length ? xs.reduce(function (a, b) { return a + b; }, 0) / xs.length : null; };
-    var f1 = function (v, u) { return v == null ? "-" : v.toLocaleString("ko-KR", { maximumFractionDigits: 1, minimumFractionDigits: 1 }) + (u || ""); };
-    var valRow = function (label, ds, showMul) {
-      var lo = avg(ds.map(function (d) { return d.val.disc_low; })), hi = avg(ds.map(function (d) { return d.val.disc_high; }));
-      var fd = median(ds.map(function (d) { return d.val.final_disc; })), mu = median(ds.map(function (d) { return d.val.multiple; }));
-      return "<tr><td>" + label + '</td><td class="num">' + ds.length + '</td><td class="num">' + (lo != null ? f1(lo) + "~" + f1(hi, "%") : "-") +
-        '</td><td class="num">' + (fd == null ? "-" : fd < 0 ? "할증 " + f1(-fd, "%") : f1(fd, "%")) + '</td><td class="num">' + (showMul && mu != null ? f1(mu, "배") : "-") + "</td></tr>";
-    };
-    var VM = ["PER", "EV/EBITDA", "PSR"];
-    var mRows = VM.map(function (m) { return [m, vds.filter(function (d) { return d.val.method === m; })]; })
-      .concat([["기타", vds.filter(function (d) { return VM.indexOf(d.val.method) < 0; })]])
-      .filter(function (r) { return r[1].length; }).map(function (r) { return valRow(esc(r[0]), r[1], r[0] !== "기타"); }).join("");
-    var tRows = [["코스닥 기술특례", vds.filter(function (d) { return d.board === "KOSDAQ_TECH"; })], ["코스닥 일반", vds.filter(function (d) { return d.board === "KOSDAQ"; })], ["유가증권", vds.filter(function (d) { return d.board === "KOSPI"; })]]
-      .filter(function (r) { return r[1].length; }).map(function (r) { return valRow(esc(r[0]), r[1], false); }).join("");
-    var per = vds.filter(function (d) { return d.val.method === "PER" && d.sector; }), ps = {};
-    per.forEach(function (d) { (ps[d.sector] = ps[d.sector] || []).push(d); });
-    var sRows = Object.keys(ps).filter(function (k) { return ps[k].length >= 3; }).sort(function (a, b) { return ps[b].length - ps[a].length; })
-      .map(function (k) { return valRow(esc(k), ps[k], true); }).join("");
-    var vHead = '<thead><tr><th>구분</th><th class="num">건수</th><th class="num">밴드 할인율(평균)</th><th class="num">확정가 할인율</th><th class="num">적용 배수</th></tr></thead>';
-    valPanel = '<section class="panel valp"><header><div><h2>공모가 산정 근거</h2>' + "</div></header>" +
-      '<div class="pbody">' + (vds.length ? '<div class="scroll"><table class="mini sect">' + vHead + "<tbody>" + mRows + '<tr class="gap"><td colspan="5"></td></tr>' + tRows + "</tbody></table></div>" +
-        (sRows ? '<h3 class="minih">업종별 PER 적용 (3건 이상)</h3><div class="scroll"><table class="mini sect">' + vHead + "<tbody>" + sRows + "</tbody></table></div>" : "")
-        : '<div class="empty">선택한 조건에 산정 근거를 읽은 상장 건이 없습니다.</div>') + "</div></section>";
-
-    // ---- 4-4) 대표주관사별 공모 조건(수수료율·할인율·가격 결정)
-    var ug = {};
-    deals.filter(function (d) { return !isSpac(d); }).forEach(function (d) {
-      uwSet(d).forEach(function (n) { (ug[n] = ug[n] || []).push(d); });
-    });
-    var ukeys = Object.keys(ug).filter(function (k) { return ug[k].length >= 5; }).sort(function (a, b) { return ug[b].length - ug[a].length; });
-    var uRows = ukeys.map(function (k) {
-      var ds = ug[k], fees = ds.map(function (d) { return structInfo(d).fee; }).filter(function (v) { return v != null && v > 0 && v < 15; });
-      var vs = ds.filter(function (d) { return d.val; });
-      var lo = avg(vs.map(function (d) { return d.val.disc_low; })), hi = avg(vs.map(function (d) { return d.val.disc_high; }));
-      var fd = median(vs.map(function (d) { return d.val.final_disc; }));
-      var pd = ds.filter(function (d) { return position(d); }), up = pd.filter(function (d) { var q = position(d); return q === "상단" || q === "초과"; }).length;
-      var im = median(ds.map(function (d) { return d.inst_demand_ratio; }));
-      var foc = k.indexOf(FOCUS_NAME) >= 0;
-      return "<tr" + (foc ? ' class="focus"' : "") + "><td>" + esc(k) + '</td><td class="num">' + ds.length + '</td><td class="num">' + (fees.length ? f1(avg(fees), "%") : "-") +
-        '</td><td class="num">' + (lo != null ? f1(lo) + "~" + f1(hi, "%") : "-") + '</td><td class="num">' + (fd == null ? "-" : fd < 0 ? "할증 " + f1(-fd, "%") : f1(fd, "%")) +
-        '</td><td class="num">' + (pd.length ? Math.round(up / pd.length * 100) + "%" : "-") + '</td><td class="num">' + (im != null ? ratio(im, 0) : "-") + "</td></tr>";
-    }).join("");
-    uwPanel = '<section class="panel uwp"><header><div><h2>대표주관사별 공모 조건</h2>' + "</div></header>" +
-      '<div class="pbody">' + (uRows ? '<div class="scroll"><table class="mini sect uw"><thead><tr><th>대표주관</th><th class="num">건수</th><th class="num">수수료율</th><th class="num">밴드 할인율</th><th class="num">확정가 할인율</th><th class="num">상단 이상</th><th class="num">수요예측</th></tr></thead><tbody>' + uRows + "</tbody></table></div>"
-        : '<div class="empty">선택한 조건에 대표주관 5건 이상인 주관사가 없습니다.</div>') + "</div></section>";
-
-    // ---- 5) 대표주관사 순위
-    var lg = {};
-    deals.forEach(function (d) {
-      var names = uwSet(d);
-      names.forEach(function (n) {
-        var r = lg[n] = lg[n] || { name: n, count: 0, amount: 0, tech: 0 };
-        r.count++;
-        if (d.offer_amount) r.amount += d.offer_amount / names.length;
-        if (d.board === "KOSDAQ_TECH") r.tech++;
-      });
-    });
-    var leag = Object.keys(lg).map(function (k) { return lg[k]; });
-    var lk = ["amount", "tech"].indexOf(state.league) >= 0 ? state.league : "count";
-    leag.sort(function (a, b) { return b[lk] - a[lk] || b.count - a.count; });
-    var maxL = leag.length ? Math.max(1, leag[0][lk]) : 1, topN = leag.slice(0, 15);
-    var leagueRows = topN.map(function (r, i) {
-      return '<tr class="go' + (r.name === FOCUS_NAME ? " focus" : "") + '" tabindex="0" data-uw="' + esc(r.name) + '"><td class="rank">' + (i + 1) + "</td><td>" + esc(r.name) + '</td><td class="num">' + r.count + '</td><td class="num">' + r.tech +
-        '</td><td class="num">' + eok(r.amount) +
-        '</td><td class="bar-cell"><div class="hbar" style="width:' + (r[lk] / maxL * 100).toFixed(1) + '%"></div></td></tr>';
-    }).join("");
-    leaguePanel = '<section class="panel league"><header><div><h2>대표주관사 순위</h2>' + "</div>" +
-      segBtns("data-l", [["count", "건수순"], ["amount", "공모액순"], ["tech", "기술특례순"]], lk) + '</header><div class="pbody">' +
-      '<div class="scroll"><table class="mini"><thead><tr><th>순위</th><th>대표주관</th><th class="num">건수</th><th class="num">기술특례</th><th class="num">공모액(억)</th><th class="bar-cell"><span class="sr">막대</span></th></tr></thead><tbody>' + leagueRows + "</tbody></table></div>" +
-      '<p class="snote">상위 ' + topN.length + "개사 / 전체 " + leag.length + "개사</p></div></section>";
-
+    rest = '<div class="stack">' + sectorPanel + commitPanel(byK, keys, labels, unit, halfW, H - 10) + valPanel(deals) +
+      afterPanel(byK, keys, labels, unit, W, H) + bucketPanel(deals) + uwPanel(deals, wf, wt) + schedPanel(wf, wt, W, H) + techPanel + floatPanel(deals, periodText, W, halfW, H) + "</div>";
     })();
-    var unitWord = unit === "year" ? "연도별" : unit === "quarter" ? "분기별" : "월별";
-    var stab = state.sTab || "ov";
+    var stab = STAT_TABS.some(function (t) { return t[0] === state.sTab; }) ? state.sTab : "ov";
     var stabs = '<div class="stabs" role="tablist" aria-label="통계 분류">' + STAT_TABS.map(function (t) {
       return '<button type="button" role="tab" data-st="' + t[0] + '" aria-selected="' + (t[0] === stab) + '">' + t[1] + "</button>"; }).join("") + "</div>";
-    setStatsHtml('<div class="content stat-page" data-st="' + stab + '">' + gsearchBox() + head + kpi + stabs +
-      '<section class="panel"><header><div><h2>' + unitWord + " 상장 추이</h2>" + "</div>" +
+    setStatsHtml('<div class="content stat-page" data-st="' + stab + '">' + top + scorePanel() + stabs +
+      '<section class="panel sg g-ov wide" id="st-trend"><header><div><h2>' + (unit === "year" ? "연도별" : unit === "quarter" ? "분기별" : "월별") + " 상장 추이</h2>" + "</div>" +
       segBtns("data-m", [["count", "건수"], ["amount", "공모액"]], isAmt ? "amount" : "count") + '</header><div class="pbody chart zoomable">' + legend1 + svg1 +
       '<details class="tv"><summary>표로 보기</summary>' + tbl1 + "</details></div></section>" +
       '<div class="panels even">' +
-      '<section class="panel"><header><div><h2>경쟁률 추이</h2>' + "</div></header>" +
+      '<section class="panel sg g-ov" id="st-comp"><header><div><h2>경쟁률 추이</h2>' + "</div></header>" +
       '<div class="pbody chart zoomable">' + legend2 + svg2 + "</div></section>" +
-      '<section class="panel"><header><div><h2>밴드 대비 확정가 위치</h2>' + "</div></header>" +
+      '<section class="panel sg g-px" id="st-band"><header><div><h2>밴드 대비 확정가 위치</h2>' + "</div></header>" +
       '<div class="pbody chart zoomable">' + legend3 + svg3 + "</div></section></div>" +
-      (statFast ? '<div class="keep"></div>' : '<div class="stack">' + floatP + '<div class="panels even">' + techPanel + leaguePanel + "</div>" + '<div class="panels even">' + sectorPanel + valPanel + "</div>" + uwPanel + reviewStatPanels() + "</div>") + "</div>");
-    tagStatPanels();
+      (statFast ? '<div class="keep"></div>' : rest) + "</div>");
     bindStats();
     bindChart();
-  }
-  // PC 통계: 하위 탭(개요 · 유통물량 · 주관사·심사 · 업종·공모가)으로 나눠 2단 배치. 휴대폰은 모두 한 줄로 이어서 보여 줌
-  var STAT_TABS = [["ov", "개요"], ["fl", "유통물량"], ["uw", "주관사·심사"], ["sec", "업종·공모가"]];
-  function tagStatPanels() {
-    var c = app.querySelector(".stat-page");
-    if (!c) return;
-    c.querySelectorAll("section.panel").forEach(function (p) {
-      var h = (p.querySelector("h2") || {}).textContent || "";
-      var g = /상장 추이|경쟁률 추이|밴드 대비/.test(h) ? "ov" : /유통물량/.test(h) ? "fl" : /주관사|심사/.test(h) ? "uw" : /업종|공모가|기술특례/.test(h) ? "sec" : "ov";
-      p.classList.add("sg", "g-" + g);
-      if (/상장 추이|유통물량/.test(h)) p.classList.add("wide");
-    });
-    c.querySelectorAll(".stabs button").forEach(function (b) {
-      b.addEventListener("click", function () {
-        state.sTab = b.dataset.st; c.dataset.st = b.dataset.st;
-        c.querySelectorAll(".stabs button").forEach(function (x) { x.setAttribute("aria-selected", x === b ? "true" : "false"); });
-        if (window.scrollY > 0) window.scrollTo(0, 0);
-      });
-    });
   }
   // 제스처 중에는 그래프 상자(.zoomable)를 DOM에서 떼지 않고 안쪽만 바꿉니다(포인터 캡처 유지).
   function patchNode(o, n) {
@@ -2211,7 +2480,25 @@
     app.querySelectorAll("[data-m]").forEach(function (b) {
       b.addEventListener("click", function () { state.metric = b.dataset.m; persist(); renderStats(); });
     });
-    if (statFast) return;   // 기술특례·주관사 표는 그대로 두었으므로 다시 묶지 않음
+    // 탭, 핵심 지표 행, 표본 칩(제스처 중에도 새로 그려지므로 매번 묶음)
+    app.querySelectorAll(".stabs button").forEach(function (b) {
+      b.addEventListener("click", function () { setStatTab(b.dataset.st); var t = app.querySelector(".stabs"); if (t && t.getBoundingClientRect().top < 0) window.scrollTo(0, t.getBoundingClientRect().top + window.scrollY - 90); });
+    });
+    var onAct = function (el, fn) {
+      el.addEventListener("click", fn);
+      el.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fn(); } });
+    };
+    app.querySelectorAll("tr[data-go]").forEach(function (tr) { onAct(tr, function () { var g = tr.dataset.go.split("|"); statGo(g[0], g[1]); }); });
+    app.querySelectorAll(".sfc").forEach(function (b) {
+      b.addEventListener("click", function () { var f = sfList().slice(); f.splice(+b.dataset.sfx, 1); state.sF = f; persist(); renderStats(); });
+    });
+    var sfc = document.getElementById("sf-clear");
+    if (sfc) sfc.addEventListener("click", function () { state.sF = []; persist(); renderStats(); });
+    if (statFast) return;   // 아래 표들은 그대로 두었으므로 다시 묶지 않음
+    app.querySelectorAll("[data-bk]").forEach(function (b) { b.addEventListener("click", function () { state.bKey = b.dataset.bk; persist(); renderStats(); }); });
+    app.querySelectorAll("[data-vb]").forEach(function (b) { b.addEventListener("click", function () { state.vBy = b.dataset.vb; persist(); renderStats(); }); });
+    app.querySelectorAll("[data-uv]").forEach(function (b) { b.addEventListener("click", function () { state.uView = b.dataset.uv; persist(); renderStats(); }); });
+    app.querySelectorAll("tr[data-sec]").forEach(function (tr) { onAct(tr, function () { sfAdd("sec", tr.dataset.sec); renderStats(); window.scrollTo(0, 0); }); });
     app.querySelectorAll("[data-l]").forEach(function (b) {
       b.addEventListener("click", function () { state.league = b.dataset.l; persist(); renderStats(); });
     });
@@ -2658,9 +2945,11 @@
   }
   // ---------------------------------------------------------------- 어느 화면에서나 검색(G1): 그 자리에서 결과
   var SEARCH_ICON = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13.5 13.5L17 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
-  function gsearchBox() {
+  function gsearchBox(mode) {
+    var st = mode === "stat";
     return '<div class="srow gsr" role="search"><div class="sbox">' + SEARCH_ICON +
-      '<input class="search" id="g-q" type="search" autocomplete="off" placeholder="기업명·주관사 검색 (초성 가능)" aria-label="기업명·주관사 검색" aria-controls="g-dd" aria-expanded="false">' +
+      (st ? '<input class="search" id="g-q" data-mode="stat" type="search" autocomplete="off" placeholder="주관사, 업종, 등급, 통계 찾기" aria-label="주관사, 업종, 기술평가 등급으로 표본 좁히기 또는 통계 찾기" aria-controls="g-dd" aria-expanded="false">'
+        : '<input class="search" id="g-q" type="search" autocomplete="off" placeholder="기업명·주관사 검색 (초성 가능)" aria-label="기업명·주관사 검색" aria-controls="g-dd" aria-expanded="false">') +
       '<button type="button" class="sclear" id="g-clear" aria-label="검색어 지우기" hidden><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>' +
       '</div><div class="gdd" id="g-dd" hidden></div></div>';
   }
@@ -2689,6 +2978,24 @@
   function bindGsearch() {
     var qi = document.getElementById("g-q"), dd = document.getElementById("g-dd"), qc = document.getElementById("g-clear");
     if (!qi || !dd) return;
+    if (qi.dataset.mode === "stat") {   // 통계 탭: 표본 좁히기와 통계로 이동
+      var sdraw = function () { qc.hidden = !qi.value; statSearchDraw(qi, dd); };
+      var pick = function (el) {
+        if (!el) return;
+        if (el.classList.contains("sgo")) { qi.value = ""; sdraw(); qi.blur(); statGo(el.dataset.tab, el.dataset.id); return; }
+        if (el.dataset.k === "mk") state.board = el.dataset.v; else sfAdd(el.dataset.k, el.dataset.v);
+        persist(); renderStats();
+      };
+      qi.addEventListener("input", sdraw);
+      qi.addEventListener("focus", function () { if (qi.value.trim()) sdraw(); });
+      qi.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") { dd.hidden = true; qi.blur(); }
+        if (e.key === "Enter") { e.preventDefault(); pick(dd.hidden ? null : dd.querySelector(".gri")); }
+      });
+      dd.addEventListener("click", function (e) { pick(e.target.closest(".gri")); });
+      qc.addEventListener("click", function () { qi.value = ""; sdraw(); qi.focus(); });
+      return;
+    }
     var draw = function () {
       var q = qi.value, hits = gsearchHits(q);
       qc.hidden = !q;
@@ -2777,50 +3084,6 @@
     return '<section class="brief" aria-label="오늘의 공모 브리핑"><div class="dt"><b class="mono">' + dt.getDate() + "</b><span>" + (dt.getMonth() + 1) + "월 " + WD[dt.getDay()] + '</span></div><div class="bd">' + body + "</div></section>";
   }
   // 예심 통계(주관사별 예심 실적·분기별 심사기간): 통계 화면에서 사용. KIND 수록 기간 전체 기준
-  function reviewStatPanels() {
-    var today = todayIso(), RV = data.reviews || [];
-    var decided = RV.filter(function (r) { return rvKind(r) !== "pending" && rvKind(r) !== "other" && r.f && r.d; });
-    // 주관사별 예심 실적 (KIND 수록 기간 전체, 신규상장·스팩 제외)
-    var sp = {};
-    decided.filter(rvIpo).forEach(function (r) {
-      (r.s || "미확인").split(/\s*,\s*/).forEach(function (s) {
-        var o = sp[s] = sp[s] || { s: s, n: 0, ok: 0, rej: 0, wd: 0, durs: [] };
-        o.n++;
-        var k = rvKind(r);
-        if (k === "approved") { o.ok++; o.durs.push(daysBetween(r.f, r.d)); } else if (k === "rejected") o.rej++; else o.wd++;
-      });
-    });
-    var spRows = Object.keys(sp).map(function (k) { return sp[k]; }).sort(function (a, b) { return b.n - a.n || b.ok - a.ok; });
-    var allOk = decided.filter(function (r) { return rvIpo(r) && rvKind(r) === "approved"; }).length, allN = decided.filter(rvIpo).length;
-    var minF = RV.reduce(function (m, r) { return r.d && (!m || r.d < m) ? r.d : m; }, null);
-    var spHtml = spRows.map(function (o) {
-      var foc = o.s.indexOf(FOCUS_NAME) >= 0;
-      return "<tr" + (foc ? ' class="focus"' : "") + "><td>" + esc(o.s) + '</td><td class="num">' + o.n + '</td><td class="num">' + o.ok + '</td><td class="num">' + (o.wd || '<span class="dim">0</span>') + '</td><td class="num">' + (o.rej || '<span class="dim">0</span>') +
-        '</td><td class="num"><b>' + Math.round(o.ok / o.n * 100) + '%</b></td><td class="num">' + (o.durs.length ? medInt(o.durs) + "일" : "-") + "</td></tr>";
-    }).join("");
-    var spPanel = '<section class="panel"><header><div><h2>주관사별 예심 실적</h2>' + "</div></header>" +
-      '<div class="pbody"><div class="scroll"><table class="mini rv"><thead><tr><th>주관사</th><th class="num">결과</th><th class="num">승인</th><th class="num">철회</th><th class="num">미승인</th><th class="num">승인률</th><th class="num">심사기간</th></tr></thead><tbody>' + spHtml + "</tbody></table></div>" +
-      '<p class="snote">심사기간은 승인 건의 청구일~결과일 중앙값입니다. 출처: 한국거래소 KIND 상장예비심사 현황.</p></div></section>';
-
-    // 분기별 심사기간·승인률
-    var qs = {};
-    decided.filter(rvIpo).forEach(function (r) {
-      var q = r.d.slice(0, 4) + " Q" + (Math.floor((+r.d.slice(5, 7) - 1) / 3) + 1);
-      var o = qs[q] = qs[q] || { q: q, n: 0, ok: 0, durs: [] };
-      o.n++; if (rvKind(r) === "approved") { o.ok++; o.durs.push(daysBetween(r.f, r.d)); }
-    });
-    var qList = Object.keys(qs).sort().map(function (k) { return qs[k]; });
-    var qMax = Math.max.apply(null, qList.map(function (o) { return medInt(o.durs) || 0; }).concat([1]));
-    var qHtml = qList.map(function (o) {
-      var m = medInt(o.durs);
-      return "<tr><td>" + esc(o.q) + '</td><td class="num">' + o.n + '</td><td class="num">' + Math.round(o.ok / o.n * 100) + '%</td><td class="num">' + (m != null ? m + "일" : "-") +
-        '</td><td class="bar-cell"><div class="hbar" style="width:' + (m ? Math.round(m / qMax * 100) : 0) + '%"></div></td></tr>';
-    }).join("");
-    var qPanel = '<section class="panel"><header><div><h2>분기별 심사기간</h2></div></header>' +
-      '<div class="pbody"><div class="scroll"><table class="mini rv q"><thead><tr><th>분기</th><th class="num">결과</th><th class="num">승인률</th><th class="num">심사기간</th><th class="bar-cell"><span class="sr">막대</span></th></tr></thead><tbody>' + qHtml + "</tbody></table></div></div></section>";
-
-    return '<div class="panels even">' + spPanel + qPanel + "</div>";
-  }
   function renderCal() {
     document.title = "일정 · IPO Tracker";
     view = "cal";
