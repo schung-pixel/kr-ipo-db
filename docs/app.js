@@ -2764,7 +2764,10 @@
       else if (c.lst && c.lst > today && (!nx || c.lst < nx.dt)) nx = { dt: c.lst, h: lk + " 상장" };
       rng("청약", c.ss, c.se, 1); rng("수요예측", c.ds, c.de, 2);
     });
-    evs.sort(function (a, b) { return a.o - b.o; });
+    // 정렬: 상장 → 청약 → 수요예측, 같은 종류 안에서는 남은 날이 적은(마감 임박) 순, 같으면 공모액 큰 순
+    evs.sort(function (a, b) {
+      return a.o - b.o || ((a.tot || 0) - (a.n || 0)) - ((b.tot || 0) - (b.n || 0)) || (b.d.offer_amount || 0) - (a.d.offer_amount || 0) || (name(a.d) < name(b.d) ? -1 : 1);
+    });
     // 왼쪽 큰 날짜, 오른쪽 일정 한 줄씩(점 색은 달력과 같음)
     var KC = { "상장": 3, "청약": 1, "수요예측": 0 }, dt = dOf(today);
     var SK = { "수요예측": "수요", "청약": "일반", "상장": "상장" };
