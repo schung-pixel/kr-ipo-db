@@ -1582,3 +1582,13 @@ table.mini.rv.wait th:nth-child(n+3), table.mini.rv.wait td:nth-child(n+3) { tex
 .cd.m1 .mdots i { width: 7px; height: 7px; }
 .cd.m1 .dn { width: 28px; height: 28px; }
 @media (min-width: 720px) { .cd.m1 .dn { width: 31px; height: 31px; } }
+/* 달력 오늘과 고른 날(시안 D): 동그라미 없이 표시. 고른 날은 옅은 파랑 칸, 오늘은 날짜 아래 옐로 막대.
+   칸 색이 윗줄 점에 붙지 않게 줄 간격 6px */
+.cgrid { row-gap: 6px; }
+.cgrid > .cd.m1 { border-radius: 10px; transition: background-color .15s; }
+.cd.m1 .dn, .cd.m1:hover .dn, .cd.m1.sel .dn, .cd.m1.sel:hover .dn, .cd.m1.today .dn { background: none !important; box-shadow: none !important; }
+.cgrid > .cd.m1:hover { background: var(--surface2); }
+.cgrid > .cd.m1.sel, .cgrid > .cd.m1.sel:hover { background: var(--accent-soft); }
+.cd.m1.sel .dn { color: var(--accent) !important; font-weight: 800; }
+.cd.m1.today .dn { position: relative; color: var(--accent) !important; font-weight: 800; }
+.cd.m1.today .dn::after { content: ""; position: absolute; left: 7px; right: 7px; bottom: 2px; height: 3px; border-radius: 2px; background: var(--nh-yellow, #FDBA31); }
